@@ -65,7 +65,7 @@ def runtime_counts(log, routes, layers, expected_fallback, q_fallback=""):
                 errors.append("Unexpected Q fallback identity: " + line)
             q_fallback_counts[current][fields.get("reason", "unknown")] += 1
     wanted = {0} if layers == "0" else set(range(4 if layers == "0-3" else 30))
-    allowed_custom = {"S": set(), "Q4": {"q-custom"},
+    allowed_custom = {"S": set(), "QB": set(), "Q4": {"q-custom"},
                       "G": {"ffn-mech-G-dual", "ffn-mech-G-post"},
                       "K": {"ffn-mech-K-dual", "ffn-mech-K-postnorm"}, "F8": {"ffn-fused"}}
     if q_fallback:
@@ -82,7 +82,7 @@ def runtime_counts(log, routes, layers, expected_fallback, q_fallback=""):
             errors.append(route + " stock Q coverage mismatch")
         if encoded[route]["ffn-stock-down"] != 960:
             errors.append(route + " stock down coverage mismatch")
-        if route != "S":
+        if route not in ("S", "QB"):
             expected = ({0} if not q_fallback else set()) if route == "Q4" else wanted - (expected_fallback if route == "K" else set())
             if dict(eligible[route]) != {index: 32 for index in expected}:
                 errors.append(route + " target layer/32-step coverage mismatch")
@@ -99,6 +99,65 @@ def runtime_counts(log, routes, layers, expected_fallback, q_fallback=""):
             "Q_fallbacks": {k: dict(v) for k, v in q_fallback_counts.items()},
             "prefill_custom_dispatches": prefill_custom,
             "prefill_custom_completions": prefill_custom_completions}, errors
+
+
+
+def validate_q_guard_control(log, routes):
+    """Require successful live guard traversal, not a rejected-guard fallback."""
+    guards = collections.defaultdict(list)
+    abis = collections.defaultdict(list)
+    psos = collections.defaultdict(list)
+    current = None
+    prefill = False
+    errors = []
+    prefill_guards = 0
+    for line in log.splitlines():
+        fields = dict(re.findall(r"(\w+)=(\[[^\]]*\]|[^\s]+)", line))
+        if line.startswith("FFNK_PREFILL_BEGIN "):
+            prefill = True
+        if line.startswith("FFNK_PREFILL_END "):
+            prefill = False
+        if line.startswith("FFNK_PATH_BEGIN "):
+            current = fields["route"]
+        if line.startswith("FFNK_PATH_END "):
+            current = None
+        if line.startswith("BITNET_Q_GUARD_PASS "):
+            prefill_guards += prefill
+            if current:
+                guards[current].append(fields)
+        if current and line.startswith("BITNET_Q_STOCK_ABI "):
+            abis[current].append(fields)
+        if current and line.startswith("BITNET_MULTILAYER_ENCODE ") and fields.get("node") == "Qcur-0" and fields.get("n") == "1" and fields.get("route") == "q-stock":
+            psos[current].append(fields.get("pso"))
+    if "QB" not in routes:
+        return {}, errors
+    expected_steps = list(map(str, range(1, 33)))
+    if prefill_guards:
+        errors.append("Guard-only validation ran during prefill")
+    for route in routes:
+        expected_count = 32 if route == "QB" else 0
+        if len(guards[route]) != expected_count:
+            errors.append(route + " guard-only success count mismatch; a rejected guard is not valid B")
+    if [v.get("step") for v in guards["QB"]] != expected_steps:
+        errors.append("QB guard checks did not cover all 32 decode steps in order")
+    if any(v.get("checked") != "1" or v.get("custom_encoded") != "0" or v.get("width") != "32" or v.get("rows") != "4" or v.get("simd") != "1" or v.get("bounds") != "1" or v.get("disjoint") != "1" for v in guards["QB"]):
+        errors.append("QB full guard or candidate-capability evidence is incomplete")
+    keys = ("node", "step", "pipeline", "cached_pipeline", "args_bytes", "add", "norm", "grid", "threads", "smem", "w", "x", "y", "residual", "norm_weight", "slots")
+    for route, guarded in (("S", "0"), ("QB", "1")):
+        if len(abis[route]) != 32 or [v.get("step") for v in abis[route]] != expected_steps:
+            errors.append(route + " native stock ABI evidence coverage mismatch")
+        if any(v.get("guarded") != guarded or v.get("args_bytes") != "120" or v.get("add") != "0" or v.get("norm") != "0" or v.get("grid") != "[320,1,1]" or v.get("threads") != "[32,2,1]" or v.get("slots") != "[0,1,2,3,4,5]" for v in abis[route]):
+            errors.append(route + " native stock ABI/geometry mismatch")
+        if len(psos[route]) != 32 or any(v in (None, "0x0", "(nil)") for v in psos[route]):
+            errors.append(route + " actual stock PSO evidence missing")
+    if [[v.get(k) for k in keys] for v in abis["S"]] != [[v.get(k) for k in keys] for v in abis["QB"]]:
+        errors.append("S/QB native ABI, cached pipeline, bindings, offsets or launch differ")
+    if psos["S"] != psos["QB"]:
+        errors.append("S/QB actual compiled stock PSOs differ")
+    return {"guard_only_hits": {r: len(guards[r]) for r in routes},
+            "native_stock_ABI_records": {r: len(abis[r]) for r in routes},
+            "prefill_guard_hits": prefill_guards, "same_native_stock_ABI_and_PSO": not errors,
+            "guard_records": dict(guards), "native_stock_ABI_records_raw": dict(abis)}, errors
 
 
 def read_q_qualification(path):
@@ -229,12 +288,12 @@ def main():
         timing = args.mode.endswith("benchmark")
         routes = args.routes.split(",") if graph else ["S"]
         require(routes and routes[0] == "S" and len(set(routes)) == len(routes)
-                and set(routes) <= {"S", "G", "K", "F8", "Q4"}, "Unique routes must begin with S")
-        require("Q4" not in routes or args.layers == "0", "Q4 real-graph route is layer-0 only")
+                and set(routes) <= {"S", "G", "K", "F8", "Q4", "QB"}, "Unique routes must begin with S")
+        require(not (set(routes) & {"Q4", "QB"}) or args.layers == "0", "Q4 real-graph route is layer-0 only")
         require(not args.q_readback or (args.mode == "graph-verify" and args.layers == "0"
-                and set(routes) <= {"S", "Q4"} and not args.q_fallback), "Q readback is restricted to layer-0 S/Q4 correctness")
+                and set(routes) <= {"S", "Q4", "QB"} and not args.q_fallback), "Q readback is restricted to layer-0 S/Q4/QB correctness")
         require(not args.q_fallback or (args.mode == "graph-verify" and args.layers == "0"
-                and "Q4" in routes and set(routes) <= {"S", "Q4"} and not args.q_readback),
+                and "Q4" in routes and set(routes) <= {"S", "Q4", "QB"} and not args.q_readback),
                 "Q fallback must be a separate layer-0 S/Q4 correctness control")
         cfg = {"output": prefix, "model": safe_component(model.name), "model_sha256": args.model_sha256,
                "operation": "benchmark" if graph and timing else "verify" if graph else "operator",
@@ -257,7 +316,7 @@ def main():
                 libraries["mechanisms"] = "ffn-mechanisms.metallib"
             for route, filename in (("K", "k0-postnorm-inplace.metallib"), ("F8", "ffn-gate-up-8x2.metallib"),
                                     ("Q4", "q-stock4x1.metallib")):
-                if route in routes:
+                if route in routes or (route == "Q4" and "QB" in routes):
                     libraries[route] = filename
             if timing and set(routes) & {"K", "F8"}:
                 require(args.research_gate is not None, "K/F8 timing requires an explicit research qualification gate")
@@ -460,6 +519,9 @@ def main():
                 counts, count_errors = runtime_counts(log, routes, args.layers, expected_fallback, args.q_fallback or "")
                 summary["runtime"] = counts
                 errors.extend(count_errors)
+                guard_control, guard_errors = validate_q_guard_control(log, routes)
+                summary["Q_guard_control"] = guard_control
+                errors.extend(guard_errors)
             if result.get("q_readback_enabled") is not args.q_readback:
                 errors.append("Q readback completion does not match the requested mode")
             if result.get("q_fallback_mode", "") != (args.q_fallback or ""):
@@ -484,6 +546,10 @@ def main():
                         require(first.is_file() and repeat.is_file() and first.stat().st_size == repeat.stat().st_size == 128256 * 4,
                                 "Missing probe/non-probe full logits")
                         require(first.read_bytes() == repeat.read_bytes(), "Q probe changed observed full logits")
+                if "QB" in routes:
+                    require(manifests["S"]["files"] == manifests["QB"]["files"],
+                            "QB and S captured W/X/Y or residual hashes differ")
+                    summary["Q_guard_same_inputs_and_pre_RoPE_outputs_bitwise"] = True
                 summary["q_readback_coverage_pass"] = True
                 summary["probe_logit_nonperturbation_pass"] = True
                 summary["q_readback_manifests"] = records
