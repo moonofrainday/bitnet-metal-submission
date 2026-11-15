@@ -23,6 +23,7 @@ extern "C" int bitnet_run_iphone_operator(const char*,const char*,const char*,co
 extern "C" int bitnet_run_iphone_q(const char*,const char*,const char*,const char*);
 extern "C" int bitnet_run_iphone_down(const char*,const char*,const char*,const char*);
 extern "C" int bitnet_run_iphone_original_poc(const char*,const char*,const char*,const char*);
+extern "C" int bitnet_run_iphone_ppl(const char*,const char*,const char*);
 extern "C" void ggml_metal_bitnet_shadow_wait(void);
 namespace bitnet_candidate {
 namespace fs=std::filesystem;
@@ -90,6 +91,17 @@ static int run(){
  const fs::path docs=[[[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject path].UTF8String;
  const std::string prefix=str(c[@"output"]);require(prefix.rfind("candidate-",0)==0&&prefix.find('/')==std::string::npos,"invalid output prefix");Options o;o.out=docs/prefix;require(!fs::exists(o.out),"refuse existing output");fs::create_directories(o.out);json(o.out/"request.json",c);
  const std::string model=str(c[@"model"]);require(model.find('/')==std::string::npos,"invalid model basename");o.model=docs/model;NSString*modelSHA=hashFile(o.model);require([modelSHA isEqual:c[@"model_sha256"]],"GGUF checksum mismatch");std::fprintf(stderr,"BITNET_PHONE_MODEL_SHA256 %s\n",modelSHA.UTF8String);fflush(stderr);
+
+ if([c[@"operation"] isEqual:@"quality"]){
+  const std::string fixture=str(c[@"quality_fixture"]);require(fixture.rfind("candidate-",0)==0&&fixture.find('/')==std::string::npos,"invalid quality fixture basename");
+  require([hashFile(docs/fixture/"QUALITY.json") isEqual:c[@"quality_fixture_sha256"]],"quality fixture checksum mismatch");
+  const int code=bitnet_run_iphone_ppl(o.model.c_str(),(docs/fixture).c_str(),(o.out/"quality").c_str());
+  require(code==0,"quality measurement failed with exit"+std::to_string(code));
+  NSData*d=[NSData dataWithContentsOfFile:@((o.out/"quality/summary.json").c_str())];require(d!=nil,"missing quality completion");
+  NSMutableDictionary*record=[[NSJSONSerialization JSONObjectWithData:d options:NSJSONReadingMutableContainers error:nil]mutableCopy];require([record isKindOfClass:NSMutableDictionary.class]&&[record[@"execution_pass"]boolValue],"invalid quality completion");
+  record[@"operation"]=@"quality";record[@"model_sha256"]=modelSHA;record[@"quality_fixture_sha256"]=c[@"quality_fixture_sha256"];record[@"process_exit_code"]=@(code);
+  json(o.out/"result.json",record);NSData*encoded=[NSJSONSerialization dataWithJSONObject:record options:NSJSONWritingSortedKeys error:nil];std::printf("BITNET_PHONE_COMPLETE %s\n",[[[NSString alloc]initWithData:encoded encoding:NSUTF8StringEncoding]UTF8String]);fflush(stdout);return code;
+ }
 
  if([c[@"operation"] isEqual:@"operator"]){
   NSDictionary*operatorLibraries=c[@"libraries"]?:@{};
