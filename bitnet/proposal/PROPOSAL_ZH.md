@@ -13,7 +13,7 @@
 | 截至证据截止日的验证内容 | 结果与选型 |
 |---|---|
 | iPhone 14 Pro 上公开 2B 模型的 stock 推理 | 使用 A16 Metal 成功加载并生成 32 tokens，31/31 层完成 offload。功能执行通过；尚未忠实执行 Microsoft ActQuant。 |
-| 公开模型语义 | 默认 baseline 缺少 ActQuant。新增 opt-in 已实现 source-derived F32 quantizer 并通过捕获数据的同输入检查；完整模型的冻结 reference 验收仍失败。 |
+| 公开模型语义 | 默认 baseline 缺少 ActQuant。新增 opt-in 已实现 source-derived F32 quantizer 并在 Mac 与 A16 上通过捕获数据的同输入检查；完整模型的冻结 reference 验收仍失败。 |
 | 真实第 0 层计算图中的 Q4 specialization | 两组固定 history 均通过全部 32 次 Q 检查、抽样 residual 检查和完整 logits 的 parity 检查。保持 opt-in。 |
 | 移动端性能 | Q4 每次独立 Q dispatch 节省约 6-7 us；没有观察到完整 decode 的收益。不能据此宣称模型加速。 |
 | FFN 研究 | G 保留了已观测到的 stock 输出；F8 有性能证据，也保留数值和模型输出验收失败记录。二者都没有修复完整链路的 FP64 问题。 |
@@ -97,18 +97,18 @@ y = linear(xq, ternary_weight) * weight_scale
 <!-- page -->
 ### ActQuant 实现与剩余 reference 差距
 
-独立实验分支新增了默认关闭的 `LLAMA_BITNET_ACTQUANT=1`。在每个 block 对应的 weighted normalization 后插入四个共享 quantizer：Q/K/V 输入、attention-output 输入、gate/up 输入和 down 输入。共 120 个节点覆盖 210 个 projections；tied lm_head 保持不变。独立 CPU 和 Metal `GGML_OP_ACT_QUANT` 实现保留既有 stock shader 的数学配置，只有新增 Metal library 使用已观测的 Safe/Precise 编译选项。[E10]
+独立实验分支新增了默认关闭的 `LLAMA_BITNET_ACTQUANT=1`。在每个 block 对应的 weighted normalization 后插入四个共享 quantizer：Q/K/V 输入、attention-output 输入、gate/up 输入和 down 输入。共 120 个节点覆盖 210 个 projections；tied lm_head 保持不变。独立 CPU 和 Metal `GGML_OP_ACT_QUANT` 实现保留既有 stock shader 的数学配置，只有新增 Metal library 使用已观测的 Safe/Precise 编译选项。[E10][E11]
 
 固定源码的 source-derived Torch F32 eager profile 实际以 `(1.0f / absmax) * 127.0f` 计算 scale。虽然数学等价，直接计算 `127.0f / absmax` 在部分行相差 1 ULP，并在首次真实图捕获中产生两个错误的 integer codes。失败记录和七数值反例均已保留。修复求值顺序后，扩展 fixtures 和全部捕获 quantizer 在各自实际输入上通过；这不代表所有 Torch compiler 或 dtype profile 都已验证。
 
-| M2 Pro 新增数值证据 | 结果与范围 |
+| Mac 与 iPhone 真机数值证据 | 结果与范围 |
 |---|---|
-| 独立 CPU 与 Metal operator fixtures | 每个 backend 检查 20 cases、386,567 个数值；冻结容差与精确 recovered-code 检查通过。覆盖手算 ties、epsilon、dense 输入、真实 steps 1/16/32 和边界回归。 |
-| 修复后的 teacher-forced 图 | 实际捕获 3,960 次 ActQuant、25,581,568 个数值；所有输出在同一捕获输入上与官方 F32 ActQuant 逐位一致。31/31 层完成 offload。 |
-| Backend regression | MTL0 上 ACT_QUANT 16/16 和原 TQ2_0 MUL_MAT 59/59 通过。 |
+| 独立 CPU 与 Metal operator fixtures | CPU、M2 Pro Metal 和 A16 Metal 每个 backend 检查 20 cases、386,567 个数值；全部输出与官方 F32 profile 逐位一致。覆盖 ties、epsilon、dense 输入、真实 steps 1/16/32 和边界回归。 |
+| 修复后的 teacher-forced 图 | M2 Pro 和 A16 每台设备实际捕获 3,960 次 ActQuant、25,581,568 个数值；所有输出在各自实际输入上与官方 F32 ActQuant 逐位一致。31/31 层完成 offload。 |
+| Backend regression | M2 Pro MTL0 上 ACT_QUANT 16/16 和原 TQ2_0 MUL_MAT 59/59 通过；它们与 A16 App harness 单独记录。 |
 | 完整模型 reference | 完整 teacher logits 与层输出仍超过冻结容差；strict exit 1 保留。局部 ActQuant 正确不等于完整模型数值等价。 |
-| 小规模 128-target corpus | Metal ON PPL 19.127702、OFF 19.088221；source-derived F32 ON PPL 19.129530。仅为小规模 quality smoke，不宣称验收通过或质量改善。 |
-| 此新增构建的 iPhone 真机 | TODO：sample-I/O、真实图执行、中间张量/logit 对照和 corpus 计分。此前手机结果使用尚未修复的 baseline。 |
+| 小规模 128-target corpus | A16 ON PPL 19.127702、OFF 19.088221；source-derived F32 ON PPL 19.129530。仅为小规模 quality smoke，不宣称验收通过或质量改善。 |
+| 此新增构建的 iPhone 真机 | iPhone 14 Pro、iOS 27.2.1、Apple A16 GPU；签名构建来自 4c249e3。全部 6/6 次 App 运行完成，native exit 0；模型对照仍为 strict exit 1。未测新增性能。 |
 
 关闭开关后的 logits 与已保存 baseline 逐位一致，带诊断捕获和普通执行的 logits 也一致。原 CPU/Metal 和完整 FFN 失败均未被覆盖。F32/BF16、per-token ActQuant、CPU 额外的 blockwise Q8_K packing、prefill/decode 算术与 KV 精度继续分别控制。下一步先定位 stock 模型剩余的 reference 漂移，再决定是否具备宣称忠实推理的证据。本次不新增 Mac 性能结果。
 
@@ -404,7 +404,7 @@ A16 的共享资源和持续运行的热预算有限。应保持 packed weights 
 |---|---|---|
 | 功能推理 | 加载并生成，确认 mobile GPU offload；没有意外 fallback 或崩溃 | 公开 2B 在 A16 上通过；团队模型与 Android 待验证 |
 | 算子正确性 | 全部必需输出均为有限值、完整写入并满足冻结 FP64 容差；另行报告 stock 差异 | 原始 PoC 的主机/真机样例与本轮手机 Q4 通过 |
-| 模型语义 | 转换、ActQuant、选定中间张量及 teacher-forced logits 与可信源码对齐 | Opt-in 同输入 quantizer 通过；完整模型 reference 与手机验收仍待完成 |
+| 模型语义 | 转换、ActQuant、选定中间张量及 teacher-forced logits 与可信源码对齐 | Opt-in 同输入 quantizer 通过；完整模型 reference 仍未完成；A16 局部 quantizer 验收通过 |
 | 语言质量 | 预先声明 held-out NLL/PPL 和任务预算，匹配 tokenizer，并记录不确定性 | 已测 128-token test-split smoke；产品验收未验证 |
 | 层兼容性 | 两组 history 的必需 Q/residual/logit 检查通过；保留严格判据下的失败 | Q4 在声明的 layer-0 范围通过；更广的质量评测未测 |
 | 算子优化 | 与实际 stock 直接配对，3 轮的耗时降低中位数目标至少 5%，并检查执行顺序 | Q4 实测 2.68%-3.11%，低于这一后续目标 |
@@ -440,7 +440,7 @@ A16 的共享资源和持续运行的热预算有限。应保持 packed weights 
 
 某个候选失败后，应保留失败结果，并继续可独立推进的工作，例如 reference 检查、构建可移植性或文档。不要在没有区分性假设的情况下，用剩余时间不断生成相似变体。签名或真机访问受阻时，保存最小 reproducer，同时继续 CPU 与源码任务。
 
-实验 ActQuant 已通过同输入检查。当前优先对齐剩余 stock 模型精度与误差传播，比较可信源码中间张量和 teacher-forced logits，再验收新增手机构建。即使 quantizer 正确，细小的上游差异仍可能跨越 INT8 rounding 边界。后续性能必须计入 quantizer 准备成本。[E9] 中的 same-stock guard 对照支持框架归因；选择下一个性能目标前，仍需按算子类别测量关键路径。
+实验 ActQuant 已通过同输入检查。当前优先对齐剩余 stock 模型精度与误差传播，比较可信源码中间张量和 teacher-forced logits，再验收新增手机构建剩余的模型 fidelity 范围。即使 quantizer 正确，细小的上游差异仍可能跨越 INT8 rounding 边界。后续性能必须计入 quantizer 准备成本。[E9] 中的 same-stock guard 对照支持框架归因；选择下一个性能目标前，仍需按算子类别测量关键路径。
 
 <!-- page -->
 ## 14 风险假设与应对方案
@@ -523,7 +523,9 @@ python3 bitnet/ios/run.py --build-dir "$ARTIFACTS/build" \
 - [E8] Workspace 中的 `outputs/review-response-2026-11-15/semantics/`；精确源码 CPU 脚本、`SEMANTICS.md`、`reference-full/`、`reference-full-f32/`、作为正式计分依据的 `SCORING-FP64.json` 和 `reference-ggml-f32-comparison-v2/`。手机 smoke 和 raw logits 保留于 [E7]。整理后的源码/分析位于 `bitnet/analysis/review-2026-11-15/`。
 - [E9] Workspace [E7] 中的 guard 实验；源码包中的 `bitnet/docs/PHONE_GUARD_CONTROL_2026-11-15.md`；源码与派生的 `PROFILE_NUMERICS.md` 说明归因边界，并保留第一次无效诊断运行。
 
-- [E10] Workspace `outputs/experiments/actquant-2026-11-15_231612+0900/`；保留 direct-scale 失败、修复后的 CPU/Metal fixtures、teacher/corpus 运行和 sequential-prefill 对照。Package `bitnet/actquant/` 与 `bitnet/analysis/actquant-2026-11-16/` 包含代码和分析；原始证据留本地。新增 iPhone 结果为 TODO。
+- [E10] Workspace `outputs/experiments/actquant-2026-11-15_231612+0900/`；保留 direct-scale 失败、修复后的 CPU/Metal fixtures、teacher/corpus 运行和 sequential-prefill 对照。Package `bitnet/actquant/` 与 `bitnet/analysis/actquant-2026-11-16/` 包含代码和分析；原始证据留本地。新增真机结果单独索引于 [E11]。
+
+- [E11] Workspace `outputs/experiments/actquant-2026-11-15_231612+0900/phone-2026-11-16_074633+0900/`；签名构建身份、A16 全部 operator cases、captured/plain teacher 和 128-target corpus 诊断。Package `bitnet/analysis/actquant-iphone-2026-11-16/` 仅保留分析。Native 完成与局部 quantizer 通过不覆盖完整模型 strict exit 1。
 
 <!-- page -->
 ### 公开原始资料

@@ -17,8 +17,8 @@
   "outputs": [
     {
       "path": "PROPOSAL.md",
-      "bytes": 60763,
-      "sha256": "d8fe335b406b4ae7c9a1ac18b49575871f98f35d240b500867bc92fa08f94880"
+      "bytes": 61408,
+      "sha256": "7bff2a8036bfddaff231fa22e82d054652ade1cb7699342a179772c8864a62bc"
     },
     {
       "path": "OUTLINE.md",
@@ -47,13 +47,13 @@
     },
     {
       "path": "BitNet_Mobile_GPU_Proposal.pdf",
-      "bytes": 232274,
-      "sha256": "260a65fdc4741b29f26bd0702941ccee7be7bb6ded39ad32b3787333ffffcc6f"
+      "bytes": 232657,
+      "sha256": "cc50e9b327adcb28a3757df15436e0d793eff3a4a493db4f0bd3f4eab77f4004"
     },
     {
       "path": "BitNet_Mobile_GPU_Proposal.docx",
-      "bytes": 128674,
-      "sha256": "bd6e9533d61f3704dd05b9b22570f07101b78b221565ef639460aa0fb72e829f"
+      "bytes": 128885,
+      "sha256": "1d0051259138fc342bea411adc45e09bcb30ee3c9b1691a5625a62354edffa74"
     }
   ],
   "quality_review": {
@@ -64,7 +64,8 @@
     "clipping_overlap_or_missing_glyphs_observed": false,
     "title_paragraph_borders_remaining": 0,
     "personal_host_device_or_signing_IDs_embedded": false,
-    "new_ActQuant_revision_QA": "all initial22 pages plus finalchanged17/18/19; unchangedWordbodycomparison"
+    "new_ActQuant_revision_QA": "all initial22 pages plus finalchanged17/18/19; unchangedWordbodycomparison",
+    "new_phone_revision_QA": "changed pages1/5/17/18/21 in both formats plus all unchanged bodies/footers"
   },
   "Metal_shader_arithmetic_changed_in_this_review": false,
   "source_baseline_before_review": "eb7858492d0f39e7a4f97f58ef53239c17bcb594",
@@ -82,10 +83,15 @@
   "report_revision_base_commit": "816c0c4f7a8f7337d26289033ee13ed7ff0f0b53",
   "historical_FFN_evidence_reorganized": true,
   "ActQuant_experiment_resumed": true,
-  "GPU_measurement_scope": "Mac numerical validation only; no Mac performance or new phone run",
+  "GPU_measurement_scope": "Mac numerical validation and A16 functional/numerical diagnostics; no new performance measurement",
   "ActQuant_same_input_F32_pass": true,
   "full_model_source_F32_pass": false,
-  "new_ActQuant_phone_pass": null,
+  "new_ActQuant_phone_pass": true,
   "ActQuant_revision_base_commit": "b7efadd3b0e4d8ae1000798eb1e869c285dcca07",
-  "ActQuant_backend_patch_sha256": "4f67351cf9a00bfe107c03593c318f950b7fd98b6c19c8d8123e2e9f5fce3fa3"
+  "ActQuant_backend_patch_sha256": "4f67351cf9a00bfe107c03593c318f950b7fd98b6c19c8d8123e2e9f5fce3fa3",
+  "new_ActQuant_phone_scope": "A16 operator and full captured graph same-input quantizer; full-model F32 reference still fails",
+  "new_phone_compute_commit": "4c249e3e13dfce7b21bc2bab0912a1ff4807bc7e",
+  "phone_offload_count": "31/31",
+  "phone_corpus_ON_PPL": 19.12770191845115,
+  "new_phone_performance_measured": false
 }

@@ -15,8 +15,8 @@
   "table_count": 24,
   "table_cells_checked": 515,
   "code_blocks": 5,
-  "inline_code_entries": 83,
-  "references": 78,
+  "inline_code_entries": 85,
+  "references": 81,
   "URL_count": 18,
   "English_file_checks": {
     "PROPOSAL.md": true,
@@ -25,8 +25,8 @@
     "assets/execution-flow.png": true,
     "assets/execution-flow.svg": true
   },
-  "English_source_sha256": "d8fe335b406b4ae7c9a1ac18b49575871f98f35d240b500867bc92fa08f94880",
-  "Chinese_source_sha256": "901026c8ab056790b584ec5d0985618954c44bd1c6211d9280b9ec86442c970c",
+  "English_source_sha256": "7bff2a8036bfddaff231fa22e82d054652ade1cb7699342a179772c8864a62bc",
+  "Chinese_source_sha256": "178f238cfa4aa9f8f04ff1ff6f1afb70a13e597809c272dc3cf1ea331a9b6236",
   "date_normalization": "Chinese and English evidence-cutoff dates normalize to the same day in November 2026",
   "scope": "Document translation literal/structure checks, not new numerical or model validation"
 }

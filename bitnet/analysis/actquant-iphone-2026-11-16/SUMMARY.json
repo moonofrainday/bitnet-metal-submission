@@ -1,0 +1,731 @@
+{
+  "schema": 1,
+  "date": "2026-11-16",
+  "scope": "Physical A16 V2 ActQuant operator qualification and full-model diagnostics; fidelity gate remains failed",
+  "source_commit": "4c249e3e13dfce7b21bc2bab0912a1ff4807bc7e",
+  "pinned_QVAC_commit": "2db8b046d555316019ae75d1be90484adc8b9330",
+  "public_GGUF_sha256": "52257df879ab4366d97228e7bda94a9a3c6a9065ec44e7879a8b87d54e568cd2",
+  "official_source_sha256": "a8b3170f1824f010701f4e033fbc33d199bc2ea344ddbf2554594b66fada8b1c",
+  "fixture_manifest_sha256": "6261015aae073d25695161cd20570a3ec0bb2c0ebd8785263853069a422a41f4",
+  "hardware": {
+    "model": "iPhone 14 Pro",
+    "GPU": "Apple A16 GPU",
+    "backend": "MTL0",
+    "iOS": "27.2.1",
+    "Xcode": "Xcode 27.2",
+    "iPhoneOS_SDK": "27.2"
+  },
+  "operator": {
+    "cases": 20,
+    "values": 386567,
+    "numerical_pass": true,
+    "execution_pass": true,
+    "strict_operator_exit_code": 0,
+    "output_bitwise_differences": 0,
+    "recovered_integer_code_mismatches": 0,
+    "frozen_tolerance_failures": 0,
+    "nonfinite": 0,
+    "maximum_ULP": 0,
+    "max_abs_error": 0.0,
+    "all_runtime_buffers_MTL0": true,
+    "inputs_unchanged": true,
+    "canaries_unchanged": true,
+    "output_hashes_verified": true,
+    "A16_outputs_equal_Mac_V2_MTL0_all_cases": true,
+    "GPU_executed": true,
+    "actual_encode_records": 20,
+    "synchronized_completion_markers": 20,
+    "native_process_exit_code": 0,
+    "actual_app_exit_code": 0,
+    "collection_exit_code": 0,
+    "native_collection_strict_model_exit_code": 2,
+    "native_collection_model_gates_remain_null": true
+  },
+  "frozen_tolerance": {
+    "absolute": 0.0002,
+    "relative": 2e-05
+  },
+  "arithmetic_profile": "Pinned official source eager F32; scale=F32(F32(1/max(absmax,eps))*127); ties-even; clamp[-128,127]; output divide",
+  "runtime_math_options_actual_getters": {
+    "library": "act_quant",
+    "origin": "embedded data",
+    "languageVersion": 262144,
+    "mathMode": 0,
+    "expectedSafe": 0,
+    "mathFloatingPointFunctions": 1,
+    "expectedPrecise": 1
+  },
+  "runtime_pipeline": {
+    "kernel": "kernel_act_quant_f32",
+    "SIMD_width": 32,
+    "max_threads_per_threadgroup": 1024,
+    "threads_per_token_threadgroup": 256,
+    "grid_x": "token row count",
+    "binding_slots": {
+      "arguments": 0,
+      "X": 1,
+      "Y": 2
+    },
+    "stock_library_options_unchanged": true
+  },
+  "build_identity": {
+    "signed_build_completed": true,
+    "framework_sha256": "4219a1c6accb48792ddf2eef393036e55ec40c4ae1dc058a1bddb38d776f5d40",
+    "source_package_and_binary_hashes_verified": true,
+    "verified_hash_counts": {
+      "source_files_sha256": 1067,
+      "package_sources_sha256": 25,
+      "app_files_sha256": 3,
+      "object_sha256": 6
+    },
+    "app_binary_sha256": [
+      "0b2378cf774cc837c06727469f4532fa1a27b3b0fb49523c601d4bd7bf9e568e",
+      "6fd37d4e4d1060b49acefe4cc0a27d531b26101e09799965adeda7a608055a41",
+      "f4230d34871d03e0ebaab70fb5e9df909a64f1650eee182321f84b3bdd0c6afb"
+    ],
+    "helper_object_sha256": [
+      "168e78435e743b3efddcb090547c1f433e1b97480f0c63551d22eb60172d03ee",
+      "2c7543018d2bea36dd8c2e6c0c1eb00753a948fd4178b9fbc0311197f2a73db5",
+      "78cc47a331c772bd38d4a85cdf6622b4a9a6d5c4c734801978544d8b82f6cdd5",
+      "c1591cc527b6dffcb263ac2d714578d784441802174d2a2c5fcdd0826b255537",
+      "e3db14f389eae37129c8eb46550f4715bbc4f2ed43d1888122e209b3b406d49d",
+      "e8075ad1c2417f52cad7cfd8d17c8d29177530ebe796656a9284b905aeac504f"
+    ],
+    "same_framework_source_as_clean_Mac_operator_build": true
+  },
+  "model_diagnostics": {
+    "status": "COLLECTION_COMPLETE_REFERENCE_OUTPUT_FAIL",
+    "same_signed_operator_qualified_build_required": true,
+    "graph_quantizer_same_input_pass": true,
+    "quantizer_coverage_pass": true,
+    "quantizer_captures": 3960,
+    "actual_quantizer_encode_records": 3960,
+    "captured_quantizer_values": 25581568,
+    "all_captured_quantizer_values_bitwise_equal_to_official_on_own_input": true,
+    "model_output_pass": false,
+    "fp64_pass": null,
+    "model_quality_pass": null,
+    "semantic_acceptance_pass": null,
+    "strict_model_analyzer_exit_code": 1,
+    "capture_plain_full_logits_bitwise_equal_33_positions": true,
+    "KV_placement": {
+      "buffer": "MTL0",
+      "dtype": "F16",
+      "total_MiB": 37.5,
+      "K_MiB": 18.75,
+      "V_MiB": 18.75
+    },
+    "cross_device_full_logits": {
+      "teacher-ON-plain": {
+        "vectors": 33,
+        "bitwise_equal_vectors": 33
+      },
+      "teacher-OFF-plain": {
+        "vectors": 33,
+        "bitwise_equal_vectors": 33
+      },
+      "corpus-ON-plain": {
+        "vectors": 128,
+        "bitwise_equal_vectors": 128
+      },
+      "corpus-OFF-plain": {
+        "vectors": 128,
+        "bitwise_equal_vectors": 128
+      }
+    },
+    "runs": {
+      "teacher-OFF-plain": {
+        "execution_pass": true,
+        "native_process_exit_code": 0,
+        "actual_app_exit_code": 0,
+        "completed_decode_calls": 33,
+        "full_logit_vectors": 33,
+        "offloaded_layers": 31,
+        "total_offload_layers": 31,
+        "activation_quantization": false,
+        "prefill": "batched",
+        "KV": "F16",
+        "settings": {
+          "n_ctx": 512,
+          "batch": 128,
+          "ubatch": 128,
+          "threads": 6,
+          "flash_attention": false
+        },
+        "thermal_after": "nominal",
+        "same_input_quantizer_pass": null,
+        "quantizer_coverage_pass": null,
+        "quantizer_summary": null,
+        "quantizer_captures": 0,
+        "recovered_integer_code_mismatches": 0,
+        "layer_coverage_pass": false,
+        "F32_ON_layer_output_summary": null,
+        "F32_ON_logits": {
+          "vectors_or_captures": 33,
+          "values": 4232448,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 4229647,
+          "bitwise_differences": 4232448,
+          "max_abs_error": 1.4380550384521484,
+          "max_error_over_tolerance": 4158.182233582763,
+          "RMSE": 0.25197921387568656,
+          "relative_L2": 0.037619696839742534,
+          "greedy_equal_positions": 31
+        },
+        "F32_OFF_logits": {
+          "vectors_or_captures": 33,
+          "values": 4232448,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 2944811,
+          "bitwise_differences": 4231624,
+          "max_abs_error": 0.005445241928100586,
+          "max_error_over_tolerance": 21.325679856868735,
+          "RMSE": 0.0007240584062516954,
+          "relative_L2": 0.00011095713757028024,
+          "greedy_equal_positions": 33
+        },
+        "scores": {
+          "targets": 32,
+          "expected_targets": 32,
+          "all_target_scores_available": true,
+          "scope": "Fixed-continuation teacher-forced NLL/PPL, not held-out quality",
+          "actual_mean_NLL": 0.5900332748240524,
+          "actual_PPL": 1.8040484437936835,
+          "references": {
+            "F32_quant_on": {
+              "mean_NLL": 0.5949242252726774,
+              "PPL": 1.8128935682395824
+            },
+            "F32_quant_off": {
+              "mean_NLL": 0.5899708432229227,
+              "PPL": 1.803935817676573
+            },
+            "BF16_quant_on": {
+              "mean_NLL": 0.5953380181805694,
+              "PPL": 1.8136438859682542
+            },
+            "BF16_quant_off": {
+              "mean_NLL": 0.5900326692505187,
+              "PPL": 1.8040473513100233
+            }
+          }
+        },
+        "model_output_pass": false,
+        "fp64_pass": null,
+        "model_quality_pass": null,
+        "strict_scoped_model_exit_code": 1
+      },
+      "teacher-ON-capture": {
+        "execution_pass": true,
+        "native_process_exit_code": 0,
+        "actual_app_exit_code": 0,
+        "completed_decode_calls": 33,
+        "full_logit_vectors": 33,
+        "offloaded_layers": 31,
+        "total_offload_layers": 31,
+        "activation_quantization": true,
+        "prefill": "batched",
+        "KV": "F16",
+        "settings": {
+          "n_ctx": 512,
+          "batch": 128,
+          "ubatch": 128,
+          "threads": 6,
+          "flash_attention": false
+        },
+        "thermal_after": "nominal",
+        "same_input_quantizer_pass": true,
+        "quantizer_coverage_pass": true,
+        "quantizer_summary": {
+          "vectors_or_captures": 3960,
+          "values": 25581568,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 0,
+          "bitwise_differences": 0,
+          "max_abs_error": 0.0,
+          "max_error_over_tolerance": 0.0,
+          "RMSE": 0.0,
+          "relative_L2": 0.0
+        },
+        "quantizer_captures": 3960,
+        "recovered_integer_code_mismatches": 0,
+        "layer_coverage_pass": true,
+        "F32_ON_layer_output_summary": {
+          "vectors_or_captures": 990,
+          "values": 4464640,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 4462437,
+          "bitwise_differences": 4464634,
+          "max_abs_error": 5622.05078125,
+          "max_error_over_tolerance": 5296745.017358024,
+          "RMSE": 94.96595625289751,
+          "relative_L2": 0.031193583643916712
+        },
+        "F32_ON_logits": {
+          "vectors_or_captures": 33,
+          "values": 4232448,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 4227009,
+          "bitwise_differences": 4232444,
+          "max_abs_error": 1.2037646770477295,
+          "max_error_over_tolerance": 4141.225666083822,
+          "RMSE": 0.17433940509286713,
+          "relative_L2": 0.026028319820262626,
+          "greedy_equal_positions": 31
+        },
+        "F32_OFF_logits": {
+          "vectors_or_captures": 33,
+          "values": 4232448,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 4226221,
+          "bitwise_differences": 4232444,
+          "max_abs_error": 1.456838607788086,
+          "max_error_over_tolerance": 4075.2939404737067,
+          "RMSE": 0.1904010378246232,
+          "relative_L2": 0.029177693353216804,
+          "greedy_equal_positions": 31
+        },
+        "scores": {
+          "targets": 32,
+          "expected_targets": 32,
+          "all_target_scores_available": true,
+          "scope": "Fixed-continuation teacher-forced NLL/PPL, not held-out quality",
+          "actual_mean_NLL": 0.6021427633468135,
+          "actual_PPL": 1.826027355828702,
+          "references": {
+            "F32_quant_on": {
+              "mean_NLL": 0.5949242252726774,
+              "PPL": 1.8128935682395824
+            },
+            "F32_quant_off": {
+              "mean_NLL": 0.5899708432229227,
+              "PPL": 1.803935817676573
+            },
+            "BF16_quant_on": {
+              "mean_NLL": 0.5953380181805694,
+              "PPL": 1.8136438859682542
+            },
+            "BF16_quant_off": {
+              "mean_NLL": 0.5900326692505187,
+              "PPL": 1.8040473513100233
+            }
+          }
+        },
+        "model_output_pass": false,
+        "fp64_pass": null,
+        "model_quality_pass": null,
+        "strict_scoped_model_exit_code": 1
+      },
+      "teacher-ON-plain": {
+        "execution_pass": true,
+        "native_process_exit_code": 0,
+        "actual_app_exit_code": 0,
+        "completed_decode_calls": 33,
+        "full_logit_vectors": 33,
+        "offloaded_layers": 31,
+        "total_offload_layers": 31,
+        "activation_quantization": true,
+        "prefill": "batched",
+        "KV": "F16",
+        "settings": {
+          "n_ctx": 512,
+          "batch": 128,
+          "ubatch": 128,
+          "threads": 6,
+          "flash_attention": false
+        },
+        "thermal_after": "nominal",
+        "same_input_quantizer_pass": null,
+        "quantizer_coverage_pass": false,
+        "quantizer_summary": null,
+        "quantizer_captures": 0,
+        "recovered_integer_code_mismatches": 0,
+        "layer_coverage_pass": false,
+        "F32_ON_layer_output_summary": null,
+        "F32_ON_logits": {
+          "vectors_or_captures": 33,
+          "values": 4232448,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 4227009,
+          "bitwise_differences": 4232444,
+          "max_abs_error": 1.2037646770477295,
+          "max_error_over_tolerance": 4141.225666083822,
+          "RMSE": 0.17433940509286713,
+          "relative_L2": 0.026028319820262626,
+          "greedy_equal_positions": 31
+        },
+        "F32_OFF_logits": {
+          "vectors_or_captures": 33,
+          "values": 4232448,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 4226221,
+          "bitwise_differences": 4232444,
+          "max_abs_error": 1.456838607788086,
+          "max_error_over_tolerance": 4075.2939404737067,
+          "RMSE": 0.1904010378246232,
+          "relative_L2": 0.029177693353216804,
+          "greedy_equal_positions": 31
+        },
+        "scores": {
+          "targets": 32,
+          "expected_targets": 32,
+          "all_target_scores_available": true,
+          "scope": "Fixed-continuation teacher-forced NLL/PPL, not held-out quality",
+          "actual_mean_NLL": 0.6021427633468135,
+          "actual_PPL": 1.826027355828702,
+          "references": {
+            "F32_quant_on": {
+              "mean_NLL": 0.5949242252726774,
+              "PPL": 1.8128935682395824
+            },
+            "F32_quant_off": {
+              "mean_NLL": 0.5899708432229227,
+              "PPL": 1.803935817676573
+            },
+            "BF16_quant_on": {
+              "mean_NLL": 0.5953380181805694,
+              "PPL": 1.8136438859682542
+            },
+            "BF16_quant_off": {
+              "mean_NLL": 0.5900326692505187,
+              "PPL": 1.8040473513100233
+            }
+          }
+        },
+        "model_output_pass": false,
+        "fp64_pass": null,
+        "model_quality_pass": null,
+        "strict_scoped_model_exit_code": 1
+      },
+      "corpus-OFF-plain": {
+        "execution_pass": true,
+        "native_process_exit_code": 0,
+        "actual_app_exit_code": 0,
+        "completed_decode_calls": 128,
+        "full_logit_vectors": 128,
+        "offloaded_layers": 31,
+        "total_offload_layers": 31,
+        "activation_quantization": false,
+        "prefill": "batched",
+        "KV": "F16",
+        "settings": {
+          "n_ctx": 512,
+          "batch": 128,
+          "ubatch": 128,
+          "threads": 6,
+          "flash_attention": false
+        },
+        "thermal_after": "nominal",
+        "same_input_quantizer_pass": null,
+        "quantizer_coverage_pass": null,
+        "quantizer_summary": null,
+        "quantizer_captures": 0,
+        "recovered_integer_code_mismatches": 0,
+        "layer_coverage_pass": false,
+        "F32_ON_layer_output_summary": null,
+        "F32_ON_logits": {
+          "vectors_or_captures": 128,
+          "values": 16416768,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 16396195,
+          "bitwise_differences": 16416759,
+          "max_abs_error": 1.826897382736206,
+          "max_error_over_tolerance": 6998.249430758001,
+          "RMSE": 0.2132423246479273,
+          "relative_L2": 0.04437361554266085,
+          "greedy_equal_positions": 126
+        },
+        "F32_OFF_logits": {
+          "vectors_or_captures": 128,
+          "values": 16416768,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 9026508,
+          "bitwise_differences": 16411593,
+          "max_abs_error": 0.004152536392211914,
+          "max_error_over_tolerance": 19.46878161625433,
+          "RMSE": 0.0005368083937207959,
+          "relative_L2": 0.00011402557592724878,
+          "greedy_equal_positions": 128
+        },
+        "scores": {
+          "targets": 128,
+          "expected_targets": 128,
+          "all_target_scores_available": true,
+          "scope": "Whole 128-token test-split PPL smoke",
+          "actual_mean_NLL": 2.9490714489629446,
+          "actual_PPL": 19.08822110917837,
+          "references": {
+            "F32_quant_on": {
+              "mean_NLL": 2.9512331898098103,
+              "PPL": 19.129529529407137
+            },
+            "F32_quant_off": {
+              "mean_NLL": 2.949089522721009,
+              "PPL": 19.08856610818628
+            },
+            "BF16_quant_on": {
+              "mean_NLL": 2.9543281006455024,
+              "PPL": 19.188825428058678
+            },
+            "BF16_quant_off": {
+              "mean_NLL": 2.949598624042477,
+              "PPL": 19.098286596563682
+            }
+          }
+        },
+        "model_output_pass": false,
+        "fp64_pass": null,
+        "model_quality_pass": null,
+        "strict_scoped_model_exit_code": 1
+      },
+      "corpus-ON-plain": {
+        "execution_pass": true,
+        "native_process_exit_code": 0,
+        "actual_app_exit_code": 0,
+        "completed_decode_calls": 128,
+        "full_logit_vectors": 128,
+        "offloaded_layers": 31,
+        "total_offload_layers": 31,
+        "activation_quantization": true,
+        "prefill": "batched",
+        "KV": "F16",
+        "settings": {
+          "n_ctx": 512,
+          "batch": 128,
+          "ubatch": 128,
+          "threads": 6,
+          "flash_attention": false
+        },
+        "thermal_after": "nominal",
+        "same_input_quantizer_pass": null,
+        "quantizer_coverage_pass": false,
+        "quantizer_summary": null,
+        "quantizer_captures": 0,
+        "recovered_integer_code_mismatches": 0,
+        "layer_coverage_pass": false,
+        "F32_ON_layer_output_summary": null,
+        "F32_ON_logits": {
+          "vectors_or_captures": 128,
+          "values": 16416768,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 16384271,
+          "bitwise_differences": 16416742,
+          "max_abs_error": 1.1365957595407963,
+          "max_error_over_tolerance": 5655.102519267382,
+          "RMSE": 0.12421682494616508,
+          "relative_L2": 0.025848290873735365,
+          "greedy_equal_positions": 126
+        },
+        "F32_OFF_logits": {
+          "vectors_or_captures": 128,
+          "values": 16416768,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 16395597,
+          "bitwise_differences": 16416752,
+          "max_abs_error": 1.6507092118263245,
+          "max_error_over_tolerance": 7505.560121337991,
+          "RMSE": 0.20345747903939868,
+          "relative_L2": 0.043217200952040256,
+          "greedy_equal_positions": 124
+        },
+        "scores": {
+          "targets": 128,
+          "expected_targets": 128,
+          "all_target_scores_available": true,
+          "scope": "Whole 128-token test-split PPL smoke",
+          "actual_mean_NLL": 2.9511376465157344,
+          "actual_PPL": 19.12770191845115,
+          "references": {
+            "F32_quant_on": {
+              "mean_NLL": 2.9512331898098103,
+              "PPL": 19.129529529407137
+            },
+            "F32_quant_off": {
+              "mean_NLL": 2.949089522721009,
+              "PPL": 19.08856610818628
+            },
+            "BF16_quant_on": {
+              "mean_NLL": 2.9543281006455024,
+              "PPL": 19.188825428058678
+            },
+            "BF16_quant_off": {
+              "mean_NLL": 2.949598624042477,
+              "PPL": 19.098286596563682
+            }
+          }
+        },
+        "model_output_pass": false,
+        "fp64_pass": null,
+        "model_quality_pass": null,
+        "strict_scoped_model_exit_code": 1
+      }
+    },
+    "Mac_drift_control_reference": "bitnet/analysis/actquant-2026-11-16/README.md",
+    "new_A16_localization_controls_performed": false
+  },
+  "performance_measurement": false,
+  "historical_strict_failures_preserved": true,
+  "raw_data_included": false,
+  "evidence_index": [
+    {
+      "local_artifact_name": "signed-build/BUILD.json",
+      "sha256": "9bdfdea69026034c4fa39e474073e90434510fe3bd0b3acdf3694d95d98dc46f"
+    },
+    {
+      "local_artifact_name": "operator/BUILD_IDENTITY.json",
+      "sha256": "7b4322263f2a1413467627e30ea856bafe56a8679cb93f7fdb8436c40ee16203"
+    },
+    {
+      "local_artifact_name": "operator/FIXTURES.json",
+      "sha256": "6261015aae073d25695161cd20570a3ec0bb2c0ebd8785263853069a422a41f4"
+    },
+    {
+      "local_artifact_name": "operator/device/native/RUN.json",
+      "sha256": "43bb9da98441177d3f25c5008d85c432a1a01f3848f9366cc5cdfdd75c49b74a"
+    },
+    {
+      "local_artifact_name": "operator/device/result.json",
+      "sha256": "434f87954ff4b60ee903c3467ec17c4e58fdcfe4ffbaa96d47bc4186bda6b61f"
+    },
+    {
+      "local_artifact_name": "operator/summary.json",
+      "sha256": "98985ff1ff08e48d92a92e09ff223f92008fec9260a4b5662926d96c0812b6a9"
+    },
+    {
+      "local_artifact_name": "operator-analysis/SUMMARY.json",
+      "sha256": "4ca7cabf16b79accc9aa081c1d8d1b2773aa9f54ff7f593cff5c14bffe299182"
+    },
+    {
+      "local_artifact_name": "operator/logs/launch.log",
+      "sha256": "c8295da5f54ca5affc04a0396c692133e17ef6268eadfe64f5369a4a1aa23ccb"
+    },
+    {
+      "local_artifact_name": "teacher-OFF-plain-analysis/SUMMARY.json",
+      "sha256": "2f11c348cb48afa65e9d53dd1b3e279fa6be8a1781e2381cb40cdcca9d751b34"
+    },
+    {
+      "local_artifact_name": "teacher-OFF-plain/device/native/RUN.json",
+      "sha256": "33d0c81f105a6359c3a193b5696349759a18fa5244c722359dfe94030e8f8e61"
+    },
+    {
+      "local_artifact_name": "teacher-OFF-plain/summary.json",
+      "sha256": "52136737995bbf0bd7fbc4a848de204e67a261861c339cf03202687973c038dc"
+    },
+    {
+      "local_artifact_name": "teacher-OFF-plain/logs/launch.log",
+      "sha256": "731e6466ff485e11baeed8c31ce71dd31bf38489b21748e2ac865310baf0b7e7"
+    },
+    {
+      "local_artifact_name": "teacher-ON-capture-analysis/SUMMARY.json",
+      "sha256": "03b8f2b13fc55fe652022d3c7549c068cb2e7fe24456e65a4ab3d5c975d11b14"
+    },
+    {
+      "local_artifact_name": "teacher-ON-capture/device/native/RUN.json",
+      "sha256": "4927b28270692f43f71c5b1f67f853f2a92e35babe85e48a10182eac98f17442"
+    },
+    {
+      "local_artifact_name": "teacher-ON-capture/summary.json",
+      "sha256": "8deba40fa2068bb7778604f9d3300c5b6e99e6c3ce492e8f1ded605fb3cdb0f3"
+    },
+    {
+      "local_artifact_name": "teacher-ON-capture/logs/launch.log",
+      "sha256": "7ef8eafcc494c06e22bb1bd18a178b003b802f6605ab83a1f5650498bef3e9e6"
+    },
+    {
+      "local_artifact_name": "teacher-ON-plain-analysis/SUMMARY.json",
+      "sha256": "0f33bf9dc235ad490a4cd845806e45b26458ec90611d0699e3fe52dcf0019a34"
+    },
+    {
+      "local_artifact_name": "teacher-ON-plain/device/native/RUN.json",
+      "sha256": "70c408bb9ce6f2a973ca84511c0e7ddfe51d2118a065b71b534892a1aa82c598"
+    },
+    {
+      "local_artifact_name": "teacher-ON-plain/summary.json",
+      "sha256": "004e8dda1a93d53c7e28d3aeca39283a8eff315085046717817b7a3a83cd83ea"
+    },
+    {
+      "local_artifact_name": "teacher-ON-plain/logs/launch.log",
+      "sha256": "38e96f17d3316e1bb57acca745dffe344df8d837679fb8beb3414b07057f6a2a"
+    },
+    {
+      "local_artifact_name": "corpus-OFF-plain-analysis/SUMMARY.json",
+      "sha256": "36fc773320b467314b3002f8fff127566d8a24abf5ae051f684bed420bb48456"
+    },
+    {
+      "local_artifact_name": "corpus-OFF-plain/device/native/RUN.json",
+      "sha256": "a85ce6423c785f8d837ca1040eceb8458b56ebe4805a6b07e54453bb40a57f22"
+    },
+    {
+      "local_artifact_name": "corpus-OFF-plain/summary.json",
+      "sha256": "bb1add7ead116c8f9e7d678fd245a9689e04e635b42604b8f37ed333f382675e"
+    },
+    {
+      "local_artifact_name": "corpus-OFF-plain/logs/launch.log",
+      "sha256": "62bf5a3a492c423d7532de46a3f9930e084cf62522f676b41d1d83d6f0746bea"
+    },
+    {
+      "local_artifact_name": "corpus-ON-plain-analysis/SUMMARY.json",
+      "sha256": "5e31844d7aace9c93dd96e0d4c0fb11ff183a8f95b7224cc2ac0a235233df85e"
+    },
+    {
+      "local_artifact_name": "corpus-ON-plain/device/native/RUN.json",
+      "sha256": "bc110d9a20a700ef46e8e96e5b38675ab21b7d6900fac2e3c9b2754ef639ff58"
+    },
+    {
+      "local_artifact_name": "corpus-ON-plain/summary.json",
+      "sha256": "99a79e3c8fd9bec22aedcc6be7629c9917bbb10572852ed4234d0c16bb516145"
+    },
+    {
+      "local_artifact_name": "corpus-ON-plain/logs/launch.log",
+      "sha256": "a28057cc0ba3a0fbbe2fc378e9d4d610a8a5ef4548ec432cc3f4093747065755"
+    },
+    {
+      "local_artifact_name": "MORNING_RESULT.json",
+      "sha256": "29765c4376c91c4e307c595b13205e0f067458759c41494d5d5f9b2fa41f78e9"
+    }
+  ],
+  "token18_fixed_prefix_witness": {
+    "scope": "Identical prompt and17 continuation tokens, input position43; not free generation or quality acceptance",
+    "A16": {
+      "teacher-OFF-plain": {
+        "input_position": 43,
+        "shared_continuation_prefix_tokens": 17,
+        "predicted_generated_token_number": 18,
+        "computations_token_id": 83699,
+        "graphics_token_id": 14515,
+        "computations_logit": 22.353647232055664,
+        "graphics_logit": 22.35879135131836,
+        "computations_minus_graphics": -0.0051441192626953125,
+        "winner_token_id": 14515
+      },
+      "teacher-ON-plain": {
+        "input_position": 43,
+        "shared_continuation_prefix_tokens": 17,
+        "predicted_generated_token_number": 18,
+        "computations_token_id": 83699,
+        "graphics_token_id": 14515,
+        "computations_logit": 22.359466552734375,
+        "graphics_logit": 22.38967514038086,
+        "computations_minus_graphics": -0.030208587646484375,
+        "winner_token_id": 14515
+      }
+    },
+    "source_F32_ON": {
+      "winner_token_id": 83699,
+      "computations_minus_graphics": 0.09494400024414062
+    },
+    "local_fix_restores_reference_greedy_decision": false
+  }
+}

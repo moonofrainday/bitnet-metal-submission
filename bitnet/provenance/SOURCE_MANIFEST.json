@@ -14,8 +14,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 6756,
-      "sha256": "312cd6ea8883506ffda4a3e52f8ceae843000809e9a6299003230c6327925c4b"
+      "bytes": 7018,
+      "sha256": "4369a75f1a50cb098d11496da12efef95e345e3ee843fce7e0f35bca0f498307"
     },
     {
       "path": "README.upstream.md",
@@ -181,6 +181,21 @@
       "path": "bitnet/analysis/actquant-2026-11-16/SUMMARY_ZH.md",
       "bytes": 10372,
       "sha256": "e9eb71841e11bb0d5b2cde32ebd539b77063472bfc8f928a099c48e837628e71"
+    },
+    {
+      "path": "bitnet/analysis/actquant-iphone-2026-11-16/README.md",
+      "bytes": 9429,
+      "sha256": "629abc0f5cb3b11d2a517057fb4bb04207030cce479f01f618553878b861571f"
+    },
+    {
+      "path": "bitnet/analysis/actquant-iphone-2026-11-16/SUMMARY.json",
+      "bytes": 26032,
+      "sha256": "710044a1895d332bf9ed30a6b3464618adef40dd767ef7ed5901725b1a5d0fbb"
+    },
+    {
+      "path": "bitnet/analysis/actquant-iphone-2026-11-16/SUMMARY_ZH.md",
+      "bytes": 8663,
+      "sha256": "b2816eaf62eeb674b1dbbcff6d5d87283476bdf19fdce7996000859d476de428"
     },
     {
       "path": "bitnet/analysis/ffn-performance-exploration/README.md",
@@ -494,33 +509,33 @@
     },
     {
       "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal.docx",
-      "bytes": 128674,
-      "sha256": "bd6e9533d61f3704dd05b9b22570f07101b78b221565ef639460aa0fb72e829f"
+      "bytes": 128885,
+      "sha256": "1d0051259138fc342bea411adc45e09bcb30ee3c9b1691a5625a62354edffa74"
     },
     {
       "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal.pdf",
-      "bytes": 232274,
-      "sha256": "260a65fdc4741b29f26bd0702941ccee7be7bb6ded39ad32b3787333ffffcc6f"
+      "bytes": 232657,
+      "sha256": "cc50e9b327adcb28a3757df15436e0d793eff3a4a493db4f0bd3f4eab77f4004"
     },
     {
       "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal_ZH.docx",
-      "bytes": 136559,
-      "sha256": "a58371bacc037aa14eefbccbfa80f63376cc04e95fae94c9b8217221b1efce93"
+      "bytes": 136817,
+      "sha256": "9311c21ceac4cb1555746f190f3f0993f96b496579c104534ec292ef8b0a1a2e"
     },
     {
       "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal_ZH.pdf",
-      "bytes": 592683,
-      "sha256": "4df846151a53e74b17d7600d12942454c8545462c9ccc9bca6ce8f2831d2374b"
+      "bytes": 592021,
+      "sha256": "d8081bf396b93827728e9da3818ac00121fd69aa7b4be54c7a67137968c03c8f"
     },
     {
       "path": "bitnet/proposal/MANIFEST.json",
-      "bytes": 3569,
-      "sha256": "c9b1d0160bd8da4eaf8ef0432729f132d5dace07ce7bfefd67586a81c289580e"
+      "bytes": 4032,
+      "sha256": "206f5d8f90f88051c769141304b8c8f178f4f78b458ed3ccfb0455cfa3f9eea3"
     },
     {
       "path": "bitnet/proposal/MANIFEST_ZH.json",
-      "bytes": 2396,
-      "sha256": "0476fb1f19982391f4993d3cf5afcdf9c4761a29d7106e8aa58dfeba946641eb"
+      "bytes": 2568,
+      "sha256": "9e9407c554f306590e3586fc6e997684a789a88c49b7eafb8774bad0c7ba337c"
     },
     {
       "path": "bitnet/proposal/OUTLINE.md",
@@ -529,28 +544,28 @@
     },
     {
       "path": "bitnet/proposal/PROPOSAL.md",
-      "bytes": 60763,
-      "sha256": "d8fe335b406b4ae7c9a1ac18b49575871f98f35d240b500867bc92fa08f94880"
+      "bytes": 61408,
+      "sha256": "7bff2a8036bfddaff231fa22e82d054652ade1cb7699342a179772c8864a62bc"
     },
     {
       "path": "bitnet/proposal/PROPOSAL_ZH.md",
-      "bytes": 59846,
-      "sha256": "901026c8ab056790b584ec5d0985618954c44bd1c6211d9280b9ec86442c970c"
+      "bytes": 60442,
+      "sha256": "178f238cfa4aa9f8f04ff1ff6f1afb70a13e597809c272dc3cf1ea331a9b6236"
     },
     {
       "path": "bitnet/proposal/README.md",
-      "bytes": 3141,
-      "sha256": "c0004023d9c3b69953452bd31bc976f5acb23da6fc3fea09b0fb24813247f867"
+      "bytes": 3147,
+      "sha256": "950ae9fd6dbe3d604e0eb06c520b6a235565e14f36e90898e874d904e8cf90f7"
     },
     {
       "path": "bitnet/proposal/README_ZH.md",
-      "bytes": 3410,
-      "sha256": "5977b86b3a87b44d853c6d2630636860acd5e8f0e38daab5f3404f32b06d5aaf"
+      "bytes": 3546,
+      "sha256": "104a20622c49244e2c23fa2e7f5af91b6cdac83aa3ec1b980acb2e0e0c8ed41b"
     },
     {
       "path": "bitnet/proposal/TRANSLATION_CHECK.json",
       "bytes": 1203,
-      "sha256": "7bf4b983ee9cf7509443d7c8de47f5d37173bd6d016ba4fd5577a68b6dc3e7c3"
+      "sha256": "635bf82c0862c7a355f90cb20d6153ad254b007ec9b142e7a3ea42975e022247"
     },
     {
       "path": "bitnet/proposal/assets/execution-flow.png",
@@ -980,5 +995,6 @@
   ],
   "review_revision": "2026-11-15 FFN performance exploration editorial consolidation",
   "ActQuant_revision_base_commit": "b7efadd3b0e4d8ae1000798eb1e869c285dcca07",
-  "ActQuant_semantic_scope": "Same-input F32 quantizer qualified; full-model frozen reference still fails; new physical phone unverified"
+  "ActQuant_semantic_scope": "A16 same-input F32 quantizer qualified; full-model frozen reference still fails; no new timing",
+  "ActQuant_phone_source_commit": "4c249e3e13dfce7b21bc2bab0912a1ff4807bc7e"
 }

@@ -1,6 +1,6 @@
 {
   "language": "zh-CN",
-  "English_source_sha256": "d8fe335b406b4ae7c9a1ac18b49575871f98f35d240b500867bc92fa08f94880",
+  "English_source_sha256": "7bff2a8036bfddaff231fa22e82d054652ade1cb7699342a179772c8864a62bc",
   "evidence_cutoff": "2026-11-16 Asia/Tokyo",
   "section_numbering_same_as_English": true,
   "sections": 16,
@@ -24,8 +24,8 @@
   "files": [
     {
       "path": "PROPOSAL_ZH.md",
-      "bytes": 59846,
-      "sha256": "901026c8ab056790b584ec5d0985618954c44bd1c6211d9280b9ec86442c970c"
+      "bytes": 60442,
+      "sha256": "178f238cfa4aa9f8f04ff1ff6f1afb70a13e597809c272dc3cf1ea331a9b6236"
     },
     {
       "path": "render_proposal_zh.py",
@@ -39,23 +39,23 @@
     },
     {
       "path": "README_ZH.md",
-      "bytes": 3410,
-      "sha256": "5977b86b3a87b44d853c6d2630636860acd5e8f0e38daab5f3404f32b06d5aaf"
+      "bytes": 3546,
+      "sha256": "104a20622c49244e2c23fa2e7f5af91b6cdac83aa3ec1b980acb2e0e0c8ed41b"
     },
     {
       "path": "TRANSLATION_CHECK.json",
       "bytes": 1203,
-      "sha256": "7bf4b983ee9cf7509443d7c8de47f5d37173bd6d016ba4fd5577a68b6dc3e7c3"
+      "sha256": "635bf82c0862c7a355f90cb20d6153ad254b007ec9b142e7a3ea42975e022247"
     },
     {
       "path": "BitNet_Mobile_GPU_Proposal_ZH.pdf",
-      "bytes": 592683,
-      "sha256": "4df846151a53e74b17d7600d12942454c8545462c9ccc9bca6ce8f2831d2374b"
+      "bytes": 592021,
+      "sha256": "d8081bf396b93827728e9da3818ac00121fd69aa7b4be54c7a67137968c03c8f"
     },
     {
       "path": "BitNet_Mobile_GPU_Proposal_ZH.docx",
-      "bytes": 136559,
-      "sha256": "a58371bacc037aa14eefbccbfa80f63376cc04e95fae94c9b8217221b1efce93"
+      "bytes": 136817,
+      "sha256": "9311c21ceac4cb1555746f190f3f0993f96b496579c104534ec292ef8b0a1a2e"
     }
   ],
   "source_baseline_before_review": "eb7858492d0f39e7a4f97f58ef53239c17bcb594",
@@ -66,5 +66,7 @@
   "measurement_scope": "Mac numerical validation only; new iPhone execution unverified",
   "ActQuant_same_input_F32_pass": true,
   "full_model_source_F32_pass": false,
-  "new_ActQuant_phone_pass": null
+  "new_ActQuant_phone_pass": true,
+  "new_ActQuant_phone_scope": "A16 supplied-input operator and captured same-input quantizer; full-model reference still fails",
+  "new_phone_performance_measured": false
 }
