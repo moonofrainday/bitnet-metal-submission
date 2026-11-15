@@ -1149,9 +1149,9 @@ void ggml_metal_encoder_trace_bitnet_node(ggml_metal_encoder_t encoder, struct g
     NSString * output_name = [NSString stringWithUTF8String:output->name];
     const int tokens = node->ne[1];
     const char * label = pipeline.pipeline->trace_name;
-    fprintf(stderr, "BITNET_MULTILAYER_ENCODE route=%s layer=%d node=%s weight=%s output=%s n=%d pipeline=%s grid=[%d,%d,%d] threads=[%d,%d,1] command=%p\n",
+    fprintf(stderr, "BITNET_MULTILAYER_ENCODE route=%s layer=%d node=%s weight=%s output=%s n=%d pipeline=%s grid=[%d,%d,%d] threads=[%d,%d,1] command=%p pso=%p\n",
             route, layer, node_name.UTF8String, weight_name.UTF8String, output_name.UTF8String, tokens,
-            label ? label : "(unlabelled)", grid_x, grid_y, grid_z, threads_x, threads_y, (void *) command);
+            label ? label : "(unlabelled)", grid_x, grid_y, grid_z, threads_x, threads_y, (void *) command, (void *) pipeline.pipeline->obj);
     [command addCompletedHandler:^(id<MTLCommandBuffer> done) {
         fprintf(stderr, "BITNET_MULTILAYER_COMPLETE route=%s layer=%d node=%s weight=%s output=%s n=%d command=%p status=%lu completed=%d\n",
                 route, layer, node_name.UTF8String, weight_name.UTF8String, output_name.UTF8String, tokens,
