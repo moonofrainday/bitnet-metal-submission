@@ -43,7 +43,7 @@
 | 10 假设与关键依赖 | 第 3 和 14 节 |
 | 11 其他约束与提交内容 | 第 15 节 |
 
-Metal 是已经实现的目标平台。Android 执行、能耗测量和团队 checkpoint 验收仍属于计划工作。十天安排以作业 kickoff 为起点，并不表示所有已归档研究都发生在十天之内。要求的交付物包含源码脚本和 PDF，同时提供可编辑源稿供审阅。
+Metal 是已经实现的目标平台。主要交付链路依次为：模型语义、一项实体手机 kernel、独立 harness、受 guard 保护的真实图接入、公平的性能比较，以及可复现打包。FFN 融合分支是主要验收之外的可选探索。Android 执行、能耗测量和团队 checkpoint 验收仍属于计划工作。十天安排以作业 kickoff 为起点，并不表示所有已归档研究都发生在十天之内。要求的交付物包含源码脚本和 PDF，同时提供可编辑源稿供审阅。
 
 <!-- page -->
 ## 3 模型与权重表示
@@ -300,7 +300,36 @@ Android 工具需要兼容的 OS/driver 权限和可调试应用；APA 当前处
 
 没有观察到整段 decode 收益。持续负载最后一轮的差值与执行顺序、时间趋势及 A/A 波动重叠，因此尚未建立普遍、固定的性能损失结论。每轮完整 p95 和顺序统计保存在 derived tables 中。不能将孤立算子的节省量直接相乘，当成模型加速。
 
-历史 G/F8 手机计时中，逐对相对变化的中位数显示 F8 比 G 快 1.961%-3.568%，但 F8 仍保留严格数值及 model-output 失败。该 campaign 没有正式的直接 stock 对照，并且同时改变了算术与融合方式；它不能被解释为相对 stock 的加速，或纯粹的 fusion cost 结果。[E6]
+<!-- page -->
+### FFN 融合性能探索
+
+这些新增 FFN 分支在选定的 Q-projection PoC 之外，探索减少 dispatch 和中间数据访问。以下结果来自历史 iPhone 14 Pro/A16 真机实测，使用 ActQuant 修复之前的公开 2B compatibility 路径。它们不能证明 Microsoft W1.58A8 语义或语言质量。Gate/up 将 2560 个输入扩展为 6912 个数值；激活为 ReLU(gate)^2*up。[E6]
+
+| 路线 | 实现与图覆盖范围 | 正确性与选型 |
+|---|---|---|
+| G | 使用 stock 四行算术，在一次 dual projection 中完成 gate/up，再单独执行严格的 activation；weighted RMSNorm/down 保持 stock。覆盖全部 30 blocks。 | 两组 history 的全部 33 份 logits 均与 stock 逐位一致。更广范围的 FFN FP64/层输出验收仍未验证。保留为保守的研究对照。 |
+| K | G dual projection 后，合并 activation/weighted RMSNorm；down 保持 stock。实际覆盖 28 blocks。 | 同输入 old-K0 parity 与新增阶段的 FP64 通过；完整 FFN FP64 和相对 stock 的 logits 失败。保持实验状态。 |
+| F8 | 一次 dispatch 完成 C8x2 gate/up 与 activation；weighted RMSNorm/down 保持 stock。覆盖全部 30 blocks。 | 可观测的 fusion/split-C8 parity 通过；完整 FFN FP64 和相对 stock 的 model-output 失败继续保留。保留性能证据，不作为已验收的模型替换版本。 |
+
+独立完整 FFN harness 中，stock 编码 7 次 dispatch，G 为 4 次，K/F8 为 3 次；这些不是完整模型图的 dispatch 计数。符合条件的真实图 dispatch 均完成 GPU 执行。K 在第 2 层因 encoder boundaries 安全回退，在第 29 层因 aliases 安全回退。
+
+### 较早的直接 stock 对照
+
+完整 FFN GPU 计时在同一个 command-buffer 边界内包含 weighted RMSNorm 和 stock down：预热 30 次，三轮，每轮 201 对交替执行。另一项同步后的 32-token wall-time 测量使用两组 history、三轮、每项对照每轮 21 对，并配有 A/A 校准。KV reset/prefix restoration 不计时；正常 CPU encoding、execution 和 completion 均计入。
+
+| 路线 | 完整 FFN GPU 相对 stock 的配对降幅 | 32-token wall 相对 stock 的配对降幅 | Decode 胜出对数 |
+|---|---|---|---|
+| G | 4.814%-5.070% | 1.062%-2.664% | 121/126 |
+| K | 5.440%-5.675% | 1.263%-2.724% | 122/126 |
+| F8 | 10.018%-10.145% | 4.333%-5.121% | 126/126 |
+
+这些范围来自各轮逐对相对降幅的中位数，不是混池后的延迟，也不是两路中位耗时的比值。热状态与时间漂移均保留；K 有一轮 p95 更差。尚未建立普遍的尾延迟收益，也没有 G 与 K 之间的直接模型级排名。
+
+### 后续 G 与 F8 的直接对照及选型
+
+另一次较晚的 campaign 在两组 history 上直接配对 G/F8：每组 history 三轮、每轮 21 对，并配有 G/G 校准。F8 胜出 123/126 对；配对 wall-time 降幅中位数为 1.961%-3.568%，每 32 tokens 的 F8-minus-G 配对差中位数范围为 -32.744 到 -105.156 ms。该较晚 campaign 没有正式 stock 对照。它的数值不与较早 stock 对照合并；算术和布局同时改变，也不能将差异全部归因于融合。
+
+F8 的实测吞吐收益信号最强，但未通过严格数值及 model-output 验收。G 的 stock-output 兼容性证据更强；尚未建立 K 相对 G 的直接模型级优势。这些分支保留为可选研究，stock 默认路径以及 PoC/Q4 验收另列。完整 p50/p95、失败项和实验身份索引见 `bitnet/analysis/ffn-performance-exploration/`。[E6]
 
 <!-- page -->
 ### 完整 guard 后调用同一个 stock pipeline
@@ -332,7 +361,7 @@ Android 工具需要兼容的 OS/driver 权限和可调试应用；APA 当前处
 | Prefill tiling | 在多个 token 列之间复用权重；作为独立的 GEMM 路径，不能直接从 decode 布局外推 |
 | CPU 计划与调度 | 先比较“完整 guard 检查后调用同一 stock PSO”的对照，再将模型级损失归因于 shader |
 
-G 合并两条使用 stock 算术的 FFN 投影，兼容的后处理仍单独执行。F8 将 C8 gate/up 与 ReLU(gate)^2*up 合并。K 进一步研究激活和归一化融合，并遇到图结构与别名限制。融合必须保留共享 X、每层自己的 W/scales、消费者关系及合法依赖。如果没有有效的跨 dispatch 同步设计，一个 threadgroup 不能读取另一个 group 尚未完成的结果。完整 FFN 对照包含 weighted RMSNorm 和 down。
+FFN 性能探索统一整理在第 10 节。融合必须保留共享 X、每层自己的 W/scales、消费者关系及合法依赖。如果没有有效的跨 dispatch 同步，一个 threadgroup 不能读取另一个 group 尚未完成的结果。完整 FFN 对照包含 weighted RMSNorm 和 down。
 
 ### 根据实测关键路径占比选择目标
 
@@ -346,6 +375,7 @@ A16 的共享资源和持续运行的热预算有限。应保持 packed weights 
 
 根据实测内存预算调整 context 和 batch。优先采用连续的 packed 读取，以及合法 threadgroup 内的数据复用，避免增加每 token 的复制。额外的 lookup table、重排或系数准备，都必须计入候选的成本。局部数组大小或 AIR 不能证实运行时 spill 或 occupancy。
 
+<!-- page -->
 低功耗运行应在保持正确性的前提下，减少内存访问、不必要的 CPU 轮询和超出热预算的负载。iOS 使用 thermal notifications 与自适应策略，Android 使用受支持的 ADPF hints/headroom；这些机制都不保证固定时钟或能耗下降。Energy 必须单独测量。[R8]
 
 ## 12 成功标准与评测基准
@@ -388,7 +418,7 @@ A16 的共享资源和持续运行的热预算有限。应保持 packed weights 
 | 9 | 收敛风险与可移植性设计 | Adreno/Mali feature/file matrix；仅在设备可用时执行移植；保留未决证据 |
 | 10 | 冻结并准备答辩 | 清洁源码包、已审阅 PDF、复现入口、限制说明与面试代码讲解 |
 
-每日 checkpoint 记录源码/模型/输入哈希、实际退出码、数值标志、性能范围、当前阻塞及下一项能区分假设的实验。状态分为实测通过、实测失败或未验证。原始证据保持不可变，派生汇总进行版本管理。
+可选的 FFN/fusion 探索安排在主要 kernel 验收之后，不得延误语义对齐、sample-I/O 验证、真实图检查或可复现打包。每日 checkpoint 记录源码/模型/输入哈希、实际退出码、数值标志、性能范围、当前阻塞及下一项能区分假设的实验。状态分为实测通过、实测失败或未验证。原始证据保持不可变，派生汇总进行版本管理。
 
 某个候选失败后，应保留失败结果，并继续可独立推进的工作，例如 reference 检查、构建可移植性或文档。不要在没有区分性假设的情况下，用剩余时间不断生成相似变体。签名或真机访问受阻时，保存最小 reproducer，同时继续 CPU 与源码任务。
 
@@ -470,7 +500,7 @@ python3 bitnet/ios/run.py --build-dir "$ARTIFACTS/build" \
 - [E3] 源码包中的 `bitnet/validation/analysis/` 与 workspace 中的 `outputs/experiments/2026-11-15_170005+0900-clean-poc-stock4x1/`；保存清洁源码/构建、known/dense/real 算子证据。
 - [E4] 源码包中的 `bitnet/docs/SOURCE_WALKTHROUGH.md`；原始 `bitnet/validation/shaders/matvec.metal`；Q4 `bitnet/shaders/stock4x1.metal`；以及已审阅快照中的 backend `ggml/src/ggml-metal/ggml-metal-ops.cpp`。
 - [E5] Workspace 中的 `outputs/experiments/2026-11-15_182149+0900-iphone-q4-complete/`；源码包中的 `bitnet/docs/IPHONE_Q4_COMPLETE_2026-11-15.md` 和 `bitnet/analysis/2026-11-15-iphone-q4/`。包含无效的早期 capture、strict 通过结果、计时与 Down 负结果对照。
-- [E6] 源码包中的 `bitnet/docs/IPHONE_RESULTS.md` 和 `VALIDATION.md`；保存历史 G/F8 两组 history 的直接对照与失败记录。这些实验没有在最新 binary 中重跑。
+- [E6] 源码包中的 `bitnet/analysis/ffn-performance-exploration/`、`bitnet/docs/IPHONE_RESULTS.md` 和 `VALIDATION.md`；workspace 中的 `2026-11-12_202159+0900-iphone-candidate-sequence/` 保存 stock/G/K/F8 对照，`2026-11-13_080244+0900-iphone-independent-gf8/` 保存后续 G/F8 直接对照。两者均为历史 campaign，配置与失败记录分别保留，并非在最新 binary 中的重跑。
 - [E7] Workspace 中的 `outputs/experiments/2026-11-15-review-221448/`；原始 shader 真机运行 `runs/original-poc/` 和 `runs/original-poc-actquant-derived/`、独立复算及 source/binary 摘要。自写 PoC commit 为 `7d680ad`；签名构建 metadata 关联实际 binaries。
 - [E8] Workspace 中的 `outputs/review-response-2026-11-15/semantics/`；精确源码 CPU 脚本、`SEMANTICS.md`、`reference-full/`、`reference-full-f32/`、作为正式计分依据的 `SCORING-FP64.json` 和 `reference-ggml-f32-comparison-v2/`。手机 smoke 和 raw logits 保留于 [E7]。整理后的源码/分析位于 `bitnet/analysis/review-2026-11-15/`。
 - [E9] Workspace [E7] 中的 guard 实验；源码包中的 `bitnet/docs/PHONE_GUARD_CONTROL_2026-11-15.md`；源码与派生的 `PROFILE_NUMERICS.md` 说明归因边界，并保留第一次无效诊断运行。

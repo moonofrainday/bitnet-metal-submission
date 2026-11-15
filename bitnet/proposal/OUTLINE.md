@@ -20,3 +20,5 @@ Decision: Metal first on iPhone 14 Pro; retain the stock default; carry a source
 | Interview justification | Source walkthrough, measured negative outcomes, acceptance boundaries |
 
 Evidence basis: verified clean package commit bbf70e9cc70302534ff87b4f34d4ce52a9670baa, original brief, current iPhone Q4 experiment, preserved public2B and phone smoke logs, and primary sources listed in the proposal. Existing 13 November drafts are historical reference material, not the current result authority.
+
+FFN/fusion branches are consolidated as optional performance exploration in Section 10, with mechanism, measured scope, stock/direct contrasts, numerical limits and selection decisions. The primary delivery chain remains semantics -> physical-phone kernel -> independent harness -> real graph -> fair timing -> reproducible package.

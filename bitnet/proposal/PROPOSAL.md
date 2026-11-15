@@ -43,7 +43,7 @@ The selected operation is `Qcur-0`, `GGML_OP_MUL_MAT`, using `blk.0.attn_q.weigh
 | 10 Assumptions and critical dependencies | Sections 3 and 14 |
 | 11 Other constraints and submission contents | Section 15 |
 
-Metal is the implemented target. Android execution, energy measurement and team-checkpoint qualification remain planned work. The ten-day schedule is relative to assignment kickoff, not a claim that all archived research occurred within ten days. The required handoff contains source scripts and a PDF; editable sources are included for review.
+Metal is the implemented target. The delivery chain is model semantics, one physical-phone kernel, an independent harness, guarded real-graph integration, fair performance comparison and reproducible packaging. FFN fusion branches are optional exploration outside that primary qualification. Android execution, energy measurement and team-checkpoint qualification remain planned work. The ten-day schedule is relative to assignment kickoff, not a claim that all archived research occurred within ten days. The required handoff contains source scripts and a PDF; editable sources are included for review.
 
 <!-- page -->
 ## 3 Model and weight representation
@@ -300,7 +300,36 @@ The whole-model scope times 32 fixed decode tokens after KV clearing and restora
 
 No whole-decode gain was observed. The last sustained differences overlap order/time/A-A variation, so a universal fixed penalty is not established. Full per-round p95 and order statistics are in the derived tables. Do not multiply isolated savings into an assumed model speedup.
 
-Historical G/F8 phone timing favors F8 over G by 1.961%-3.568% in paired relative medians, but F8 retains strict numerical/model-output failure. That campaign has no formal direct stock contrast and changes arithmetic as well as fusion; it is not a stock speedup or pure fusion-cost result. [E6]
+<!-- page -->
+### FFN fusion performance exploration
+
+The additional FFN branches explore fewer dispatches and intermediate accesses beyond the selected Q-projection PoC. The results below are historical physical iPhone 14 Pro/A16 measurements on the public 2B compatibility path, before ActQuant repair. They do not establish Microsoft W1.58A8 fidelity or language quality. Gate/up expands 2560 inputs to 6912 values; activation is ReLU(gate)^2*up. [E6]
+
+| Route | Implementation and graph coverage | Correctness and selection |
+|---|---|---|
+| G | Stock-four-row gate/up in one dual projection, then separate strict activation; stock weighted RMSNorm/down. All 30 blocks. | All 33 logits match stock bitwise on both histories. Broader FFN FP64/layer-output acceptance remains unverified. Retain as the conservative research control. |
+| K | G dual projection, then combined activation/weighted RMSNorm; stock down. Actual 28 blocks. | Same-input old-K0 parity and introduced-stage FP64 pass; complete-FFN FP64 and stock-relative logits fail. Keep experimental. |
+| F8 | C8x2 gate/up plus activation in one dispatch; stock weighted RMSNorm/down. All 30 blocks. | Observable fusion/split-C8 parity passes; complete-FFN FP64 and stock-relative model-output failures remain. Retain performance evidence, not an accepted model replacement. |
+
+The independent full-FFN harness encodes 7 stock dispatches versus 4 for G and 3 for K/F8; these are not whole-model graph counts. Eligible graph dispatches complete on the GPU. K safely falls back at layer 2 for encoder boundaries and layer 29 for aliases.
+
+### Earlier direct comparisons with stock
+
+Full-FFN GPU timing includes weighted RMSNorm and stock down within one command-buffer boundary: 30 warmups, three rounds of 201 alternating pairs. Separately, 32-token synchronized wall timing uses two histories, three rounds of 21 pairs per contrast and A/A calibration. KV reset/prefix restoration is excluded; normal CPU encoding, execution and completion are included.
+
+| Route | Full FFN GPU paired reduction vs stock | 32-token wall paired reduction vs stock | Decode wins |
+|---|---|---|---|
+| G | 4.814%-5.070% | 1.062%-2.664% | 121/126 |
+| K | 5.440%-5.675% | 1.263%-2.724% | 122/126 |
+| F8 | 10.018%-10.145% | 4.333%-5.121% | 126/126 |
+
+These ranges are medians of per-pair relative reductions across rounds, not pooled latencies or ratios of route medians. Thermal/time drift is preserved; K has one worse p95 round. There is no established universal tail-latency gain or direct G-versus-K model ranking.
+
+### Later direct G versus F8 comparison and decision
+
+A separate later campaign directly pairs G/F8 on both histories: three rounds of 21 pairs per history plus G/G calibration. F8 wins 123/126 pairs; its paired median wall-time reduction is 1.961%-3.568%, with F8-minus-G paired medians from -32.744 to -105.156 ms per 32 tokens. That later campaign has no formal stock contrast. Its values are not combined with the earlier stock comparisons, and arithmetic/layout changes prevent attributing the difference solely to fusion.
+
+F8 has the strongest measured throughput signal but fails strict numerical/model-output acceptance. G has stronger stock-output compatibility evidence; K has no established direct model-level advantage over G. Keep these as optional research, stock default and PoC/Q4 qualification separate. Full p50/p95, failures and experiment identities are indexed in `bitnet/analysis/ffn-performance-exploration/`. [E6]
 
 <!-- page -->
 ### Full guard followed by the same stock pipeline
@@ -332,7 +361,7 @@ Optimize one mechanism at a time, with a falsifiable hypothesis and matched comp
 | Prefill tiling | Reuse weights over token columns; a separate GEMM route, not a decode-layout extrapolation |
 | CPU planning and scheduling | Compare full guards followed by the same stock PSO before attributing model losses to shaders |
 
-G combines two stock-arithmetic FFN projections and leaves compatible postprocessing separate. F8 combines C8 gate/up with ReLU(gate)^2*up. K additionally researches activation/normalization and encounters graph/alias limits. A fusion must preserve shared X, per-layer W/scales, consumer relationships and legal dependencies. A threadgroup cannot read another group's unfinished result without a valid cross-dispatch synchronization design. Weighted RMSNorm and down are included in full-FFN comparisons.
+The FFN performance exploration is consolidated in Section 10. A fusion must preserve shared X, per-layer W/scales, consumer relationships and legal dependencies. A threadgroup cannot read another group's unfinished result without valid cross-dispatch synchronization. Full-FFN comparisons include weighted RMSNorm and down.
 
 ### Choose the target using measured critical-path share
 
@@ -346,6 +375,7 @@ A16 has limited shared resources and a sustained thermal envelope. Keep packed w
 
 Tune context and batch to a measured memory budget. Prefer contiguous packed reads and reuse within a legal threadgroup over extra per-token copies. Additional lookup tables, reorders or coefficient preparation must be counted in the candidate's cost. Local-array size or AIR does not establish runtime spills or occupancy.
 
+<!-- page -->
 Low-power operation should reduce memory traffic, unnecessary CPU polling and thermal overcommit while preserving correctness. Use thermal notifications/adaptation on iOS and supported ADPF hints/headroom on Android; neither guarantees clocks or energy savings. Energy must be measured separately. [R8]
 
 ## 12 Success criteria and evaluation benchmarks
@@ -388,7 +418,7 @@ This plan is relative to kickoff. The existing research provides reusable eviden
 | 9 | Close risks and portability design | Adreno/Mali feature/file matrix; execute a port only if devices are available; retain unresolved evidence |
 | 10 | Freeze and defend | Clean source package, reviewed PDF, reproducibility entry, limitations and interview walkthrough |
 
-A daily checkpoint records source/model/input hashes, actual exit codes, numerical flags, performance scope, the current blocker and the next discriminating experiment. Status is measured pass, measured fail or unverified. Keep raw evidence immutable and version derived summaries.
+Optional FFN/fusion exploration follows the primary kernel qualification and must not delay semantic alignment, sample-I/O validation, real-graph checks or reproducible packaging. A daily checkpoint records source/model/input hashes, actual exit codes, numerical flags, performance scope, the current blocker and the next discriminating experiment. Status is measured pass, measured fail or unverified. Keep raw evidence immutable and version derived summaries.
 
 If a candidate fails, retain the failure and continue independent work such as reference checks, build portability or documentation. Do not spend the remaining schedule generating similar variants without a distinguishing hypothesis. Signing or physical-device access problems should produce a minimal reproducer while CPU/source tasks continue.
 
@@ -470,7 +500,7 @@ Paths below are relative to the workspace or source package as stated. IDs disti
 - [E3] Package `bitnet/validation/analysis/` and workspace `outputs/experiments/2026-11-15_170005+0900-clean-poc-stock4x1/`; clean source/build/known/dense/real operator evidence.
 - [E4] Package `bitnet/docs/SOURCE_WALKTHROUGH.md`; original `bitnet/validation/shaders/matvec.metal`; Q4 `bitnet/shaders/stock4x1.metal`; backend `ggml/src/ggml-metal/ggml-metal-ops.cpp` at the reviewed snapshot.
 - [E5] Workspace `outputs/experiments/2026-11-15_182149+0900-iphone-q4-complete/`; package `bitnet/docs/IPHONE_Q4_COMPLETE_2026-11-15.md` and `bitnet/analysis/2026-11-15-iphone-q4/`. Includes invalid preliminary captures, strict passes, timing and the Down negative control.
-- [E6] Package `bitnet/docs/IPHONE_RESULTS.md` and `VALIDATION.md`; historical G/F8 two-history direct comparison and preserved failures. These were not rerun in the newest binary.
+- [E6] Package `bitnet/analysis/ffn-performance-exploration/`, `bitnet/docs/IPHONE_RESULTS.md` and `VALIDATION.md`; workspace `2026-11-12_202159+0900-iphone-candidate-sequence/` for stock/G/K/F8 comparisons and `2026-11-13_080244+0900-iphone-independent-gf8/` for the later direct G/F8 comparison. Both are historical campaigns with separate configurations and preserved failures, not reruns in the newest binary.
 - [E7] Workspace `outputs/experiments/2026-11-15-review-221448/`; original phone `runs/original-poc/` and `runs/original-poc-actquant-derived/`, independent reanalysis and source/binary digests. Authored-PoC commit `7d680ad`; signed build metadata binds actual binaries.
 - [E8] Workspace `outputs/review-response-2026-11-15/semantics/`; exact-source CPU scripts, `SEMANTICS.md`, `reference-full/`, `reference-full-f32/`, authoritative `SCORING-FP64.json` and `reference-ggml-f32-comparison-v2/`. Phone smoke and raw logits remain in [E7]. Curated source/analysis is in `bitnet/analysis/review-2026-11-15/`.
 - [E9] Workspace [E7] guard experiment; package `bitnet/docs/PHONE_GUARD_CONTROL_2026-11-15.md`; source and derived `PROFILE_NUMERICS.md` identify limits of attribution and preserve the invalid first diagnostic run.

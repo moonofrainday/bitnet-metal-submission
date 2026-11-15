@@ -22,3 +22,5 @@ This writes the PDF and DOCX into that output folder and refreshes the code-gene
 The Word output was separately rendered with the packaged DOCX renderer and visually reviewed, as was every final PDF page. QA images, intermediate documents, local review memos, raw experiments and logs remain outside this source package. Only final documents, source and derived validation information are published.
 
 The report is a draft for the author's technical review. Private repository publication grants no access to the assignment team and does not submit the assessment.
+
+FFN/fusion branches are consolidated as one page of optional performance exploration in Section 10. It preserves mechanisms, actual coverage, earlier direct stock contrasts, later direct G/F8 pairs and numerical limitations. Detailed historical aggregates and source digests are in `../analysis/ffn-performance-exploration/`. This editorial revision adds no GPU measurements and does not resume ActQuant development. Both language editions now contain 21 pages.

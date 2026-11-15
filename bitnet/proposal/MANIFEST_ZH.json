@@ -1,21 +1,21 @@
 {
   "language": "zh-CN",
-  "English_source_sha256": "19771445350c9d70ac90921260265ef9a2a8f63a57ed5e746055116668bd33b3",
+  "English_source_sha256": "7901465f99f90afc0a05554a207f86fddf52349d989d0e23a0de3567bea11b95",
   "evidence_cutoff": "2026-11-15 Asia/Tokyo",
   "section_numbering_same_as_English": true,
   "sections": 16,
-  "tables": 21,
-  "PDF_pages": 20,
-  "DOCX_render_pages": 20,
+  "tables": 23,
+  "PDF_pages": 21,
+  "DOCX_render_pages": 21,
   "original_figure_bytes_preserved": true,
-  "new_inference_measurements": true,
+  "new_inference_measurements": false,
   "numerical_threshold_changed": false,
   "raw_experiment_data_included": false,
   "translation_literal_checks_pass": true,
   "independent_semantic_reviews_pass": true,
   "quality_review": {
-    "PDF_pages_inspected": 20,
-    "DOCX_pages_inspected": 20,
+    "PDF_pages_inspected": 21,
+    "DOCX_pages_inspected": 21,
     "Chinese_glyphs_present": true,
     "original_graph_fully_visible": true,
     "clipping_overlap_or_missing_content_observed": false,
@@ -24,8 +24,8 @@
   "files": [
     {
       "path": "PROPOSAL_ZH.md",
-      "bytes": 52970,
-      "sha256": "b2d52736d055f897ade6721572d85c6e72d15ef5a0524e37884522773cd53807"
+      "bytes": 56617,
+      "sha256": "dc0251d702fd6964f29b4a59cf69adfebd1f6e5a09095f100c2623786dbaa15a"
     },
     {
       "path": "render_proposal_zh.py",
@@ -39,26 +39,28 @@
     },
     {
       "path": "README_ZH.md",
-      "bytes": 2843,
-      "sha256": "02d86e5b28d25f29ae2e6a53b95056d9f3aea1a838e88c0cfa23b8a4f61ffdc7"
+      "bytes": 3196,
+      "sha256": "881d52460c548b700edea524daf6598fca43a8b239e8453e7ac8c9ffc791dfc3"
     },
     {
       "path": "TRANSLATION_CHECK.json",
       "bytes": 1175,
-      "sha256": "4409d64836c6a342ff6c0cca5722c7fc8fc6808a4bcdeb135eecc6b3e8c08a7c"
+      "sha256": "5b0db1efd532563471c499192e3be4b3dda86482bd95b97b5d0d2b0fd3c177af"
     },
     {
       "path": "BitNet_Mobile_GPU_Proposal_ZH.pdf",
-      "bytes": 573414,
-      "sha256": "dfbbdd0aabe6d59c0226eb0052e6e0c17418617a85c6e3a5b0ec1452c2f854af"
+      "bytes": 584672,
+      "sha256": "c7bb910a23fe8610fa709a105d4dc2d51daff5e35b7969355c3353169a96fcb9"
     },
     {
       "path": "BitNet_Mobile_GPU_Proposal_ZH.docx",
-      "bytes": 132134,
-      "sha256": "34444605bc11d6eb06dcdca8211b8890f06f8ff8c0b93770939f35b9da046d85"
+      "bytes": 134487,
+      "sha256": "ff55ae2dc77a093cb0c759724d9f37af9472905047454664d37fcc4b3dfa4c88"
     }
   ],
   "source_baseline_before_review": "eb7858492d0f39e7a4f97f58ef53239c17bcb594",
   "English_files_unchanged_by_Chinese_renderer": true,
-  "old_revisions_preserved_in_Git": true
+  "old_revisions_preserved_in_Git": true,
+  "historical_FFN_evidence_reorganized": true,
+  "ActQuant_experiment_resumed": false
 }

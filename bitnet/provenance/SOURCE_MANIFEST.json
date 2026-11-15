@@ -98,6 +98,16 @@
       "sha256": "dbeaf284a070f3b67eec1423bed8af5cb5c1d6ccf305e749c03f90cfeba346f9"
     },
     {
+      "path": "bitnet/analysis/ffn-performance-exploration/README.md",
+      "bytes": 13816,
+      "sha256": "5cbb8fb800e3829979d57edbc543df0b31d02623cc4989222520adfb4b247527"
+    },
+    {
+      "path": "bitnet/analysis/ffn-performance-exploration/SUMMARY.json",
+      "bytes": 45191,
+      "sha256": "55b4ad83085ab02bf117a2e5124bfd2efa242447f2ded6a39b8a588af1902122"
+    },
+    {
       "path": "bitnet/analysis/review-2026-11-15/ORIGINAL_POC_PHONE.md",
       "bytes": 8432,
       "sha256": "c8624442420265dd1ee13d2e68019d958ad3f78eea847eddd5bf7aa8f6d3f211"
@@ -384,63 +394,63 @@
     },
     {
       "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal.docx",
-      "bytes": 125029,
-      "sha256": "e5422c1668a824d87438129cfc883652d4f5d90d23242344abb090c38b0f87f1"
+      "bytes": 126935,
+      "sha256": "b1cc5b37fde157bc0f98080ae2779ed0beedd54a78bf613bc3658d2efe4de024"
     },
     {
       "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal.pdf",
-      "bytes": 225144,
-      "sha256": "1affa07c3ae1ae6af9a1f856fcc664254f24940ab3691f676ced08fc19dda777"
+      "bytes": 228871,
+      "sha256": "639035ff78bc899434fc07c85f7f74f828ff2256d5c58c90b7c0c6ca30d0679e"
     },
     {
       "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal_ZH.docx",
-      "bytes": 132134,
-      "sha256": "34444605bc11d6eb06dcdca8211b8890f06f8ff8c0b93770939f35b9da046d85"
+      "bytes": 134487,
+      "sha256": "ff55ae2dc77a093cb0c759724d9f37af9472905047454664d37fcc4b3dfa4c88"
     },
     {
       "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal_ZH.pdf",
-      "bytes": 573414,
-      "sha256": "dfbbdd0aabe6d59c0226eb0052e6e0c17418617a85c6e3a5b0ec1452c2f854af"
+      "bytes": 584672,
+      "sha256": "c7bb910a23fe8610fa709a105d4dc2d51daff5e35b7969355c3353169a96fcb9"
     },
     {
       "path": "bitnet/proposal/MANIFEST.json",
-      "bytes": 2841,
-      "sha256": "5444c96e6aac715f8e4ac982d676d38f474ca76eca55bf22d6e322a9bcefbf8f"
+      "bytes": 3007,
+      "sha256": "2f634b7ab38b306948251f40183642e61fc69ce2c5d175f67c4493147963ae78"
     },
     {
       "path": "bitnet/proposal/MANIFEST_ZH.json",
-      "bytes": 2107,
-      "sha256": "0cc5fc93fee8b5d85cf810b42faaad61b3daca16c124248d41fb9cb1d1ab2028"
+      "bytes": 2195,
+      "sha256": "e89a4f79ddd20955de4409ff6f979fd08449c0f0a53fface2fa03f057a20f8d0"
     },
     {
       "path": "bitnet/proposal/OUTLINE.md",
-      "bytes": 1604,
-      "sha256": "c7d1ce78f2edd5466aa91b333f894cb61d98060f23cfc6a7a9ef7f8ab63f2773"
+      "bytes": 1938,
+      "sha256": "c76df7ec9155844682456d4950d2ffab635645a395ce83dc475f05e42c976c9f"
     },
     {
       "path": "bitnet/proposal/PROPOSAL.md",
-      "bytes": 53565,
-      "sha256": "19771445350c9d70ac90921260265ef9a2a8f63a57ed5e746055116668bd33b3"
+      "bytes": 57273,
+      "sha256": "7901465f99f90afc0a05554a207f86fddf52349d989d0e23a0de3567bea11b95"
     },
     {
       "path": "bitnet/proposal/PROPOSAL_ZH.md",
-      "bytes": 52970,
-      "sha256": "b2d52736d055f897ade6721572d85c6e72d15ef5a0524e37884522773cd53807"
+      "bytes": 56617,
+      "sha256": "dc0251d702fd6964f29b4a59cf69adfebd1f6e5a09095f100c2623786dbaa15a"
     },
     {
       "path": "bitnet/proposal/README.md",
-      "bytes": 2509,
-      "sha256": "0daaedc16191d8322d0ff41ed096c0dcf7d192da735e897842c92722253e1079"
+      "bytes": 2972,
+      "sha256": "ca9b3cae7327b1329a54da466f13786a00617f7bd53c08f7b50153eb891d07d8"
     },
     {
       "path": "bitnet/proposal/README_ZH.md",
-      "bytes": 2843,
-      "sha256": "02d86e5b28d25f29ae2e6a53b95056d9f3aea1a838e88c0cfa23b8a4f61ffdc7"
+      "bytes": 3196,
+      "sha256": "881d52460c548b700edea524daf6598fca43a8b239e8453e7ac8c9ffc791dfc3"
     },
     {
       "path": "bitnet/proposal/TRANSLATION_CHECK.json",
       "bytes": 1175,
-      "sha256": "4409d64836c6a342ff6c0cca5722c7fc8fc6808a4bcdeb135eecc6b3e8c08a7c"
+      "sha256": "5b0db1efd532563471c499192e3be4b3dda86482bd95b97b5d0d2b0fd3c177af"
     },
     {
       "path": "bitnet/proposal/assets/execution-flow.png",
@@ -459,8 +469,8 @@
     },
     {
       "path": "bitnet/proposal/render_proposal.py",
-      "bytes": 16012,
-      "sha256": "57a02ebe240705e256f701999a449465ba98c6b982567333534b5499f29236f2"
+      "bytes": 16184,
+      "sha256": "265eaded490d0727c576e07e6e56556b4c84b9e198921135b9206fd27d7d5166"
     },
     {
       "path": "bitnet/proposal/render_proposal_zh.py",
@@ -803,5 +813,5 @@
       "sha256": "a8a3ab5e7b2d4acb8fcb93e216f935d73007c489e10fd607f9ddd9bc0827274d"
     }
   ],
-  "review_revision": "2026-11-15 semantic/phone/guard proposal response"
+  "review_revision": "2026-11-15 FFN performance exploration editorial consolidation"
 }

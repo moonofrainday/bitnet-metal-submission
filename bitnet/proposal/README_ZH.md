@@ -4,8 +4,8 @@
 
 ## 文件
 
-- `BitNet_Mobile_GPU_Proposal_ZH.pdf`：中文版 PDF，20 页。
-- `BitNet_Mobile_GPU_Proposal_ZH.docx`：可编辑中文版 Word，已渲染检查 20 页。
+- `BitNet_Mobile_GPU_Proposal_ZH.pdf`：中文版 PDF，21 页。
+- `BitNet_Mobile_GPU_Proposal_ZH.docx`：可编辑中文版 Word，已渲染检查 21 页。
 - `PROPOSAL_ZH.md`：可编辑中文源稿，与 `PROPOSAL.md` 按节对应。
 - `TRANSLATION_CHECK.json`：表格、数值、公式、代码、引用与英文保留检查。
 - `MANIFEST_ZH.json`：中文产物哈希、英文源稿身份与排版验收范围。
@@ -30,3 +30,5 @@ python3 render_proposal_zh.py --output /absolute/path/to/local-chinese-build
 Word 的 headless 排版检查需要渲染器加载可用中文字体；本次使用明确的 Fontconfig 配置、中文字体映射和逐页图像检查，确认中文及流程图正常显示。文字使用固定行距，包含图片的段落保留自动行高。原始 QA 图片、中间失败记录及本地字体缓存均不上传。
 
 中文版仅用于作者审阅。模型实验仍属于公开 checkpoint，团队模型、公开模型 ActQuant 修复、代表性质评测、Android 与能耗限制均与英文保持一致。原始 PoC 的独立手机 sample-I/O 已通过，不能据此推断其真实图接入或完整模型语义已通过。
+
+本次仅整理既有 FFN/fusion 手机证据，集中在第 10 节的一页“FFN 融合性能探索”：说明 G/K/F8 的机制、覆盖、相对 stock 的关键数据、后续 G/F8 直接对照及数值限制。详细聚合统计与来源摘要见 `../analysis/ffn-performance-exploration/`。未运行新 GPU 测试，未恢复 ActQuant 开发。

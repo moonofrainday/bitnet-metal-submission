@@ -4,31 +4,31 @@
   "QVAC_commit": "2db8b046d555316019ae75d1be90484adc8b9330",
   "artifact_type": "English proposal draft for author review",
   "pages": {
-    "PDF": 20,
-    "DOCX_render": 20
+    "PDF": 21,
+    "DOCX_render": 21
   },
   "all_11_brief_topics_covered": true,
-  "new_GPU_measurements": true,
+  "new_GPU_measurements": false,
   "raw_experiment_data_included": false,
   "timing_hardware_scope": "Physical iPhone only",
-  "native_compute_source_changed": true,
+  "native_compute_source_changed": false,
   "numerical_threshold_changed": false,
   "source": "PROPOSAL.md",
   "outputs": [
     {
       "path": "PROPOSAL.md",
-      "bytes": 53565,
-      "sha256": "19771445350c9d70ac90921260265ef9a2a8f63a57ed5e746055116668bd33b3"
+      "bytes": 57273,
+      "sha256": "7901465f99f90afc0a05554a207f86fddf52349d989d0e23a0de3567bea11b95"
     },
     {
       "path": "OUTLINE.md",
-      "bytes": 1604,
-      "sha256": "c7d1ce78f2edd5466aa91b333f894cb61d98060f23cfc6a7a9ef7f8ab63f2773"
+      "bytes": 1938,
+      "sha256": "c76df7ec9155844682456d4950d2ffab635645a395ce83dc475f05e42c976c9f"
     },
     {
       "path": "render_proposal.py",
-      "bytes": 16012,
-      "sha256": "57a02ebe240705e256f701999a449465ba98c6b982567333534b5499f29236f2"
+      "bytes": 16184,
+      "sha256": "265eaded490d0727c576e07e6e56556b4c84b9e198921135b9206fd27d7d5166"
     },
     {
       "path": "requirements-docs.txt",
@@ -47,20 +47,20 @@
     },
     {
       "path": "BitNet_Mobile_GPU_Proposal.pdf",
-      "bytes": 225144,
-      "sha256": "1affa07c3ae1ae6af9a1f856fcc664254f24940ab3691f676ced08fc19dda777"
+      "bytes": 228871,
+      "sha256": "639035ff78bc899434fc07c85f7f74f828ff2256d5c58c90b7c0c6ca30d0679e"
     },
     {
       "path": "BitNet_Mobile_GPU_Proposal.docx",
-      "bytes": 125029,
-      "sha256": "e5422c1668a824d87438129cfc883652d4f5d90d23242344abb090c38b0f87f1"
+      "bytes": 126935,
+      "sha256": "b1cc5b37fde157bc0f98080ae2779ed0beedd54a78bf613bc3658d2efe4de024"
     }
   ],
   "quality_review": {
     "all_11_topics_covered": true,
     "independent_content_review": "pass",
-    "PDF_pages_visually_inspected": 20,
-    "DOCX_pages_visually_inspected": 20,
+    "PDF_pages_visually_inspected": 21,
+    "DOCX_pages_visually_inspected": 21,
     "clipping_overlap_or_missing_glyphs_observed": false,
     "title_paragraph_borders_remaining": 0,
     "personal_host_device_or_signing_IDs_embedded": false
@@ -77,5 +77,8 @@
   "known_public_model_ActQuant_omission": true,
   "original_PoC_physical_phone_sample_IO_pass": true,
   "original_PoC_model_graph_acceptance": null,
-  "representative_model_quality_acceptance": null
+  "representative_model_quality_acceptance": null,
+  "report_revision_base_commit": "816c0c4f7a8f7337d26289033ee13ed7ff0f0b53",
+  "historical_FFN_evidence_reorganized": true,
+  "ActQuant_experiment_resumed": false
 }
