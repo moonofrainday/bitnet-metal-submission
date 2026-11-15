@@ -1,0 +1,543 @@
+{
+  "schema": 1,
+  "public_checkpoint_experiment": true,
+  "team_checkpoint_tested": false,
+  "physical_device": "iPhone14Pro / AppleA16GPU",
+  "iOS": "27.2.1",
+  "QVAC_pinned_commit": "2db8b046d555316019ae75d1be90484adc8b9330",
+  "original_phone_source_commit": "7d680ad1b266ab652e20a27f12cbe876cec8bfff",
+  "model_sha256": "52257df879ab4366d97228e7bda94a9a3c6a9065ec44e7879a8b87d54e568cd2",
+  "shape": {
+    "M": 2560,
+    "K": 2560,
+    "N": 1
+  },
+  "types": {
+    "W": "TQ2_0",
+    "X": "F32",
+    "Y": "F32"
+  },
+  "frozen_tolerance": {
+    "abs": 0.0002,
+    "relative": 2e-05,
+    "zero_failing_rows_required": true
+  },
+  "source_sha256": {
+    "bitnet/ios/src/iphone-original-poc.mm": "92ede74ece17c93c0b0fe65b80c6c028e2e15803c8d76b22a3c3dcb96335eb7e",
+    "bitnet/ios/src/CandidateReplay.mm": "68606f6a55e706739d485c0b046ab468bbb5b427caaabad845df37b01d0227d2",
+    "bitnet/ios/run.py": "e29421f0ff95bd19fd8c4a190411d9768dbbc99ac341bec037b663aa24630759",
+    "bitnet/ios/build.py": "5a80388f7e86b447c9e43a8095d8d434fc03621c517273aaa68188a38242d2ea",
+    "bitnet/ios/prepare-original-poc.py": "9fa8ec948dfb658cf3176e65b0fa41c9b69aeb0fe91ad1015b200ffa9fe4de6b",
+    "bitnet/shaders/original/matvec.metal": "db8b1fd40120adee0bf2f8bc4db01ef7e7edf11692d285e143fa15f24c408b84",
+    "bitnet/validation/shaders/matvec.metal": "db8b1fd40120adee0bf2f8bc4db01ef7e7edf11692d285e143fa15f24c408b84",
+    "bitnet/validation/reference.cpp": "1d7cd6a0a074fb6bf60d33a419ff750bc6317a281ca9a0a95ee21f5d573adb5f",
+    "bitnet/validation/stock-runtime.h": "9164a832d5b196b822cce35cb85d8d029f0246104007f2df646ca6be58b8b643"
+  },
+  "routes": {
+    "S": {
+      "kernel": "kernel_mul_mv_tq2_0_f32",
+      "origin": "actual native selector from verified embedded framework",
+      "grid": [
+        320,
+        1,
+        1
+      ],
+      "threads": [
+        32,
+        2,
+        1
+      ]
+    },
+    "PoC": {
+      "kernel": "tq2_0_matvec_poc",
+      "origin": "exact independently-authored original4x2shader",
+      "grid": [
+        320,
+        1,
+        1
+      ],
+      "threads": [
+        32,
+        2,
+        1
+      ]
+    },
+    "Q4": {
+      "kernel": "tq2_0_matvec_poc_c8x2",
+      "origin": "stock-helper-derived4x1specialization;symbolhistorical",
+      "grid": [
+        640,
+        1,
+        1
+      ],
+      "threads": [
+        32,
+        1,
+        1
+      ]
+    }
+  },
+  "original_metallib_sha256": "97c63c938aa38658a5a37a3a3a4a3803fb4048332323e3a165ccfbb2a70e24f9",
+  "Q4_metallib_sha256": "da1b27113bf3427f1805415b96e52f8c5c06e8ec108b85e96ea02c0a1f752a94",
+  "signed_embedded_framework_sha256": "a598e31dfe9de7ab841bafc892a0509ea3e765d072ea1d3aa6b6433bf6050c3e",
+  "source_binary_identity_checks": {
+    "passed": 21,
+    "total": 21
+  },
+  "runs": [
+    {
+      "id": "original-poc",
+      "input_origin": "original_captured_F32_X",
+      "authentic_quantized_model_graph_capture": false,
+      "cases": [
+        {
+          "id": "known-answer",
+          "W_sha256": "600683378bb0183f97a085154db6231232c47e71327e6f3c3b66c97e8c061e13",
+          "X_sha256": "0ea33daf975e1e49b66366ef5df2837c1a7d2df57edcc9df5971e9141c8babc4",
+          "native_reference_vs_independent_F64_max_abs": 0.0,
+          "all_metadata_checks_pass": true,
+          "routes": {
+            "S": {
+              "rows": 2560,
+              "max_abs_error": 0.0,
+              "relative_l2": 0.0,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 0,
+              "stock_max_abs_diff": 0.0,
+              "stock_tolerance_failing_rows": 0
+            },
+            "PoC": {
+              "rows": 2560,
+              "max_abs_error": 0.0,
+              "relative_l2": 0.0,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 0,
+              "stock_max_abs_diff": 0.0,
+              "stock_tolerance_failing_rows": 0
+            },
+            "Q4": {
+              "rows": 2560,
+              "max_abs_error": 0.0,
+              "relative_l2": 0.0,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 0,
+              "stock_max_abs_diff": 0.0,
+              "stock_tolerance_failing_rows": 0
+            }
+          }
+        },
+        {
+          "id": "dense-seed42",
+          "W_sha256": "7c73e39a2b7d166b647134d1732fb9495cd869ac5f418828937e93bec9eb1457",
+          "X_sha256": "92204d23098b9a6a6b61934ffabbf541ef26fdfb780ac47c30e3223f8e2b52bb",
+          "native_reference_vs_independent_F64_max_abs": 0.0,
+          "all_metadata_checks_pass": true,
+          "routes": {
+            "S": {
+              "rows": 2560,
+              "max_abs_error": 0.00020579161355271935,
+              "relative_l2": 3.913286652921642e-06,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 0,
+              "stock_max_abs_diff": 0.0,
+              "stock_tolerance_failing_rows": 0
+            },
+            "PoC": {
+              "rows": 2560,
+              "max_abs_error": 5.5169475672300905e-06,
+              "relative_l2": 9.037840600661132e-08,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 2540,
+              "stock_max_abs_diff": 0.00020599365234375,
+              "stock_tolerance_failing_rows": 0
+            },
+            "Q4": {
+              "rows": 2560,
+              "max_abs_error": 0.00020579161355271935,
+              "relative_l2": 3.913286652921642e-06,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 0,
+              "stock_max_abs_diff": 0.0,
+              "stock_tolerance_failing_rows": 0
+            }
+          }
+        },
+        {
+          "id": "real-step-1",
+          "W_sha256": "b2dea7f42cacfd08ed780df979f6f28240026795b1f5c87ca8c16fc7da23dc58",
+          "X_sha256": "b9dd234a8c2df09fc138988b88c69acae92115131c267154a35ab297ccacbb56",
+          "native_reference_vs_independent_F64_max_abs": 0.0,
+          "all_metadata_checks_pass": true,
+          "routes": {
+            "S": {
+              "rows": 2560,
+              "max_abs_error": 9.509993446954468e-06,
+              "relative_l2": 2.0488601995377725e-06,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 0,
+              "stock_max_abs_diff": 0.0,
+              "stock_tolerance_failing_rows": 0
+            },
+            "PoC": {
+              "rows": 2560,
+              "max_abs_error": 4.7360435928567313e-07,
+              "relative_l2": 6.160722623746591e-08,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 2532,
+              "stock_max_abs_diff": 9.417533874511719e-06,
+              "stock_tolerance_failing_rows": 0
+            },
+            "Q4": {
+              "rows": 2560,
+              "max_abs_error": 9.509993446954468e-06,
+              "relative_l2": 2.0488601995377725e-06,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 0,
+              "stock_max_abs_diff": 0.0,
+              "stock_tolerance_failing_rows": 0
+            }
+          }
+        },
+        {
+          "id": "real-step-16",
+          "W_sha256": "b2dea7f42cacfd08ed780df979f6f28240026795b1f5c87ca8c16fc7da23dc58",
+          "X_sha256": "8314cd7fe2f5deaa64ef8a7c9cbb1d9254bc430eed863ea4792c46a3c99c887e",
+          "native_reference_vs_independent_F64_max_abs": 0.0,
+          "all_metadata_checks_pass": true,
+          "routes": {
+            "S": {
+              "rows": 2560,
+              "max_abs_error": 9.595010098450985e-06,
+              "relative_l2": 2.1190522468394007e-06,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 0,
+              "stock_max_abs_diff": 0.0,
+              "stock_tolerance_failing_rows": 0
+            },
+            "PoC": {
+              "rows": 2560,
+              "max_abs_error": 4.28049474976433e-07,
+              "relative_l2": 6.722656672505078e-08,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 2529,
+              "stock_max_abs_diff": 9.655952453613281e-06,
+              "stock_tolerance_failing_rows": 0
+            },
+            "Q4": {
+              "rows": 2560,
+              "max_abs_error": 9.595010098450985e-06,
+              "relative_l2": 2.1190522468394007e-06,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 0,
+              "stock_max_abs_diff": 0.0,
+              "stock_tolerance_failing_rows": 0
+            }
+          }
+        },
+        {
+          "id": "real-step-32",
+          "W_sha256": "b2dea7f42cacfd08ed780df979f6f28240026795b1f5c87ca8c16fc7da23dc58",
+          "X_sha256": "d9d86ba66b364b44f0e91cc3e063492397c71f3c74adadc477714accb7fdc7ba",
+          "native_reference_vs_independent_F64_max_abs": 0.0,
+          "all_metadata_checks_pass": true,
+          "routes": {
+            "S": {
+              "rows": 2560,
+              "max_abs_error": 8.449031852819644e-06,
+              "relative_l2": 2.0318121036785515e-06,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 0,
+              "stock_max_abs_diff": 0.0,
+              "stock_tolerance_failing_rows": 0
+            },
+            "PoC": {
+              "rows": 2560,
+              "max_abs_error": 3.6735897879225377e-07,
+              "relative_l2": 6.236631312314193e-08,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 2521,
+              "stock_max_abs_diff": 8.404254913330078e-06,
+              "stock_tolerance_failing_rows": 0
+            },
+            "Q4": {
+              "rows": 2560,
+              "max_abs_error": 8.449031852819644e-06,
+              "relative_l2": 2.0318121036785515e-06,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 0,
+              "stock_max_abs_diff": 0.0,
+              "stock_tolerance_failing_rows": 0
+            }
+          }
+        }
+      ],
+      "native_GPU_dispatches_completed": 15,
+      "console_GPU_completions": 15,
+      "GPU_values_independently_recomputed": 38400,
+      "local_numerical_exit_code": 0,
+      "global_strict_V1_exit_code": 2,
+      "independent_reanalysis_pass": true,
+      "model_output_pass": null,
+      "model_semantics_pass": null,
+      "timing_or_speedup_measured": false,
+      "local_evidence": {
+        "native_summary": "runs/original-poc/operator/summary.json",
+        "host_summary": "runs/original-poc/summary.json",
+        "CPU_reanalysis": "phone-poc-independent-reanalysis/SUMMARY.json",
+        "CPU_results": "phone-poc-independent-reanalysis/RESULTS.csv"
+      },
+      "evidence_sha256": {
+        "native_summary": "6eb283065a72d9ffa51d92adb6988f32515f6548965793e94851050a47d9e267",
+        "CPU_reanalysis": "8cfb25908d22b91ac1a945d00be579b724ef41f4514b8269cbe63a2299ed5999"
+      }
+    },
+    {
+      "id": "original-poc-actquant-derived",
+      "input_origin": "derived_quantized_X",
+      "authentic_quantized_model_graph_capture": false,
+      "cases": [
+        {
+          "id": "known-answer",
+          "W_sha256": "600683378bb0183f97a085154db6231232c47e71327e6f3c3b66c97e8c061e13",
+          "X_sha256": "0ea33daf975e1e49b66366ef5df2837c1a7d2df57edcc9df5971e9141c8babc4",
+          "native_reference_vs_independent_F64_max_abs": 0.0,
+          "all_metadata_checks_pass": true,
+          "routes": {
+            "S": {
+              "rows": 2560,
+              "max_abs_error": 0.0,
+              "relative_l2": 0.0,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 0,
+              "stock_max_abs_diff": 0.0,
+              "stock_tolerance_failing_rows": 0
+            },
+            "PoC": {
+              "rows": 2560,
+              "max_abs_error": 0.0,
+              "relative_l2": 0.0,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 0,
+              "stock_max_abs_diff": 0.0,
+              "stock_tolerance_failing_rows": 0
+            },
+            "Q4": {
+              "rows": 2560,
+              "max_abs_error": 0.0,
+              "relative_l2": 0.0,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 0,
+              "stock_max_abs_diff": 0.0,
+              "stock_tolerance_failing_rows": 0
+            }
+          }
+        },
+        {
+          "id": "dense-seed42",
+          "W_sha256": "7c73e39a2b7d166b647134d1732fb9495cd869ac5f418828937e93bec9eb1457",
+          "X_sha256": "92204d23098b9a6a6b61934ffabbf541ef26fdfb780ac47c30e3223f8e2b52bb",
+          "native_reference_vs_independent_F64_max_abs": 0.0,
+          "all_metadata_checks_pass": true,
+          "routes": {
+            "S": {
+              "rows": 2560,
+              "max_abs_error": 0.00020579161355271935,
+              "relative_l2": 3.913286652921642e-06,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 0,
+              "stock_max_abs_diff": 0.0,
+              "stock_tolerance_failing_rows": 0
+            },
+            "PoC": {
+              "rows": 2560,
+              "max_abs_error": 5.5169475672300905e-06,
+              "relative_l2": 9.037840600661132e-08,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 2540,
+              "stock_max_abs_diff": 0.00020599365234375,
+              "stock_tolerance_failing_rows": 0
+            },
+            "Q4": {
+              "rows": 2560,
+              "max_abs_error": 0.00020579161355271935,
+              "relative_l2": 3.913286652921642e-06,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 0,
+              "stock_max_abs_diff": 0.0,
+              "stock_tolerance_failing_rows": 0
+            }
+          }
+        },
+        {
+          "id": "real-step-1",
+          "W_sha256": "b2dea7f42cacfd08ed780df979f6f28240026795b1f5c87ca8c16fc7da23dc58",
+          "X_sha256": "5cbcf40dff80694490511cfdec5bbb3f51b4d42bdb34460432deb7b3dcc1c844",
+          "native_reference_vs_independent_F64_max_abs": 0.0,
+          "all_metadata_checks_pass": true,
+          "routes": {
+            "S": {
+              "rows": 2560,
+              "max_abs_error": 1.0247051250189543e-05,
+              "relative_l2": 2.401457768248988e-06,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 0,
+              "stock_max_abs_diff": 0.0,
+              "stock_tolerance_failing_rows": 0
+            },
+            "PoC": {
+              "rows": 2560,
+              "max_abs_error": 4.823341441806406e-07,
+              "relative_l2": 6.207616029731977e-08,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 2536,
+              "stock_max_abs_diff": 1.0371208190917969e-05,
+              "stock_tolerance_failing_rows": 0
+            },
+            "Q4": {
+              "rows": 2560,
+              "max_abs_error": 1.0247051250189543e-05,
+              "relative_l2": 2.401457768248988e-06,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 0,
+              "stock_max_abs_diff": 0.0,
+              "stock_tolerance_failing_rows": 0
+            }
+          }
+        },
+        {
+          "id": "real-step-16",
+          "W_sha256": "b2dea7f42cacfd08ed780df979f6f28240026795b1f5c87ca8c16fc7da23dc58",
+          "X_sha256": "faca9f62eb02a1da3d87cf39df20816a4a15b79806995b4225df68b008e0cbcb",
+          "native_reference_vs_independent_F64_max_abs": 0.0,
+          "all_metadata_checks_pass": true,
+          "routes": {
+            "S": {
+              "rows": 2560,
+              "max_abs_error": 8.83735265233554e-06,
+              "relative_l2": 2.2015990359385136e-06,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 0,
+              "stock_max_abs_diff": 0.0,
+              "stock_tolerance_failing_rows": 0
+            },
+            "PoC": {
+              "rows": 2560,
+              "max_abs_error": 4.321009328123182e-07,
+              "relative_l2": 6.461828986148405e-08,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 2537,
+              "stock_max_abs_diff": 8.702278137207031e-06,
+              "stock_tolerance_failing_rows": 0
+            },
+            "Q4": {
+              "rows": 2560,
+              "max_abs_error": 8.83735265233554e-06,
+              "relative_l2": 2.2015990359385136e-06,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 0,
+              "stock_max_abs_diff": 0.0,
+              "stock_tolerance_failing_rows": 0
+            }
+          }
+        },
+        {
+          "id": "real-step-32",
+          "W_sha256": "b2dea7f42cacfd08ed780df979f6f28240026795b1f5c87ca8c16fc7da23dc58",
+          "X_sha256": "38c037861c0c550faab0b5c34a7267a4b018fbc989e86eeab414789c49df98a9",
+          "native_reference_vs_independent_F64_max_abs": 0.0,
+          "all_metadata_checks_pass": true,
+          "routes": {
+            "S": {
+              "rows": 2560,
+              "max_abs_error": 1.1220903616049327e-05,
+              "relative_l2": 2.370238352097691e-06,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 0,
+              "stock_max_abs_diff": 0.0,
+              "stock_tolerance_failing_rows": 0
+            },
+            "PoC": {
+              "rows": 2560,
+              "max_abs_error": 4.5182969188317657e-07,
+              "relative_l2": 6.004954613518071e-08,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 2528,
+              "stock_max_abs_diff": 1.1205673217773438e-05,
+              "stock_tolerance_failing_rows": 0
+            },
+            "Q4": {
+              "rows": 2560,
+              "max_abs_error": 1.1220903616049327e-05,
+              "relative_l2": 2.370238352097691e-06,
+              "failing_rows": 0,
+              "nonfinite_rows": 0,
+              "stock_bitwise_diff_rows": 0,
+              "stock_max_abs_diff": 0.0,
+              "stock_tolerance_failing_rows": 0
+            }
+          }
+        }
+      ],
+      "native_GPU_dispatches_completed": 15,
+      "console_GPU_completions": 15,
+      "GPU_values_independently_recomputed": 38400,
+      "local_numerical_exit_code": 0,
+      "global_strict_V1_exit_code": 2,
+      "independent_reanalysis_pass": true,
+      "model_output_pass": null,
+      "model_semantics_pass": null,
+      "timing_or_speedup_measured": false,
+      "local_evidence": {
+        "native_summary": "runs/original-poc-actquant-derived/operator/summary.json",
+        "host_summary": "runs/original-poc-actquant-derived/summary.json",
+        "CPU_reanalysis": "phone-poc-derived-independent-reanalysis/SUMMARY.json",
+        "CPU_results": "phone-poc-derived-independent-reanalysis/RESULTS.csv"
+      },
+      "evidence_sha256": {
+        "native_summary": "06699bb68aa0b3f6bd1668649e810d842da7a661fac12484b8a6e85eead00d89",
+        "CPU_reanalysis": "07309a2db35cb195c796a5cfcbfaaa173248d76175d40b85f2b3781d93f9c3ee"
+      },
+      "official_ActQuant_source_sha256": "a8b3170f1824f010701f4e033fbc33d199bc2ea344ddbf2554594b66fada8b1c",
+      "official_transformers_commit": "096f25ae1f501a084d8ff2dcaf25fbc2bd60eba4",
+      "exact_official_AST_reexecution_bitwise_pass": true,
+      "scope": "SamecapturedW;XreplacedwithofficialsavedF32quantize/dequantizeoutput. Notauthenticquantizedmodelgraphcapture,INT8hardwareexecution,orfullmodelsemanticevidence."
+    }
+  ],
+  "performance_measured": false,
+  "model_output_pass": null,
+  "model_semantics_pass": null,
+  "model_quality_tested": false,
+  "global_strict_V1_exit_code": 2,
+  "independent_reference": "Every row independently logical-K-unpacked, FP16 scale decoded, FP64 products summed with math.fsum; all38400GPUvalues perrun",
+  "coverage_scope": "Expected row ownership + NaN-to-finite2560rowreadback + nativecanarywitness; no writecounter or dumpedrawguardbyteoracle",
+  "publication_policy": "Derived analysis and code only; raw models,tensors,logs,andbinaries remain local"
+}
