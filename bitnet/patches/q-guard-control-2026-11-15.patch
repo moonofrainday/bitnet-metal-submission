@@ -1,0 +1,118 @@
+diff --git a/ggml/src/ggml-metal/ggml-metal-device.m b/ggml/src/ggml-metal/ggml-metal-device.m
+index 6c682fb..59c03f7 100644
+--- a/ggml/src/ggml-metal/ggml-metal-device.m
++++ b/ggml/src/ggml-metal/ggml-metal-device.m
+@@ -1149,9 +1149,9 @@ void ggml_metal_encoder_trace_bitnet_node(ggml_metal_encoder_t encoder, struct g
+     NSString * output_name = [NSString stringWithUTF8String:output->name];
+     const int tokens = node->ne[1];
+     const char * label = pipeline.pipeline->trace_name;
+-    fprintf(stderr, "BITNET_MULTILAYER_ENCODE route=%s layer=%d node=%s weight=%s output=%s n=%d pipeline=%s grid=[%d,%d,%d] threads=[%d,%d,1] command=%p\n",
++    fprintf(stderr, "BITNET_MULTILAYER_ENCODE route=%s layer=%d node=%s weight=%s output=%s n=%d pipeline=%s grid=[%d,%d,%d] threads=[%d,%d,1] command=%p pso=%p\n",
+             route, layer, node_name.UTF8String, weight_name.UTF8String, output_name.UTF8String, tokens,
+-            label ? label : "(unlabelled)", grid_x, grid_y, grid_z, threads_x, threads_y, (void *) command);
++            label ? label : "(unlabelled)", grid_x, grid_y, grid_z, threads_x, threads_y, (void *) command, (void *) pipeline.pipeline->obj);
+     [command addCompletedHandler:^(id<MTLCommandBuffer> done) {
+         fprintf(stderr, "BITNET_MULTILAYER_COMPLETE route=%s layer=%d node=%s weight=%s output=%s n=%d command=%p status=%lu completed=%d\n",
+                 route, layer, node_name.UTF8String, weight_name.UTF8String, output_name.UTF8String, tokens,
+diff --git a/ggml/src/ggml-metal/ggml-metal-ops.cpp b/ggml/src/ggml-metal/ggml-metal-ops.cpp
+index ea125ef..ddc2489 100644
+--- a/ggml/src/ggml-metal/ggml-metal-ops.cpp
++++ b/ggml/src/ggml-metal/ggml-metal-ops.cpp
+@@ -3459,21 +3459,22 @@ static bool ggml_metal_bitnet_q_readback_active() {
+     if (end == step_text || *end || step < 0 || step > 32) {GGML_ABORT("Q readback step must be 0 through 32");}
+     if (step == 0) {return false;}
+     const char * route = std::getenv("GGML_METAL_BITNET_QREADBACK_ROUTE");
+-    if (!route || (std::strcmp(route, "S") && std::strcmp(route, "Q4"))) {
+-        GGML_ABORT("Q readback route must be S or Q4");
++    if (!route || (std::strcmp(route, "S") && std::strcmp(route, "Q4") && std::strcmp(route, "QB"))) {
++        GGML_ABORT("Q readback route must be S, Q4 or QB");
+     }
+     if (std::getenv("GGML_METAL_BITNET_FFN") || std::getenv("GGML_METAL_BITNET_FFN_MECHANISM")) {
+         GGML_ABORT("Q readback is restricted to Q-only runs");
+     }
+     const bool custom = ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_POC");
+-    if ((std::strcmp(route, "S") == 0 && custom) || (std::strcmp(route, "Q4") == 0 && !custom)) {
+-        GGML_ABORT("Q readback route and actual custom switch differ");
++    const bool guard_only = ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_Q_GUARD_ONLY");
++    if (custom != (std::strcmp(route, "Q4") == 0) || guard_only != (std::strcmp(route, "QB") == 0)) {
++        GGML_ABORT("Q readback route and actual custom/guard switches differ");
+     }
+-    if (custom) {
++    if (custom || guard_only) {
+         const char * rows = std::getenv("GGML_METAL_BITNET_POC_ROWS_PER_SIMD");
+         const char * groups = std::getenv("GGML_METAL_BITNET_POC_SIMD_PER_GROUP");
+         if (!rows || std::strcmp(rows, "4") || !groups || std::strcmp(groups, "1")) {
+-            GGML_ABORT("Q4 readback requires the four-row one-SIMD configuration");
++            GGML_ABORT("Q4/QB readback requires the four-row one-SIMD configuration");
+         }
+     }
+     return true;
+@@ -3828,7 +3829,7 @@ static bool ggml_metal_try_bitnet_ffn_fused(ggml_metal_op_t ctx, int idx, bool t
+     return true;
+ }
+ 
+-static bool ggml_metal_try_bitnet_poc(ggml_metal_op_t ctx, const ggml_tensor * op, bool trace) {
++static bool ggml_metal_try_bitnet_poc(ggml_metal_op_t ctx, const ggml_tensor * op, bool trace, bool guard_only = false) {
+     // This isolated experiment may only replace layer-0 Q, regardless of a broader layer selection.
+     if (ggml_metal_bitnet_layer(op->name, "Qcur-") != 0) {
+         return false;
+@@ -3899,6 +3900,16 @@ static bool ggml_metal_try_bitnet_poc(ggml_metal_op_t ctx, const ggml_tensor * o
+         return false;
+     }
+ 
++    if (guard_only) {
++        if (trace) {
++            std::fprintf(stderr, "BITNET_Q_GUARD_PASS node=%s layer=0 step=%s checked=1 candidate_pipeline=%s width=%d max_threads=%d rows=%d simd=%d w=%p+%zu x=%p+%zu y=%p+%zu bounds=1 disjoint=1 custom_encoded=0\n",
++                    op->name, std::getenv("GGML_METAL_BITNET_FFN_STEP"), ggml_metal_pipeline_name(pipeline),
++                    execution_width, max_threads, rows_per_simdgroup, simdgroups_per_threadgroup,
++                    w.metal, w.offs, x.metal, x.offs, y.metal, y.offs);
++        }
++        return true;
++    }
++
+     ggml_metal_encoder_set_pipeline(ctx->enc, pipeline);
+     ggml_metal_encoder_set_buffer(ctx->enc, w, 0);
+     ggml_metal_encoder_set_buffer(ctx->enc, x, 1);
+@@ -3945,12 +3956,18 @@ static void ggml_metal_op_mul_mat_mv_encode(
+ 
+     const bool target = ggml_metal_bitnet_poc_target(op);
+     const bool trace = target && ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_POC_TRACE");
++    const bool guard_only = ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_Q_GUARD_ONLY");
++    const bool custom_q = ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_POC");
++    if (guard_only && custom_q) { GGML_ABORT("Q guard-only and custom routes are mutually exclusive"); }
++    bool guarded_stock = false;
+     if (!stock_only && !std::getenv("GGML_METAL_BITNET_FFN_MECHANISM") && target && ne11 == 1 && !add && !norm &&
+         ggml_metal_bitnet_selected_layer(ggml_metal_bitnet_layer(op->name, "Qcur-")) &&
+-        ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_FFN_DECODE") &&
+-        ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_POC") &&
+-        ggml_metal_try_bitnet_poc(ctx, op, trace)) {
+-        return;
++        ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_FFN_DECODE")) {
++        if (guard_only) {
++            guarded_stock = ggml_metal_try_bitnet_poc(ctx, op, trace, true);
++        } else if (custom_q && ggml_metal_try_bitnet_poc(ctx, op, trace)) {
++            return;
++        }
+     }
+ 
+     const auto ffn = ggml_metal_bitnet_ffn_projection(op);
+@@ -4016,6 +4033,19 @@ static void ggml_metal_op_mul_mat_mv_encode(
+         ggml_metal_encoder_dispatch_threadgroups(enc, grid_x, grid_y, grid_z, 32, nsg, 1);
+         if (ctx->numerics_capture) {ggml_metal_bitnet_numerics_dispatch(ctx,op,dst,pipeline,grid_x,grid_y,grid_z,32,nsg,add,norm!=nullptr,1);}
+         if (trace) {
++            if (ggml_metal_bitnet_layer(op->name, "Qcur-") == 0 && ne11 == 1) {
++                const auto weight_binding = ggml_metal_get_buffer_id(op->src[0]);
++                const auto input_binding = ggml_metal_get_buffer_id(src1);
++                const auto output_binding = ggml_metal_get_buffer_id(dst);
++                const auto residual_binding = ggml_metal_get_buffer_id(res);
++                const auto norm_binding = ggml_metal_get_buffer_id(w ? w : src1);
++                std::fprintf(stderr, "BITNET_Q_STOCK_ABI node=%s step=%s guarded=%d pipeline=%s cached_pipeline=%p args_bytes=%zu add=%d norm=%d grid=[%d,%d,%d] threads=[32,%d,1] smem=%zu w=%p+%zu x=%p+%zu y=%p+%zu residual=%p+%zu norm_weight=%p+%zu slots=[0,1,2,3,4,5]\n",
++                        op->name, std::getenv("GGML_METAL_BITNET_FFN_STEP"), guarded_stock,
++                        ggml_metal_pipeline_name(pipeline), (void *)pipeline.pipeline, sizeof(args), add, norm != nullptr,
++                        grid_x, grid_y, grid_z, nsg, smem, weight_binding.metal, weight_binding.offs,
++                        input_binding.metal, input_binding.offs, output_binding.metal, output_binding.offs,
++                        residual_binding.metal, residual_binding.offs, norm_binding.metal, norm_binding.offs);
++            }
+             ggml_metal_encoder_trace_bitnet(enc, pipeline, "stock-mv", ne11, grid_x, grid_y, grid_z, nsg);
+             ggml_metal_encoder_trace_bitnet_node(enc, pipeline, "q-stock", ggml_metal_bitnet_layer(op->name, "Qcur-"),
+                     op, dst, grid_x, grid_y, grid_z, 32, nsg);

@@ -14,8 +14,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 5555,
-      "sha256": "7763528fcaaed60a3cdb94ef42ba48bd2dd08693964ebf11f9a77ee045e95daf"
+      "bytes": 6175,
+      "sha256": "486267ac7a64b336b3b03d6207f32a1fd697977947848895dd698a72c19af5e1"
     },
     {
       "path": "README.upstream.md",
@@ -31,6 +31,11 @@
       "path": "bitnet/analysis-tools/analyze-down-selected.py",
       "bytes": 13805,
       "sha256": "cbd7e2e37fa288cb111dc956e5408ac8a7cf6da1ad2d5d94bfa20dcdd8f1683b"
+    },
+    {
+      "path": "bitnet/analysis-tools/analyze-ppl-smoke.py",
+      "bytes": 12289,
+      "sha256": "0a84ec754c933e0eb839e2857faf9356b3300825e35d7636e26d33f6f6963bd4"
     },
     {
       "path": "bitnet/analysis-tools/analyze-q4-complete.py",
@@ -93,14 +98,74 @@
       "sha256": "dbeaf284a070f3b67eec1423bed8af5cb5c1d6ccf305e749c03f90cfeba346f9"
     },
     {
+      "path": "bitnet/analysis/review-2026-11-15/ORIGINAL_POC_PHONE.md",
+      "bytes": 8432,
+      "sha256": "c8624442420265dd1ee13d2e68019d958ad3f78eea847eddd5bf7aa8f6d3f211"
+    },
+    {
+      "path": "bitnet/analysis/review-2026-11-15/PHONE_QUALITY_SMOKE.md",
+      "bytes": 5702,
+      "sha256": "9423070397409368fd339a14743782616b8e577824695b8b11cf04d57213dcd1"
+    },
+    {
+      "path": "bitnet/analysis/review-2026-11-15/PROFILE_NUMERICS.md",
+      "bytes": 15067,
+      "sha256": "9d2328ec8bd370292f737dbab573d6745518169589540c26dcaae182ab26c9f3"
+    },
+    {
+      "path": "bitnet/analysis/review-2026-11-15/README.md",
+      "bytes": 4333,
+      "sha256": "1f000d41743e7b01ca82d844040493506ae6815ff1815546e44522792e37fbb8"
+    },
+    {
+      "path": "bitnet/analysis/review-2026-11-15/RERUN.md",
+      "bytes": 3801,
+      "sha256": "08bc7adf2e7173ec8d22178df34438e664669aa7cd09ee6d5d15dc13ecbb8172"
+    },
+    {
+      "path": "bitnet/analysis/review-2026-11-15/REVIEW_SEMANTICS.json",
+      "bytes": 7453,
+      "sha256": "63c9ac402421aeeec0e0c5e99ef0a2f0ed01fc06e1a61e5e9860e4118162ca7a"
+    },
+    {
+      "path": "bitnet/analysis/review-2026-11-15/REVIEW_SEMANTICS.md",
+      "bytes": 6444,
+      "sha256": "daabee6e331343e7e3affb1cbe8c2f582a40584d44f5d06d6b97fb1f63757d6b"
+    },
+    {
+      "path": "bitnet/analysis/review-2026-11-15/analyze-guard-control.py",
+      "bytes": 12636,
+      "sha256": "c750004270bd322065fd84094e953386e5428e2fdd9343645afa3305f6b350c6"
+    },
+    {
+      "path": "bitnet/analysis/review-2026-11-15/guard-control-summary.json",
+      "bytes": 23422,
+      "sha256": "214b36c21ce9b9c32452f4022d7639db5a1da582fd73c885ce069292a2aa023c"
+    },
+    {
+      "path": "bitnet/analysis/review-2026-11-15/original-poc-phone-summary.json",
+      "bytes": 20751,
+      "sha256": "393417de8aab74d1348132eee148cddc357eed983fcb6400911f6f20d009a371"
+    },
+    {
+      "path": "bitnet/analysis/review-2026-11-15/phone-ppl-summary.json",
+      "bytes": 8404,
+      "sha256": "3ab5e3a49b3653116d9d9e9bcf02b57ae62383213a1fcf861b496551c60d6995"
+    },
+    {
+      "path": "bitnet/analysis/review-2026-11-15/reanalyze-phone-poc.py",
+      "bytes": 7105,
+      "sha256": "8f56eedfa794bb94ac47a6a654c22fc496390e31a1c83825c509726d880877eb"
+    },
+    {
       "path": "bitnet/docs/BUILD_AND_RUN.md",
       "bytes": 5320,
       "sha256": "b496e9998e598015cc9534ba2d0bc17f835e1866b4093d55831d7cf7d9a0f478"
     },
     {
       "path": "bitnet/docs/CHANGES_FROM_QVAC.md",
-      "bytes": 5065,
-      "sha256": "86a120bb71ecf8528b662d3d4ff485a96a2be78c889ab34bb202b2bc0c1727cf"
+      "bytes": 5944,
+      "sha256": "2de8a6ce4c9ec9c515b7084ad99e3c8409e72618d2c50253753749fbb5ed7d07"
     },
     {
       "path": "bitnet/docs/IPHONE_Q4_COMPLETE_2026-11-15.md",
@@ -116,6 +181,16 @@
       "path": "bitnet/docs/LIMITATIONS.md",
       "bytes": 3434,
       "sha256": "741ccb81c013c63b9694f7376a9cdfbad3fb222985ca016e25eb08e6b811dedb"
+    },
+    {
+      "path": "bitnet/docs/PHONE_GUARD_CONTROL_2026-11-15.md",
+      "bytes": 4768,
+      "sha256": "c2612340bca5aeb5abcff86eeedd5aa1cf797d6a3d87475c4c50857d12c3c168"
+    },
+    {
+      "path": "bitnet/docs/PHONE_STOCK_QUALITY_SMOKE.md",
+      "bytes": 3518,
+      "sha256": "ff09d1efdf5cfc3545254eab955c7f73cb73e329564641c03969894b31216810"
     },
     {
       "path": "bitnet/docs/SOURCE_WALKTHROUGH.md",
@@ -174,8 +249,8 @@
     },
     {
       "path": "bitnet/ios/build.py",
-      "bytes": 13600,
-      "sha256": "d20e9bd58da9d3ddba1a610a0acef5f84027ca0fd6a8d029e8b7c0c188f2ec09"
+      "bytes": 13843,
+      "sha256": "be6ae9f84a4ffd576f28927b4cad134b3dc46aaf2a99d02025c2c8df24f568af"
     },
     {
       "path": "bitnet/ios/common.py",
@@ -218,14 +293,29 @@
       "sha256": "24dc7f824ba28ac7184b57ddaf2e720dc91fad9f8a8c1c9771a5bb73464a8cad"
     },
     {
+      "path": "bitnet/ios/ppl-prepare.py",
+      "bytes": 1968,
+      "sha256": "648e358c19ae51180f0e2f055a7b3f135dbb64eea620dfebf741b8edbcdd486d"
+    },
+    {
+      "path": "bitnet/ios/ppl-run.py",
+      "bytes": 6945,
+      "sha256": "5a6b6c5eb74691f327f11c83e3edc58addb4d5e032367383410453da13ea2dce"
+    },
+    {
+      "path": "bitnet/ios/prepare-original-poc.py",
+      "bytes": 2604,
+      "sha256": "9fa8ec948dfb658cf3176e65b0fa41c9b69aeb0fe91ad1015b200ffa9fe4de6b"
+    },
+    {
       "path": "bitnet/ios/run.py",
-      "bytes": 40965,
-      "sha256": "1cadf2cb4c20b5594d769dd5bd7ad5c4aa94de98b808894eb5b1b3c4208679cd"
+      "bytes": 51319,
+      "sha256": "edeb93c99a2bb8f2782159408327f1f13f0566993e4c60fb9644a82f8ebae311"
     },
     {
       "path": "bitnet/ios/src/CandidateReplay.mm",
-      "bytes": 31101,
-      "sha256": "a70e8dd41680bdcbb4d48f8c10cb66979565cd543eecb0cd0575d0f7d758e99b"
+      "bytes": 33332,
+      "sha256": "f9f730e275740e6ae343c71a02ef13d6fcfd4f0ae4f5efa65674021c6338da4e"
     },
     {
       "path": "bitnet/ios/src/alias-stock-ffn.h",
@@ -253,6 +343,16 @@
       "sha256": "d6a38b0051feef1880a7d560bc934c6cd7515fbd57f7df7d60709d94015b9b70"
     },
     {
+      "path": "bitnet/ios/src/iphone-original-poc.mm",
+      "bytes": 27468,
+      "sha256": "92ede74ece17c93c0b0fe65b80c6c028e2e15803c8d76b22a3c3dcb96335eb7e"
+    },
+    {
+      "path": "bitnet/ios/src/iphone-ppl.mm",
+      "bytes": 8679,
+      "sha256": "10e0642c74d1648c8b9eb780bdebe6398881e2fdec9da9b516f4734eb435b73c"
+    },
+    {
       "path": "bitnet/ios/src/iphone-q.h",
       "bytes": 196,
       "sha256": "78cb8962ceb92064273d0e3367a6aa475ad995b27bfe7ed8d32553d0f30622f5"
@@ -273,39 +373,44 @@
       "sha256": "62e92bb1e35cd6671257c49509ee3c1b6a9abaa423d40a656adcc53fd72f73b8"
     },
     {
+      "path": "bitnet/patches/q-guard-control-2026-11-15.patch",
+      "bytes": 8166,
+      "sha256": "92edf7d5410a9514eaded1abb8eefd06a391df2db88edb3b518096e7f07dbbd9"
+    },
+    {
       "path": "bitnet/patches/q4-readback-additive.patch",
       "bytes": 15924,
       "sha256": "5c44ac2e6f6c408dafc51b89d23cbbe9413ac68be556ce87fbd6bbec1816d2b2"
     },
     {
       "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal.docx",
-      "bytes": 118555,
-      "sha256": "5da8f8f0bdea4eed8abaf72e46adc0d7f101d61c732da28db78eb0ee6575d6f1"
+      "bytes": 125029,
+      "sha256": "e5422c1668a824d87438129cfc883652d4f5d90d23242344abb090c38b0f87f1"
     },
     {
       "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal.pdf",
-      "bytes": 211593,
-      "sha256": "8011b674a45c02e4ed95761391d46f3d17e6c8c6cccf0f3826ac5e220ba2caec"
+      "bytes": 225144,
+      "sha256": "1affa07c3ae1ae6af9a1f856fcc664254f24940ab3691f676ced08fc19dda777"
     },
     {
       "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal_ZH.docx",
-      "bytes": 124365,
-      "sha256": "4048a67602bdadf9bf1e89b32ff65f3f3a9ad8a48d305aecd096e0e334fbc6bc"
+      "bytes": 132134,
+      "sha256": "34444605bc11d6eb06dcdca8211b8890f06f8ff8c0b93770939f35b9da046d85"
     },
     {
       "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal_ZH.pdf",
-      "bytes": 523310,
-      "sha256": "eacc45eddac6c0e12b7fe4540c6d472ced4683c5a2c634c63a1daf9563690b7f"
+      "bytes": 573414,
+      "sha256": "dfbbdd0aabe6d59c0226eb0052e6e0c17418617a85c6e3a5b0ec1452c2f854af"
     },
     {
       "path": "bitnet/proposal/MANIFEST.json",
-      "bytes": 2202,
-      "sha256": "a924218375f85bdaaee625a26b8357406b68c64aeb07ceb27b667b5daa3ec2e8"
+      "bytes": 2841,
+      "sha256": "5444c96e6aac715f8e4ac982d676d38f474ca76eca55bf22d6e322a9bcefbf8f"
     },
     {
       "path": "bitnet/proposal/MANIFEST_ZH.json",
-      "bytes": 3006,
-      "sha256": "15705e658075a8105a2105e5a7395bc6a4bfc463e11f523c6b06536fcfa9e7da"
+      "bytes": 2107,
+      "sha256": "0cc5fc93fee8b5d85cf810b42faaad61b3daca16c124248d41fb9cb1d1ab2028"
     },
     {
       "path": "bitnet/proposal/OUTLINE.md",
@@ -314,28 +419,28 @@
     },
     {
       "path": "bitnet/proposal/PROPOSAL.md",
-      "bytes": 40922,
-      "sha256": "088cf4ad654241c02e2a0e5554fd78ec20b80b444c805a8ad7510291e40e3885"
+      "bytes": 53565,
+      "sha256": "19771445350c9d70ac90921260265ef9a2a8f63a57ed5e746055116668bd33b3"
     },
     {
       "path": "bitnet/proposal/PROPOSAL_ZH.md",
-      "bytes": 40690,
-      "sha256": "41d0cd97b765714e71873f64ffc1558452fc601d84523e190f8047e5368da17a"
+      "bytes": 52970,
+      "sha256": "b2d52736d055f897ade6721572d85c6e72d15ef5a0524e37884522773cd53807"
     },
     {
       "path": "bitnet/proposal/README.md",
-      "bytes": 2222,
-      "sha256": "5c81071f5d406fb39f079461e12f3eab922f045eb4f26d586b9b4d9efc268254"
+      "bytes": 2509,
+      "sha256": "0daaedc16191d8322d0ff41ed096c0dcf7d192da735e897842c92722253e1079"
     },
     {
       "path": "bitnet/proposal/README_ZH.md",
-      "bytes": 2629,
-      "sha256": "36885bb51771d06b60c1f3d0314cab95ebc33dd76735037e101e709f496740c3"
+      "bytes": 2843,
+      "sha256": "02d86e5b28d25f29ae2e6a53b95056d9f3aea1a838e88c0cfa23b8a4f61ffdc7"
     },
     {
       "path": "bitnet/proposal/TRANSLATION_CHECK.json",
       "bytes": 1175,
-      "sha256": "5ffa6b864716533b1673f10a3acd1e7fa954465e6ba11651bd061a7e162984fd"
+      "sha256": "4409d64836c6a342ff6c0cca5722c7fc8fc6808a4bcdeb135eecc6b3e8c08a7c"
     },
     {
       "path": "bitnet/proposal/assets/execution-flow.png",
@@ -354,8 +459,8 @@
     },
     {
       "path": "bitnet/proposal/render_proposal.py",
-      "bytes": 15866,
-      "sha256": "f6aa6e562bc34e1dc349e851d2b07171ed5f7df4d5ef2cc7b9273987b1513fc1"
+      "bytes": 16012,
+      "sha256": "57a02ebe240705e256f701999a449465ba98c6b982567333534b5499f29236f2"
     },
     {
       "path": "bitnet/proposal/render_proposal_zh.py",
@@ -381,6 +486,81 @@
       "path": "bitnet/provenance/PUBLIC_MODEL.json",
       "bytes": 733,
       "sha256": "7f4390411f2b6b388a3d12f34c080956754c9c12c0fe45e71afdb8f61256278d"
+    },
+    {
+      "path": "bitnet/reference/README.md",
+      "bytes": 5466,
+      "sha256": "6b634603482e1e836790b61c4c007c25731a6e9aaf645074f4c777251e99811e"
+    },
+    {
+      "path": "bitnet/reference/RERUN.md",
+      "bytes": 2602,
+      "sha256": "9f52b03ec0027ad791c4058f330938964dc91097e5533210438eb036e7ed8eec"
+    },
+    {
+      "path": "bitnet/reference/SOURCE_PROVENANCE.json",
+      "bytes": 2539,
+      "sha256": "4c9772039f23504070b6492afa083fde18c403477b71ed376f540f5c2c1e3b7b"
+    },
+    {
+      "path": "bitnet/reference/TRANSFORMERS_LICENSE",
+      "bytes": 11418,
+      "sha256": "77fd4710def9ec3c0f6225800e0235f15a425abd4a8b03559127fcd782612049"
+    },
+    {
+      "path": "bitnet/reference/analyze_reference.py",
+      "bytes": 5340,
+      "sha256": "35152192f2f7194360ade2eeffb6b2227000b89d171780e3b7e129713e937da5"
+    },
+    {
+      "path": "bitnet/reference/official-activations-096f25ae.py",
+      "bytes": 7717,
+      "sha256": "284dc2ef1515e1c6aef4ceb35c9cf9c29d43ae97f77d802533783cfede009fef"
+    },
+    {
+      "path": "bitnet/reference/official-bitnet-096f25ae.py",
+      "bytes": 14384,
+      "sha256": "a8b3170f1824f010701f4e033fbc33d199bc2ea344ddbf2554594b66fada8b1c"
+    },
+    {
+      "path": "bitnet/reference/official-modeling-bitnet-096f25ae.py",
+      "bytes": 37453,
+      "sha256": "e3965a8a9768519fdd22f376d216e665fe5f6d74a0a40c87da097b119c5d6e38"
+    },
+    {
+      "path": "bitnet/reference/official-rope-utils-096f25ae.py",
+      "bytes": 32960,
+      "sha256": "3a0bcdd0d4223c7645fc4bdcc53ff43d16689ead85e0751ed604dd173dba4358"
+    },
+    {
+      "path": "bitnet/reference/prepare_sources.py",
+      "bytes": 3659,
+      "sha256": "dc08e4f1bf48fc6c9c0ed9d53ef4dc4955a61df372a79d0056a0ec5b161b4aff"
+    },
+    {
+      "path": "bitnet/reference/q_activation_semantics.py",
+      "bytes": 6989,
+      "sha256": "8b2325836ebad847703e7492aa77e414844b7f00568cb928baad7782a04e656c"
+    },
+    {
+      "path": "bitnet/reference/repair_rankings.py",
+      "bytes": 1631,
+      "sha256": "00fe3b6b1069fac104ad9d4cac621bab271cc54724ef19c2a908b647403f47b1"
+    },
+    {
+      "path": "bitnet/reference/requirements.txt",
+      "bytes": 81,
+      "sha256": "88f18207ea53e9247d03ccbea3590b0393d90e78cd8c4bed4d78e660bc1e3a19"
+    },
+    {
+      "path": "bitnet/reference/score_logits_fp64.py",
+      "bytes": 2415,
+      "sha256": "5ef3cb5e0f3439b4c409e7bda5be8259413cac606a861183db1f8fd5fea9c046"
+    },
+    {
+      "path": "bitnet/reference/streamed_reference.py",
+      "bytes": 14916,
+      "sha256": "b27062c63dd554e27b95e0b2df9169e1358f6f684061ff9f45777f9e2230b1fd"
     },
     {
       "path": "bitnet/scripts/audit-conversion.py",
@@ -461,6 +641,16 @@
       "path": "bitnet/shaders/up-epilogue.metal",
       "bytes": 5558,
       "sha256": "aabdcab5741e6be39409d12c56f94674f9bbe752d5ae6e02b6e2146620b65329"
+    },
+    {
+      "path": "bitnet/tests/test_guard_evidence.py",
+      "bytes": 2649,
+      "sha256": "fabdb9cf50d0b147f89719c810ad8325562fabc6c17e738e86502797785d79d8"
+    },
+    {
+      "path": "bitnet/tests/test_q_readback_routes.py",
+      "bytes": 3294,
+      "sha256": "23579282eae7091bb424b9da419961e2b292dd3ef64e3b4d1759ce57ef3330bb"
     },
     {
       "path": "bitnet/validation/ACCEPTANCE.md",
@@ -599,18 +789,19 @@
     },
     {
       "path": "ggml/src/ggml-metal/ggml-metal-device.m",
-      "bytes": 131545,
-      "sha256": "da0f94403b498b36688ac7d488aaf2b23028ecf6ed3c54ebb83ce58f732e9d04"
+      "bytes": 131585,
+      "sha256": "d191036b56e82ef40b9c7edfc9d5c946e712a1541e6d2ca06a29b1b16114f877"
     },
     {
       "path": "ggml/src/ggml-metal/ggml-metal-ops.cpp",
-      "bytes": 396901,
-      "sha256": "202619ed1927b79cfcdc4229696f6100ffc31b624de90230bc390865f0b4879a"
+      "bytes": 399333,
+      "sha256": "ec9b75f64d4ae75f2e1ff5961b3a5c16aa8993ed3fc2af931a7d28231c75eb51"
     },
     {
       "path": "src/models/bitnet.cpp",
       "bytes": 6984,
       "sha256": "a8a3ab5e7b2d4acb8fcb93e216f935d73007c489e10fd607f9ddd9bc0827274d"
     }
-  ]
+  ],
+  "review_revision": "2026-11-15 semantic/phone/guard proposal response"
 }

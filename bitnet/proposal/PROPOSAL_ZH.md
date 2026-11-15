@@ -8,16 +8,17 @@
 
 我们提出优先使用 Metal 实现移动端 BitNet 推理，复用现有 llama.cpp 的计算图（graph）、加载器（loader）、内存规划器（memory planner）和 GPU backend。通过严格的 guard 检查，用一个矩阵向量 kernel 替换 Transformer 层中的一个投影；不支持的调用继续使用 stock 路径。同时，制定文件级实施计划，在选定的 Adreno 和 Mali 设备上扩展并验证 QVAC 已有的 Vulkan 支持。
 
-实际交付内容是可复现的源码包、独立的 sample-I/O test harness，以及本技术方案。当前实现使用 Microsoft 公开 checkpoint 建立开发路径；团队预训练 checkpoint 的验收仍是另一项独立依赖。源码基线为 QVAC commit `2db8b046d555316019ae75d1be90484adc8b9330`。本次审阅的实现快照为 `bbf70e9cc70302534ff87b4f34d4ce52a9670baa`。[E1][E2]
+实际交付内容是可复现的源码包、独立的 sample-I/O test harness，以及本技术方案。当前实现使用 Microsoft 公开 checkpoint 建立开发路径；团队预训练 checkpoint 的验收仍是另一项独立依赖。源码基线为 QVAC commit `2db8b046d555316019ae75d1be90484adc8b9330`。此前审阅的实现快照为 `bbf70e9cc70302534ff87b4f34d4ce52a9670baa`；本次修订新增单独标识的手机测试和 reference controls。相应源码与 binary 身份记录于 [E7]-[E9]。[E1][E2]
 
 | 截至证据截止日的验证内容 | 结果与选型 |
 |---|---|
-| iPhone 14 Pro 上公开 2B 模型的 stock 推理 | 使用 A16 Metal 成功加载并生成 32 tokens，31/31 层完成 offload。保留为功能基线。 |
+| iPhone 14 Pro 上公开 2B 模型的 stock 推理 | 使用 A16 Metal 成功加载并生成 32 tokens，31/31 层完成 offload。功能执行通过；尚未忠实执行 Microsoft ActQuant。 |
+| 公开模型语义 | 源码与同输入 reference 测试确认，计算图缺少规定的 per-token INT8 activation quantize/dequantize。在宣称忠实的 W1.58A8 推理前必须解决。 |
 | 真实第 0 层计算图中的 Q4 specialization | 两组固定 history 均通过全部 32 次 Q 检查、抽样 residual 检查和完整 logits 的 parity 检查。保持 opt-in。 |
 | 移动端性能 | Q4 每次独立 Q dispatch 节省约 6-7 us；没有观察到完整 decode 的收益。不能据此宣称模型加速。 |
 | FFN 研究 | G 保留了已观测到的 stock 输出；F8 有性能证据，也保留数值和模型输出验收失败记录。二者都没有修复完整链路的 FP64 问题。 |
 
-独立编写的原始 PoC、C8 研究 shader，以及基于 stock 的 Q4 specialization 分别披露。最新完成的 iPhone 全部 Q 检查属于 Q4。原始 4x2 shader 已通过清洁构建下的 host 数值测试和 iPhoneOS 编译，但该精确版本仍需补做新的真机 sample-I/O 测试。[E3][E4]
+原始 4x2 PoC 现已通过新一轮 iPhone 真机 sample-I/O 验证：五个输入 case、三条路径，共检查 38,400 个值。最新两组 history 的真实图验收仍只属于 Q4。这些结果分别证明了声明范围内的输入算术和 stock 兼容性；二者都不能证明公开模型执行了 Microsoft activation 语义。[E3][E4][E7]
 
 题目同时使用了“1-bit”和“1.58-bit”两种表述。我们实现的是三值 BitNet 权重，并不是二值 XOR/popcount kernel。如果题目严格要求只使用二值表示，就需要另一种权重表示以及相应的验收约定。
 
@@ -70,7 +71,28 @@ q = (packed[byte] >> (2*plane)) & 3
 
 其中 half 为 0..1，plane 为 0..3，lane 为 0..31。一个 byte 中的四个字段对应彼此分隔的逻辑 K 位置。FP64 reference 按该逻辑顺序独立解包；它评估的是输入的量化 W 与 F32 X，并不是原始未量化模型。
 
-兼容性 patch 保留 AutoBitLinear 的直接 scale，避免对已经重建的三值权重再次量化，并选择显式的 ReLU-squared metadata。全部 210 个转换后的矩阵均已审计，没有 trit 或 FP16 scale 不匹配。Microsoft reference 使用 INT8 activation quantization；当前 TQ2_0/F32 路径是否等价于该 W1.58A8 执行仍未证明。[E2][R2]
+兼容性 patch 保留 AutoBitLinear 的直接 scale，避免对已经重建的三值权重再次量化，并选择显式的 ReLU-squared metadata。全部 210 个转换后的矩阵均已审计，没有 trit 或 FP16 scale 不匹配。这项存储审计不能证明 activation 或完整模型语义正确。[E2]
+
+<!-- page -->
+### 公开模型的 activation 契约与已确认偏差
+
+Microsoft AutoBitLinear 在线性点积之前执行 per-token absmax INT8 quantize/dequantize。使用 F32 记法，其 reference 为：[R11][R12]
+
+```text
+s = 127 / max(max_j(abs(x[j])), 1e-5)
+xq[j] = clamp(round(x[j] * s), -128, 127) / s
+y = linear(xq, ternary_weight) * weight_scale
+```
+
+必须保留源码的 rounding、clipping、epsilon 和中间 dtype；BF16 与 F32 对照是独立实验。F32 张量也可能包含反量化后的 INT8 数值，因此不能只凭 dtype 判定量化缺失。本次源码追踪和捕获输入检查共同确认，当前图将未量化 X 直接送入 TQ2_0 MUL_MAT。在局部对照中，原始带 scale 的 Q 权重与解包后的 TQ2_0 权重完全相同。[E8]
+
+| 同一份捕获的 Q 输入 | Step 1 | Step 16 | Step 32 |
+|---|---:|---:|---:|
+| Stock 相对未量化 FP64 的超差行数 | 0/2560 | 0/2560 | 0/2560 |
+| 官方 F32 ActQuant 改变的 X 数值 | 2559/2560 | 2560/2560 | 2559/2560 |
+| Stock 相对 ActQuant FP64 的超差行数 | 2498/2560 | 2491/2560 | 2502/2560 |
+
+这是已确认的语义偏差，在本对照中大于普通求和漂移。Kernel 对提供的 F32 X 仍然有效；当前图缺少该公开 checkpoint 所要求的预处理。团队模型的 quantizer、scale 粒度、rounding 和 metadata 必须另行取得，不能推断团队 checkpoint 已通过验证。
 
 <!-- page -->
 ## 4 Kernel 设计与 sample 验证
@@ -85,6 +107,8 @@ q = (packed[byte] >> (2*plane)) & 3
 | 原始 PoC | 4 | 2 | 320 | 独立编写的直接 unpack/dot |
 | Q4 stock4x1 | 4 | 1 | 640 | 复用完整 stock helper 算术 |
 | C8 研究版本 | 8 | 2 | 160 | 独立 packed-mask 算法；模型兼容性验收失败 |
+
+Stock 和 Q4 总共都启动 640 个 SIMD groups 和 20,480 个 threads。Q4 将每个 threadgroup 的 SIMD group 数从两个改为一个，并没有增加每个 SIMD 内的 activation reuse。
 
 在已测 Apple 设备上，以上配置均使用 32-lane SIMD groups。实际 launch dimensions 和 pipeline thread limits 会被检查。Q4 的历史函数名仍包含 `c8x2`；实际布局由 host geometry 和源码决定，不能仅根据名称判断。
 
@@ -122,7 +146,7 @@ Q guard 要求精确匹配 MUL_MAT node 与第 0 层 Q 权重、N=1、TQ2_0/F32/
 
 最新真机对照证明了 missing-library 和 unsupported-geometry fallback。正常运行的 strides 会被检查；没有向真实 graph 注入畸形 stride。外部 pipeline cache 使用函数名作为 key，因此同名 symbol 的 library 切换及 missing-library 测试采用独立进程。
 
-一项无条件生效的 residual-ADD binding 修正通过 tensor identity 选择另一个 operand。因此，“stock default”指默认选用 stock shader/dispatch，并不意味着 CPU backend 与原始 QVAC 字节一致。原始 compatibility patch 与新增 readback patch 可精确复现全部八个修改的上游文件。[E1][E4]
+一项无条件生效的 residual-ADD binding 修正通过 tensor identity 选择另一个 operand。因此，“stock default”指默认选用 stock shader/dispatch，并不意味着 CPU backend 与原始 QVAC 字节一致。Compatibility、readback 与本轮 guard patches 可精确复现全部八个修改的上游文件。[E1][E4]
 
 <!-- page -->
 ## 6 面向 Adreno 和 Mali 的 Vulkan 扩展
@@ -165,13 +189,19 @@ abs(actual - reference) <= 2e-4 + 2e-5 * abs(reference)
 | model_output_pass | 声明的固定回放中，相对 stock 的 residuals/full logits；不能据此推断语言质量通过 |
 | 综合结果 | 该模式的全部必需 gate 均须通过；缺失检查保持 null |
 
-数值 verifier 和 CPU analyzer 的 strict exit 规则为：0 表示通过，1 表示已完成测量但判据失败，2 表示证据缺失或无效。设备编排 runner 也可能因 setup/transport 错误返回 1，因此必须查看 execution_pass、native completion、实际 app exit 和保存的 summary，再判断失败类型。Processing-only exit 0 不能覆盖严格数值失败。通过样例、非有限值、输出缺失和 hash 无效等对照用于检查 verifier 的退出语义。
+Exit 0 表示限定范围内通过或分析完成，1 表示观测到失败，2 表示证据缺失/无效；部分独立 utilities 使用 3 表示输入格式错误。必须查看对应工具的规则和保存的 strict verdict。设备编排 runner 也可能因 setup/transport 错误返回 1，因此必须查看 execution_pass、native completion、实际 app exit 和保存的 summary，再判断失败类型。Processing-only exit 0 不能覆盖严格数值失败。通过样例、非有限值、输出缺失和 hash 无效等对照用于检查 verifier 的退出语义。
 
 从固定源码进行 clean build，不使用旧 dylib，对 actual stock、原始 PoC 和 Q4 统一运行手算样例、dense seed 42，以及真实 steps 1/16/32：38,400 个值全部通过，没有超差或非有限值行。Q4 在全部 12,800 个比较值上与 stock 逐位一致；原始 PoC 有 10,122 个 F32 值不同，但仍满足 FP64 容差。TQ2_0 backend regression 通过 59/59，筛选范围内失败与 unsupported case 均为零。这些是主机上的数值验证结果，不是 Mac 性能证据。[E3]
 
 真实图验证检查全部 32 次符合条件的 Q 调用，而不是只抽查三个样本。每条路径读取一次 W，每步读取 X/Y，并在 steps 1/16/32 读取 residual output。独立 analyzer 在比较输出前，先拒绝 W/X hash 不一致的情况。Probe-off 与同进程重复运行必须保留全部 33 份完整 logits 向量。计时使用独立、无插桩的运行。
 
-对于 FFN，必须区分两种 reference：基于每条路径实际输入的 FP64 down，以及完整的 FP64 gate/up -> ReLU-squared -> weighted RMSNorm -> down chain。Stock 和候选已有的完整链路失败继续记为失败；fusion parity 不能消除这些失败。
+对于 FFN，必须区分两种 reference：基于每条路径实际输入的 FP64 down，以及完整的 FP64 gate/up -> ReLU-squared -> weighted RMSNorm -> down chain。Stock 和候选已有的完整链路失败继续记为失败；fusion parity 不能消除这些失败。798/880 是归一化 activation-error 诊断计数，不是 weighted-RMSNorm 输出的超差数。单凭严格判据失败，不能认定存在 bug 或语言质量不可接受。
+
+### 数值规则的含义与边界
+
+对于使用相同 W/X 且未改变的 PSO、复制和 packing 对照，逐位一致是合理要求。改变 reduction 后，FP32 合理地可能出现差异；保留逐位差异计数，同时独立应用声明的容差。对于顺序求和，gamma_K = K*u/(1-K*u)，其中 F32 u=2^-24，在 K=2560 时约为 1.5261e-4，在 K=6912 时约为 4.1216e-4。该系数乘以各项绝对值之和，并不是相对误差限额。消去、系数变换、FMA 和实际 reduction 拓扑都会影响误差界。这些估算用于解释敏感性，不替代冻结的经验判据。[E9]
+
+ReLU(gate)^2*up 会放大投影误差；RMSNorm 会耦合各坐标。算子 FP64、完整链路 FP64、相对 stock 的输出和可信模型语义回答的是不同问题。在独立验证集上，预先声明产品 NLL/PPL、任务预算和文档级不确定性。V1 失败记录保留。
 
 <!-- page -->
 ## 8 真机功能与数值结果
@@ -196,7 +226,28 @@ abs(actual - reference) <= 2e-4 + 2e-5 * abs(reference)
 
 全部 Q 输出与 stock 逐位一致。抽查的 residuals、每份 full-logit 向量和 probe-off controls 也均逐位一致。声明范围内的 Q-only parity/FP64/model-output gates 通过，strict exit 为 0。这证明的是运行中 Transformer 层内的一个 projection，并不等于完整 Transformer 的 FP64 或模型质量验收。
 
-Mac stock CPU 和 Metal 均成功生成文本，但严格 token parity 仍在第 18 个生成 token 失败：CPU 83699（`computations`），Metal 14515（`graphics`），strict exit 1。该结果与 custom routing 分开记录。原始 4x2 shader 的新一轮真机 sample-I/O 仍未验证，不能把已通过的 Q4 结果归给它。[E2][E3]
+### 原始自写 shader 的真机验证
+
+精确的原始 `tq2_0_matvec_poc` 源码，SHA-256 为 `db8b1fd40120adee0bf2f8bc4db01ef7e7edf11692d285e143fa15f24c408b84`，已经重新编译并在 A16/iOS 27.2.1 上运行。Stock、原始 4x2 和 Q4 分别测试手算样例、dense seed 42 和真实 steps 1/16/32。全部 15 次 dispatch 完成；38,400 个输出完整写入且均为有限值，FP64 超差为零，输入/canaries 未变。原始 PoC 的最大绝对误差为 5.516948e-6。Q4 与 stock 逐位一致；原始算术虽有差异，但满足冻结的局部误差界。独立 CPU 重算及 binary/source 检查通过。[E7]
+
+第二次运行对三个捕获输入使用官方 ActQuant 派生的 X，同样通过局部 FP64。这些是派生 fixtures，不是修复 ActQuant 图之后的捕获数据。它只补齐原始 shader 的手机 sample-I/O 验证；原始 PoC 的真实图和模型语义验收仍是独立事项。
+
+### 可信源码 teacher forcing 与小规模质量 smoke
+
+内存受控的 CPU reference 每次流式加载一个 decoder layer，执行从固定官方 Transformers 源码提取的算术。移除了 compilation/decorator 配套代码；这是 source-derived eager 执行，不是未经修改的完整 Transformers package 运行。使用原始 packed weights 和完全相同的 token IDs。BF16 与 F32 为独立对照；F32 无损提升 checkpoint 的 BF16 参数数值。同一 dtype 内唯一变量是 ActQuant ON/OFF。[E8]
+
+| F32 teacher-forced 结果 | ActQuant ON | ActQuant OFF | 既有 QVAC Metal |
+|---|---:|---:|---:|
+| Token 18 的 computations 减 graphics logit | +0.094944 | -0.005909 | -0.005144 |
+| Token 18 的 greedy 选择 | computations | graphics | graphics |
+| 33 个检查点中与 QVAC 相同的 greedy 选择 | 31/33 | 33/33 | 33/33 |
+| 相对 QVAC 的完整 logit RMSE | 0.251979 | 0.000724 | 0 |
+
+在第 0 层第 16 步，QVAC 与两条 F32 reference 路径的 Q 输入逐位一致。ActQuant 在后续 cache/backend 差异出现前就改变了局部投影。完整 reference 使用无 KV 的 causal evaluation；QVAC 使用 F16 KV，因此不能将全部 full-logit 差异都归因于量化。同一 backend 的 ON/OFF 对照证明 quantizer 能引起排名变化。
+
+标准来源的 WikiText-2 test 切片使用 BOS 加 128 个计分 targets。独立 FP64 logsumexp 计分得到 BF16 ON/OFF PPL 19.188825/19.098287，以及 F32 ON/OFF 19.129530/19.088566。这项很小的 test-split smoke 不代表完整质量 benchmark，也不能证明与预训练数据无重叠；OFF 分数略低不能成为省略规定 quantizer 的依据。原始 F32 计分和 raw logits 保留本地。在 iPhone 真机上，当前 stock 路径对相同 128 个 targets 的平均 NLL 为 2.949071，PPL 为 19.088221；全部 128 个同步步骤在 A16 上完成，31/31 offload，使用 F16 KV，没有 custom route。独立 CPU 重新计分与所示精度一致。相对 F32 OFF，全部 128 个 greedy 选择一致，完整 logit RMSE 为 0.000537；相对 ON，126/128 一致，RMSE 为 0.213242。这是已经完成的测量，不代表语义或产品质量通过。Native 与独立重算的分数记录于 [E8]。
+
+此前 CPU/Metal 自由生成对照仍分别记录为 CPU generation 通过、Metal generation 通过、token parity 失败（strict exit 1）。第 18 个 token 的 computations-minus-graphics 分差为 +0.010254 和 -0.004967。CPU 按 block 的 Q8_K rounding 不同于 Microsoft per-token ActQuant；此前 rounding 与 KV 对照不能解决这一语义缺失。
 
 <!-- page -->
 ## 9 Profiling 方法与开发工具栈
@@ -220,7 +271,7 @@ Mac stock CPU 和 Metal 均成功生成文本，但严格 token parity 仍在第
 
 历史转换环境使用 torch 2.11.0、transformers 5.10.0、NumPy 2.2.6、tokenizers 0.22.2 和 safetensors 0.8.0。该 transformers 版本已被 yanked；只应在独立复现环境中保留它，并另行验证替代版本。合成 kernel 测试不需要这些包。
 
-Xcode counters 采集可能使各 pass 串行执行，因此 profile/capture 与正式计时必须分开。AIR 可以确认中间代码的变化，不能证明硬件 stall、带宽或 occupancy。当前项目的 runtime counters 仍为 unavailable。[R5]
+Xcode counters 采集可能使各 pass 串行执行，因此 profile/capture 与正式计时必须分开。AIR 可以确认中间代码的变化，不能证明硬件 stall、带宽或 occupancy。当前项目的 runtime counters 仍为 unavailable。Counter 采集失败记录的是工具/设备限制，不是 memory、ALU 或 occupancy 瓶颈的证据。应补充匹配的 shape/launch 扫描和受控 load/compute microbenchmarks。同 fixture 的 guard-only 对照使用实际 stock PSO，记录于 [E9]。[R5]
 
 Android 工具需要兼容的 OS/driver 权限和可调试应用；APA 当前处于 public beta。必须在选定设备上验证实际工具版本。在支持时使用 AGI/Perfetto 或厂商工具。部署说明和工具可用性不等于已测得的 Android 结果。[R7][R9][R10]
 
@@ -252,6 +303,22 @@ Android 工具需要兼容的 OS/driver 权限和可调试应用；APA 当前处
 历史 G/F8 手机计时中，逐对相对变化的中位数显示 F8 比 G 快 1.961%-3.568%，但 F8 仍保留严格数值及 model-output 失败。该 campaign 没有正式的直接 stock 对照，并且同时改变了算术与融合方式；它不能被解释为相对 stock 的加速，或纯粹的 fusion cost 结果。[E6]
 
 <!-- page -->
+### 完整 guard 后调用同一个 stock pipeline
+
+新一轮同构建 A16 对照使用 S（实际 stock）、QB（完整 Q4 guard，随后保持 stock dispatch 不变）和 Q4。在每个目标 step，S/QB 共享实际 stock PSO、原生 120-byte arguments、六个 slot 的 bindings/live offsets、grid 320 和 threads [32,2,1]。QB 通过 32/32 次 guard，custom Q dispatch 为零，并且全部 32 份捕获 Q 向量、抽样 residuals 和全部 33 份 logits 均逐位一致。Probe-off 重复运行一致；prefill 的 custom/guard 命中均为零。本次 guard-only 测试未重新计算 FP64，因此该字段保持 null，完整 V1 exit 为 2。首次诊断运行的 allowlist abort 已保留；修复后重新运行，通过限定范围内的 execution/parity 检查。[E9]
+
+一项简短的稳态 32-token wall-time 筛查采用一次 warmup、三轮、每项对照每轮七个交替执行的 pairs。清空 KV 和恢复共同 prefix 在计时之外完成，关闭 capture/readback/trace。它不是 201-pair 独立 GPU 测试协议。
+
+| 轮次 | AA 配对 B 减 A ms | QB 减 S ms | Q4 减 S ms |
+|---|---:|---:|---:|
+| 1 | +1.331583 | +12.587541 | +14.572291 |
+| 2 | +2.216500 | +13.328583 | +9.658000 |
+| 3 | +0.665458 | +10.020126 | +9.710167 |
+
+虽然执行相同的 stock shaders，QB 在三轮配对中位数及两个执行顺序子组中均更慢。这支持额外 guard/plan 路径对本次筛查结果有所贡献。每轮七对样本、nominal 到 serious 的热漂移，以及第二轮 A/A 按顺序分组的较大波动，限制了估计精度。没有分别采样 CPU guard/encode 时间和 GPU elapsed time；尚未建立普遍固定的成本，也不能归为纯 CPU 或 GPU 原因。Q4-minus-QB 仍同时包含 encoding、launch 和 scheduling 变化。在派生分析中保留 p95、胜出数和时间/顺序统计，不将本 campaign 与此前计时混池。
+
+
+<!-- page -->
 ## 11 优化策略与移动设备约束
 
 每次只优化一种机制，提出可证伪的假设，并保持对照的计算范围一致。需要模型兼容性时，保留完整的 stock 逐行算术。所选 Q4 是一种保守的 specialization；不将 M2 Pro 的性能结论移用到 A16。[E4][E5]
@@ -267,21 +334,30 @@ Android 工具需要兼容的 OS/driver 权限和可调试应用；APA 当前处
 
 G 合并两条使用 stock 算术的 FFN 投影，兼容的后处理仍单独执行。F8 将 C8 gate/up 与 ReLU(gate)^2*up 合并。K 进一步研究激活和归一化融合，并遇到图结构与别名限制。融合必须保留共享 X、每层自己的 W/scales、消费者关系及合法依赖。如果没有有效的跨 dispatch 同步设计，一个 threadgroup 不能读取另一个 group 尚未完成的结果。完整 FFN 对照包含 weighted RMSNorm 和 down。
 
+### 根据实测关键路径占比选择目标
+
+Qcur-0 是一个 buffer 已审计、尺寸为 2560x2560 的有限验证入口，不是已证实的模型瓶颈。Tied F16 embedding/output 为 128256*2560*2 = 656,670,720 bytes（656.67072 MB；626.25 MiB），占 GGUF 文件的 54.560524%。真实图在 `result_output` MUL_MAT 中使用它，输入为 F32 X，输出为 logits。存储占比不能证明运行带宽或延迟占比。在决定大范围优化优先级之前，应测量 output projection、attention、量化投影、normalization 和 CPU 间隙。[E9]
+
+若 f 是实测关键路径占比，r 是局部耗时降低比例，则模型加速比为 1/(1-f*r)。假设局部降低 3%，在 f=1% 或 10% 时，预计整模型耗时仅降低 0.03% 或 0.30%。这些占比只是示例，并非本项目实测。只替换单层 Q，覆盖范围天然有限。
+
+Q4 改变 group 分组，同时保留每个 SIMD 的四行和相同的 SIMD 总数。其自定义 wrapper/ABI 和编译上下文也不同于实际 stock。更小的 threadgroup 可能改变调度，但 activation reuse、register pressure 和 occupancy 尚未实测。Same-stock guard 对照用于分离新增检查路径；要推广结论，仍需在不同 shape 和真实权重流上进行 launch 扫描。
+
 A16 的共享资源和持续运行的热预算有限。应保持 packed weights 常驻，使用大小受控的 scratch buffers、异步初始化和明确的生命周期管理。完整 F32 Q 矩阵需要 26,214,400 bytes，而 packed 表示为 1,689,600 bytes。这是存储量对比，不是实测带宽加速。1.121 GiB 的 GGUF 文件也不等于进程内存占用：embeddings、KV、scratch、可执行文件和驱动分配同样需要计入。
 
-根据实测内存预算调整 context 和 batch。优先采用连续的 packed 读取，以及合法 threadgroup 内的数据复用，避免增加每 token 的复制。额外的 lookup table、重排或系数准备，都必须计入候选的成本。较大的局部数组本身不能证明发生了 spill；AIR 也不提供实测 occupancy。
+根据实测内存预算调整 context 和 batch。优先采用连续的 packed 读取，以及合法 threadgroup 内的数据复用，避免增加每 token 的复制。额外的 lookup table、重排或系数准备，都必须计入候选的成本。局部数组大小或 AIR 不能证实运行时 spill 或 occupancy。
 
 低功耗运行应在保持正确性的前提下，减少内存访问、不必要的 CPU 轮询和超出热预算的负载。iOS 使用 thermal notifications 与自适应策略，Android 使用受支持的 ADPF hints/headroom；这些机制都不保证固定时钟或能耗下降。Energy 必须单独测量。[R8]
 
-<!-- page -->
 ## 12 成功标准与评测基准
 
-数值阈值保持冻结。下表性能目标是拟定的工程目标，不是题目给定的要求，也不是已经取得的结果。在继续追求优化目标时，stock baseline 仍是有效的功能回退路径。
+数值阈值保持冻结。下表性能目标是拟定的工程目标，不是题目给定的要求，也不是已经取得的结果。Stock 路径仍是功能回退和算术 reference；它缺少公开模型 ActQuant，因此不能作为语义 oracle。
 
 | 领域 | 拟定验收标准或目标 | 截止时的状态 |
 |---|---|---|
 | 功能推理 | 加载并生成，确认 mobile GPU offload；没有意外 fallback 或崩溃 | 公开 2B 在 A16 上通过；团队模型与 Android 待验证 |
-| 算子正确性 | 全部必需输出均为有限值、完整写入并满足冻结 FP64 容差；另行报告 stock 差异 | 原始 PoC 的主机样例与本轮手机 Q4 通过 |
+| 算子正确性 | 全部必需输出均为有限值、完整写入并满足冻结 FP64 容差；另行报告 stock 差异 | 原始 PoC 的主机/真机样例与本轮手机 Q4 通过 |
+| 模型语义 | 转换、ActQuant、选定中间张量及 teacher-forced logits 与可信源码对齐 | 已确认缺少公开模型 per-token quantizer；待修复 |
+| 语言质量 | 预先声明 held-out NLL/PPL 和任务预算，匹配 tokenizer，并记录不确定性 | 已测 128-token test-split smoke；产品验收未验证 |
 | 层兼容性 | 两组 history 的必需 Q/residual/logit 检查通过；保留严格判据下的失败 | Q4 在声明的 layer-0 范围通过；更广的质量评测未测 |
 | 算子优化 | 与实际 stock 直接配对，3 轮的耗时降低中位数目标至少 5%，并检查执行顺序 | Q4 实测 2.68%-3.11%，低于这一后续目标 |
 | 模型级候选晋升 | 直接测得稳态 decode 改善，且能与 A/A 波动和漂移区分；保留 p95 | 未观察到 Q4 整段 decode 收益 |
@@ -316,13 +392,14 @@ A16 的共享资源和持续运行的热预算有限。应保持 packed weights 
 
 某个候选失败后，应保留失败结果，并继续可独立推进的工作，例如 reference 检查、构建可移植性或文档。不要在没有区分性假设的情况下，用剩余时间不断生成相似变体。签名或真机访问受阻时，保存最小 reproducer，同时继续 CPU 与源码任务。
 
-当前最有价值的下一项性能实验是：A 为 stock，B 执行完整 Q4 guard 后使用同一个 stock pipeline，C 为 Q4。计时前先确认 B 的 guard 实际命中，且输出逐位一致。B-A 估计 guard/encoding 的影响；C-B 仍包含 launch 和执行差异。这是拟进行的归因实验，不是实测结论。
+当前首先应完成语义里程碑：在每个必需 BitLinear 之前加入 checkpoint-specific ActQuant，保留精确的 per-token reduction/round/clamp/dtype，然后重跑可信源码中间张量及 teacher-forced logits。后续性能必须计入 quantizer 准备成本。[E9] 中的 same-stock guard 对照支持框架归因；选择下一个性能目标前，仍需按算子类别测量关键路径。
 
 <!-- page -->
 ## 14 风险假设与应对方案
 
 | 风险或依赖 | 可观察后果 | 缓解措施与应对方案 |
 |---|---|---|
+| 当前图缺少公开模型 ActQuant | 尚未建立忠实的 W1.58A8 执行 | 加入显式 checkpoint-specific quantize/dequantize 图操作；候选晋升前对齐可信 reference |
 | 团队 checkpoint 与公开模型不同 | scale、activation、tokenizer 或图语义错误 | 先冻结 metadata/tensor 契约；审计转换；公开模型与团队模型分别验收 |
 | 将题目按字面解释为 binary | 三值实现可能被判定超出范围 | 明确约定 1.58-bit 指三值 BitNet；仅在确有要求时设计 binary specialization |
 | FP32 算术误差传播 | 局部点积通过，但层输出/logits 失败 | 独立 FP64 与 stock-relative 双重检查；保留 stock 算术及全部失败结果 |
@@ -332,11 +409,11 @@ A16 的共享资源和持续运行的热预算有限。应保持 packed weights 
 | 工具链签名或 profile 过期 | 构建/安装受阻 | 新 manifest、用户管理的凭据、Trust/Developer Mode 操作；继续主机侧工作 |
 | Android feature 不支持或缺少手机 | 无法形成有依据的跨平台结果 | 查询 feature；采用可移植的 F32/reduction 回退；硬件相关结果标为未验证 |
 
-我们假设能够合法访问团队的权重、tokenizer 和推理规格，具备可用的 Apple 签名环境、物理目标设备，以及使用相关 profiling 工具的权限。公开模型 compatibility patch 不代表已经认可所有 BitNet checkpoint。我们还假设不存在未明示的要求，要求逐位复现 Microsoft 完整 INT8 activation 执行路径。
+我们假设能够合法访问团队的权重、tokenizer 和推理规格，具备可用的 Apple 签名环境、物理目标设备，以及使用相关 profiling 工具的权限。公开模型 compatibility patch 不代表已经认可所有 BitNet checkpoint。Microsoft 已公布的公开 activation 契约是真实的模型依赖，不能假设未经过 quantize/dequantize 的 F32 activation 与之等价。团队模型要求，包括可接受的算术容差和质量预算，必须另行确认。
 
 当前完整 FFN 的失败是具体存在的。新的 correction-placement Down 对照选取每路 96 个输出；stock、stock-wrapper 和候选均保留相同的 12 个失败位置。候选改变了 48 行，使最差 error/tolerance 从 1.566268 增加到 1.829765。Native 与独立 strict 退出码仍为 1；没有开展全矩阵扩展，也没有宣称数值修复。[E5]
 
-全部安全与数值验收仍保持启用。后续应用质量标准需要单独的 reference 和依据，不能覆盖这些冻结的实验失败。最终团队 checkpoint、Android、energy，以及原始 PoC 精确版本的手机验证缺口，必须解决，或明确被接受为交付限制。
+全部安全与数值验收仍保持启用。后续应用质量标准需要单独的 reference 和依据，不能覆盖这些冻结的实验失败。公开模型语义修复、团队 checkpoint、Android、代表性质量评测和 energy 缺口仍是明确的交付限制。原始 PoC 独立真机验证的缺口已补齐，但不能因此认定已完成其真实图接入。
 
 <!-- page -->
 ## 15 源码交付与可复现性
@@ -351,8 +428,9 @@ A16 的共享资源和持续运行的热预算有限。应保持 packed weights 
 | `bitnet/analysis-tools/` | Complete-Q、paired-timing 和 selected-Down CPU analyzers |
 | `bitnet/patches/` | 基础 compatibility/backend patch，以及默认关闭的附加 readback patch |
 | `bitnet/analysis/2026-11-15-iphone-q4/` | 整理后的逐轮汇总，以及仅含摘要哈希的本地证据索引 |
+| `bitnet/analysis/review-2026-11-15/` | 语义对照、原始 shader 真机验证、guard 对照和优先级分析 |
 
-由于可用 GitHub 凭据的 scope 限制，发布的源码导入省略了 63 个 upstream CI workflow 文件；runtime、本地 build/test 源码均保留，准确的排除清单已有记录。两份 patch 已在本仓库应用。清洁独立 baseline 对照仍需要单独的 pristine upstream checkout。
+由于可用 GitHub 凭据的 scope 限制，发布的源码导入省略了 63 个 upstream CI workflow 文件；runtime、本地 build/test 源码均保留，准确的排除清单已有记录。所含 patches 已在本仓库应用。清洁独立 baseline 对照仍需要单独的 pristine upstream checkout。
 
 ### 最小数值重建
 
@@ -378,7 +456,7 @@ python3 bitnet/ios/run.py --build-dir "$ARTIFACTS/build" \
   --output "$ARTIFACTS/primary-on"
 ```
 
-所有输出目录必须是新目录；在本地设置 artifact/model 的绝对路径。先运行配套的 probe-off 和 independent-history 对照，再执行 CPU analyzer，之后才开始正式计时。完整步骤、准确范围及预期的 Down strict 失败见 `bitnet/docs/IPHONE_Q4_COMPLETE_2026-11-15.md`。原始 shader 的手机测试仍是需要单独完成的 qualification，不能由这条 Q4 命令替代。
+所有输出目录必须是新目录；在本地设置 artifact/model 的绝对路径。先运行配套的 probe-off 和 independent-history 对照，再执行 CPU analyzer，之后才开始正式计时。完整步骤、准确范围及预期的 Down strict 失败见 `bitnet/docs/IPHONE_Q4_COMPLETE_2026-11-15.md`。原始 shader 使用单独的 `poc-verify` fixture/run 入口。可信源码 CPU 对照和小规模手机 PPL smoke 也有各自入口；完整命令与范围见 review analysis 目录。这些运行不会静默地为推理补上缺失的 ActQuant。
 
 <!-- page -->
 ## 16 证据索引与参考资料
@@ -393,7 +471,11 @@ python3 bitnet/ios/run.py --build-dir "$ARTIFACTS/build" \
 - [E4] 源码包中的 `bitnet/docs/SOURCE_WALKTHROUGH.md`；原始 `bitnet/validation/shaders/matvec.metal`；Q4 `bitnet/shaders/stock4x1.metal`；以及已审阅快照中的 backend `ggml/src/ggml-metal/ggml-metal-ops.cpp`。
 - [E5] Workspace 中的 `outputs/experiments/2026-11-15_182149+0900-iphone-q4-complete/`；源码包中的 `bitnet/docs/IPHONE_Q4_COMPLETE_2026-11-15.md` 和 `bitnet/analysis/2026-11-15-iphone-q4/`。包含无效的早期 capture、strict 通过结果、计时与 Down 负结果对照。
 - [E6] 源码包中的 `bitnet/docs/IPHONE_RESULTS.md` 和 `VALIDATION.md`；保存历史 G/F8 两组 history 的直接对照与失败记录。这些实验没有在最新 binary 中重跑。
+- [E7] Workspace 中的 `outputs/experiments/2026-11-15-review-221448/`；原始 shader 真机运行 `runs/original-poc/` 和 `runs/original-poc-actquant-derived/`、独立复算及 source/binary 摘要。自写 PoC commit 为 `7d680ad`；签名构建 metadata 关联实际 binaries。
+- [E8] Workspace 中的 `outputs/review-response-2026-11-15/semantics/`；精确源码 CPU 脚本、`SEMANTICS.md`、`reference-full/`、`reference-full-f32/`、作为正式计分依据的 `SCORING-FP64.json` 和 `reference-ggml-f32-comparison-v2/`。手机 smoke 和 raw logits 保留于 [E7]。整理后的源码/分析位于 `bitnet/analysis/review-2026-11-15/`。
+- [E9] Workspace [E7] 中的 guard 实验；源码包中的 `bitnet/docs/PHONE_GUARD_CONTROL_2026-11-15.md`；源码与派生的 `PROFILE_NUMERICS.md` 说明归因边界，并保留第一次无效诊断运行。
 
+<!-- page -->
 ### 公开原始资料
 
 - [R1] [QVAC pinned Metal source](https://github.com/tetherto/qvac-fabric-llm.cpp/blob/2db8b046d555316019ae75d1be90484adc8b9330/ggml/src/ggml-metal/kernels/mul_mv.metal)。既有 low-bit 算术和源码归属基线。
@@ -406,5 +488,8 @@ python3 bitnet/ios/run.py --build-dir "$ARTIFACTS/build" \
 - [R8] [Android Dynamic Performance Framework](https://developer.android.com/games/optimize/adpf)。Thermal/performance 信息与 hints。
 - [R9] [Arm Performance Studio](https://developer.arm.com/tools-and-software/arm-performance-studio)。Mali runtime 工具与静态编译器分析。
 - [R10] [Qualcomm Snapdragon Profiler](https://www.qualcomm.com/developer/software/snapdragon-profiler)。取决于目标设备的 Adreno profiling。
+- [R11] [Microsoft 公开 checkpoint model card](https://huggingface.co/microsoft/bitnet-b1.58-2B-4T)。公开模型 activation 契约及 reference 依赖。
+- [R12] [官方 Transformers BitNet 源码](https://github.com/huggingface/transformers/blob/096f25ae1f501a084d8ff2dcaf25fbc2bd60eba4/src/transformers/models/bitnet/modeling_bitnet.py)。Source-derived 算术，精确 revision/hash 检查见 [E8]。
+- [R13] [WikiText-2 test 数据](https://huggingface.co/datasets/Salesforce/wikitext)。固定 revision 和 tokenizer hashes 见 [E8]；仅使用 128-target 切片，并保留数据集许可证记录。
 
 可参考的实现还包括 [MLX Metal quantized kernels](https://github.com/ml-explore/mlx/blob/main/mlx/backend/metal/kernels/quantized.metal)、[BitBLAS BitNet integration](https://github.com/microsoft/BitBLAS/blob/main/integration/BitNet/README.md) 和 [Marlin](https://github.com/IST-DASLab/marlin)。它们的 specialization、替换测试和按 shape 报告的方法为本方案提供参考；其硬件结果不属于本项目的手机实测。

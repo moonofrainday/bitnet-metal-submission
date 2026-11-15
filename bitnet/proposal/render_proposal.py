@@ -207,8 +207,9 @@ def make_docx(blocks,path):
     footer=sec.footer.paragraphs[0];footer.alignment=WD_ALIGN_PARAGRAPH.RIGHT
     run=footer.add_run('Draft for author review     ');run.font.size=Pt(8)
     field=OxmlElement('w:fldSimple');field.set(qn('w:instr'),'PAGE');footer._p.append(field)
+    page_before = False
     for kind,value in blocks:
-        if kind=='break':doc.add_page_break()
+        if kind=='break':page_before = True
         elif kind=='table':
             table=doc.add_table(rows=0,cols=len(value[0]));table.alignment=WD_TABLE_ALIGNMENT.CENTER;table.autofit=False
             ws=widths(value,(A4[0]-86)/72)
@@ -245,6 +246,9 @@ def make_docx(blocks,path):
             r._r.xpath('.//wp:docPr')[0].set('descr',value[0])
         else:
             p=doc.add_paragraph(style={'h1':'Title','h2':'Heading 1','h3':'Heading 2'}.get(kind,'Normal'))
+            if page_before:
+                p.paragraph_format.page_break_before = True
+                page_before = False
             add_inline(p,('- ' if kind=='bullet' else '')+value)
     doc.core_properties.title='Mobile BitNet Inference Technical Proposal';doc.core_properties.author='Candidate';doc.core_properties.subject='Metal proof of concept and Vulkan portability plan'
     doc.save(path)

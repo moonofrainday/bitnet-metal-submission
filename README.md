@@ -51,3 +51,7 @@ Included: base source, our source additions, patches, English instructions, deri
 Raw experimental evidence remains local. A fresh run writes its own local logs and numerical outputs. The package is AI-assisted; final submission and explanations remain subject to the author's review. No access has been granted to the assignment team by creating this private repository.
 
 Upstream `.github/workflows` is omitted because the available GitHub credential cannot create workflows, and upstream CI is not required for this private source package. This exclusion changes no runtime, model, shader or local test source. The complete exact upstream snapshot is preserved locally; it is not claimed that the published baseline tree is byte-identical to the full upstream tree.
+
+## Review findings
+
+The original authored 4x2 shader now has separate physical-A16 sample-I/O qualification; Q4 alone retains the current complete layer-0 graph acceptance. A source and same-input audit confirms that current public-model TQ2_0/F32 inference omits Microsoft per-token INT8 activation quantize/dequantize. Stock agreement and successful generation do not establish faithful public-model execution. See [review controls and results](bitnet/analysis/review-2026-11-15/README.md) and the revised [technical proposal](bitnet/proposal/PROPOSAL.md). Raw tensors, corpus, logits, logs and timings remain local.

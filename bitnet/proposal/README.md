@@ -7,7 +7,7 @@ English proposal for the Tether mobile GPU assignment. `PROPOSAL.md` is the edit
 - `render_proposal.py`: renders both formats; it runs no inference.
 - `assets/execution-flow.svg` and `.png`: source and publication figure for graph/dispatch flow.
 
-The report separates measured A16 results, preserved numerical failures and proposed Android work. Original authored 4x2 PoC, C8 research and stock-helper-derived Q4 are distinct. Q4 has current phone numerical acceptance and a small isolated operator benefit, with no measured whole-decode gain. The exact original 4x2 PoC's fresh physical-phone test, the team checkpoint, Android and energy remain explicit qualification gaps.
+The report separates measured A16 results, preserved numerical failures and proposed Android work. Original authored 4x2 PoC, C8 research and stock-helper-derived Q4 are distinct. Q4 has current phone numerical acceptance and a small isolated operator benefit, with no measured whole-decode gain. The exact original 4x2 PoC now passes a separate physical-phone sample-I/O test. Source and controlled references confirm that current public-model inference omits Microsoft's required per-token INT8 activation quantize/dequantize. Team checkpoint, semantic repair, representative quality, Android and energy remain explicit gaps. See `../analysis/review-2026-11-15/` for the review response and reproducible controls.
 
 ## Rebuild the documents
 

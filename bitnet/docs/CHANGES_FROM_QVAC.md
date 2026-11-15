@@ -46,3 +46,9 @@ The residual-binding fix is unconditional: for a fused stock ADD, choose the oth
 - `docs/`, `analysis/`, `provenance/`: English scope, measured derived results, source identities and limitations.
 
 Q4 retains the existing stock helper arithmetic. F8/C8 use different packed-dot expressions and accumulation behavior, so improved local FP64 error alone does not imply model-level stock equivalence. All original failure outcomes are retained in the validation notes.
+
+## 15 November review addition
+
+The default-off same-stock guard control adds `q-guard-control-2026-11-15.patch`, based on packaged commit `eb7858492d0f39e7a4f97f58ef53239c17bcb594` after the two earlier patches. It changes only the existing Metal device/ops files; all three patches are already applied in this checkout. No Metal shader arithmetic is changed by this review patch. The original and Q4 defaults remain distinct.
+
+Source and controlled reference tests now confirm that the public-model graph omits Microsoft's per-token INT8 activation quantize/dequantize. Earlier successful loading, sample arithmetic and stock parity must not be described as faithful W1.58A8 execution. See `../analysis/review-2026-11-15/` for the measured semantic controls, exact original-PoC phone qualification and same-stock guard A/B. Team checkpoint rules remain a separate dependency.

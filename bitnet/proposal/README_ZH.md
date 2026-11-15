@@ -1,11 +1,11 @@
 # 中文版审阅入口
 
-本中文版与英文 proposal 的 16 节编号一一对应，供逐节检查。正文、表格和结论均按英文原稿翻译，没有新增推理实测，也没有更改原有验收阈值。英文 Markdown、PDF、Word 及原流程图保持原字节不变。
+本中文版与英文 proposal 的 16 节编号一一对应，供逐节检查。正文、表格和结论均按英文原稿翻译，本轮中英文同步纳入原创 PoC 真机验收、参考语义与 PPL、same-stock guard 对照；原冻结阈值不变。旧稿在 Git 历史保留，中文版生成不会改写英文产物，流程图保留。
 
 ## 文件
 
-- `BitNet_Mobile_GPU_Proposal_ZH.pdf`：中文版 PDF，16 页。
-- `BitNet_Mobile_GPU_Proposal_ZH.docx`：可编辑中文版 Word，已渲染检查 16 页。
+- `BitNet_Mobile_GPU_Proposal_ZH.pdf`：中文版 PDF，20 页。
+- `BitNet_Mobile_GPU_Proposal_ZH.docx`：可编辑中文版 Word，已渲染检查 20 页。
 - `PROPOSAL_ZH.md`：可编辑中文源稿，与 `PROPOSAL.md` 按节对应。
 - `TRANSLATION_CHECK.json`：表格、数值、公式、代码、引用与英文保留检查。
 - `MANIFEST_ZH.json`：中文产物哈希、英文源稿身份与排版验收范围。
@@ -29,4 +29,4 @@ python3 render_proposal_zh.py --output /absolute/path/to/local-chinese-build
 
 Word 的 headless 排版检查需要渲染器加载可用中文字体；本次使用明确的 Fontconfig 配置、中文字体映射和逐页图像检查，确认中文及流程图正常显示。文字使用固定行距，包含图片的段落保留自动行高。原始 QA 图片、中间失败记录及本地字体缓存均不上传。
 
-中文版仅用于作者审阅。模型实验仍属于公开 checkpoint，团队模型、Android、能耗及原始 PoC 精确版本的手机补测等限制与英文保持一致。
+中文版仅用于作者审阅。模型实验仍属于公开 checkpoint，团队模型、公开模型 ActQuant 修复、代表性质评测、Android 与能耗限制均与英文保持一致。原始 PoC 的独立手机 sample-I/O 已通过，不能据此推断其真实图接入或完整模型语义已通过。

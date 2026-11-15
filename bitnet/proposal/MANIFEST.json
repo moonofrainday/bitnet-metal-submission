@@ -4,21 +4,21 @@
   "QVAC_commit": "2db8b046d555316019ae75d1be90484adc8b9330",
   "artifact_type": "English proposal draft for author review",
   "pages": {
-    "PDF": 16,
-    "DOCX_render": 16
+    "PDF": 20,
+    "DOCX_render": 20
   },
   "all_11_brief_topics_covered": true,
-  "new_GPU_measurements": false,
+  "new_GPU_measurements": true,
   "raw_experiment_data_included": false,
   "timing_hardware_scope": "Physical iPhone only",
-  "native_compute_source_changed": false,
+  "native_compute_source_changed": true,
   "numerical_threshold_changed": false,
   "source": "PROPOSAL.md",
   "outputs": [
     {
       "path": "PROPOSAL.md",
-      "bytes": 40922,
-      "sha256": "088cf4ad654241c02e2a0e5554fd78ec20b80b444c805a8ad7510291e40e3885"
+      "bytes": 53565,
+      "sha256": "19771445350c9d70ac90921260265ef9a2a8f63a57ed5e746055116668bd33b3"
     },
     {
       "path": "OUTLINE.md",
@@ -27,8 +27,8 @@
     },
     {
       "path": "render_proposal.py",
-      "bytes": 15866,
-      "sha256": "f6aa6e562bc34e1dc349e851d2b07171ed5f7df4d5ef2cc7b9273987b1513fc1"
+      "bytes": 16012,
+      "sha256": "57a02ebe240705e256f701999a449465ba98c6b982567333534b5499f29236f2"
     },
     {
       "path": "requirements-docs.txt",
@@ -47,22 +47,35 @@
     },
     {
       "path": "BitNet_Mobile_GPU_Proposal.pdf",
-      "bytes": 211593,
-      "sha256": "8011b674a45c02e4ed95761391d46f3d17e6c8c6cccf0f3826ac5e220ba2caec"
+      "bytes": 225144,
+      "sha256": "1affa07c3ae1ae6af9a1f856fcc664254f24940ab3691f676ced08fc19dda777"
     },
     {
       "path": "BitNet_Mobile_GPU_Proposal.docx",
-      "bytes": 118555,
-      "sha256": "5da8f8f0bdea4eed8abaf72e46adc0d7f101d61c732da28db78eb0ee6575d6f1"
+      "bytes": 125029,
+      "sha256": "e5422c1668a824d87438129cfc883652d4f5d90d23242344abb090c38b0f87f1"
     }
   ],
   "quality_review": {
     "all_11_topics_covered": true,
     "independent_content_review": "pass",
-    "PDF_pages_visually_inspected": 16,
-    "DOCX_pages_visually_inspected": 16,
+    "PDF_pages_visually_inspected": 20,
+    "DOCX_pages_visually_inspected": 20,
     "clipping_overlap_or_missing_glyphs_observed": false,
     "title_paragraph_borders_remaining": 0,
     "personal_host_device_or_signing_IDs_embedded": false
-  }
+  },
+  "Metal_shader_arithmetic_changed_in_this_review": false,
+  "source_baseline_before_review": "eb7858492d0f39e7a4f97f58ef53239c17bcb594",
+  "reviewed_control_commits": {
+    "original_phone": "7d680ad1b266ab652e20a27f12cbe876cec8bfff",
+    "quality_helper": "338af43",
+    "guard_control": "16a366602438b53548853a2921fbcb4a5e6f9b2e",
+    "combined_build": "fd8234fcf5b2683f67d0c3148f2f3ae2e4fed454",
+    "semantic_reference": "f171cf9"
+  },
+  "known_public_model_ActQuant_omission": true,
+  "original_PoC_physical_phone_sample_IO_pass": true,
+  "original_PoC_model_graph_acceptance": null,
+  "representative_model_quality_acceptance": null
 }
