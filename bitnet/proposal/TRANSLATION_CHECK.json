@@ -1,0 +1,32 @@
+{
+  "checks": {
+    "section_numbers_equal": true,
+    "code_blocks_identical": true,
+    "inline_code_identical": true,
+    "ordered_URLs_identical": true,
+    "ordered_citations_identical": true,
+    "all_digit_frequencies_equal_after_date_localization": true,
+    "table_shapes_and_numerical_cells_equal": true,
+    "English_and_original_figure_preserved": true
+  },
+  "overall_pass": true,
+  "table_errors": [],
+  "section_count": 16,
+  "table_count": 18,
+  "table_cells_checked": 387,
+  "code_blocks": 4,
+  "inline_code_entries": 55,
+  "references": 54,
+  "URL_count": 15,
+  "English_file_checks": {
+    "PROPOSAL.md": true,
+    "BitNet_Mobile_GPU_Proposal.pdf": true,
+    "BitNet_Mobile_GPU_Proposal.docx": true,
+    "assets/execution-flow.png": true,
+    "assets/execution-flow.svg": true
+  },
+  "English_source_sha256": "088cf4ad654241c02e2a0e5554fd78ec20b80b444c805a8ad7510291e40e3885",
+  "Chinese_source_sha256": "41d0cd97b765714e71873f64ffc1558452fc601d84523e190f8047e5368da17a",
+  "date_normalization": "2026 年 11 月 15 日 is equivalent to 15 November 2026",
+  "scope": "Document translation literal/structure checks, not new numerical or model validation"
+}

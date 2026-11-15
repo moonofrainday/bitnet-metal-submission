@@ -14,8 +14,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 5400,
-      "sha256": "df903a0594d633b7761a056c0916f28ae62672071d9ada94b0233298ef1bf721"
+      "bytes": 5555,
+      "sha256": "7763528fcaaed60a3cdb94ef42ba48bd2dd08693964ebf11f9a77ee045e95daf"
     },
     {
       "path": "README.upstream.md",
@@ -288,9 +288,24 @@
       "sha256": "8011b674a45c02e4ed95761391d46f3d17e6c8c6cccf0f3826ac5e220ba2caec"
     },
     {
+      "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal_ZH.docx",
+      "bytes": 124365,
+      "sha256": "4048a67602bdadf9bf1e89b32ff65f3f3a9ad8a48d305aecd096e0e334fbc6bc"
+    },
+    {
+      "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal_ZH.pdf",
+      "bytes": 523310,
+      "sha256": "eacc45eddac6c0e12b7fe4540c6d472ced4683c5a2c634c63a1daf9563690b7f"
+    },
+    {
       "path": "bitnet/proposal/MANIFEST.json",
       "bytes": 2202,
       "sha256": "a924218375f85bdaaee625a26b8357406b68c64aeb07ceb27b667b5daa3ec2e8"
+    },
+    {
+      "path": "bitnet/proposal/MANIFEST_ZH.json",
+      "bytes": 3006,
+      "sha256": "15705e658075a8105a2105e5a7395bc6a4bfc463e11f523c6b06536fcfa9e7da"
     },
     {
       "path": "bitnet/proposal/OUTLINE.md",
@@ -303,9 +318,24 @@
       "sha256": "088cf4ad654241c02e2a0e5554fd78ec20b80b444c805a8ad7510291e40e3885"
     },
     {
+      "path": "bitnet/proposal/PROPOSAL_ZH.md",
+      "bytes": 40690,
+      "sha256": "41d0cd97b765714e71873f64ffc1558452fc601d84523e190f8047e5368da17a"
+    },
+    {
       "path": "bitnet/proposal/README.md",
       "bytes": 2222,
       "sha256": "5c81071f5d406fb39f079461e12f3eab922f045eb4f26d586b9b4d9efc268254"
+    },
+    {
+      "path": "bitnet/proposal/README_ZH.md",
+      "bytes": 2629,
+      "sha256": "36885bb51771d06b60c1f3d0314cab95ebc33dd76735037e101e709f496740c3"
+    },
+    {
+      "path": "bitnet/proposal/TRANSLATION_CHECK.json",
+      "bytes": 1175,
+      "sha256": "5ffa6b864716533b1673f10a3acd1e7fa954465e6ba11651bd061a7e162984fd"
     },
     {
       "path": "bitnet/proposal/assets/execution-flow.png",
@@ -318,9 +348,19 @@
       "sha256": "4a5e332bd79d11440a683126d733414fbd900397b32e4c423b2cc57223a64e9e"
     },
     {
+      "path": "bitnet/proposal/check_translation.py",
+      "bytes": 4020,
+      "sha256": "b3f9676d93da8600a5c46ae6f9bab9d3ec41af1ae9062efebdc581eb2e92e05c"
+    },
+    {
       "path": "bitnet/proposal/render_proposal.py",
       "bytes": 15866,
       "sha256": "f6aa6e562bc34e1dc349e851d2b07171ed5f7df4d5ef2cc7b9273987b1513fc1"
+    },
+    {
+      "path": "bitnet/proposal/render_proposal_zh.py",
+      "bytes": 8874,
+      "sha256": "a434c02366c79e3870da530db22008ad137e6001dddc631cad943e2b72555ac6"
     },
     {
       "path": "bitnet/proposal/requirements-docs.txt",

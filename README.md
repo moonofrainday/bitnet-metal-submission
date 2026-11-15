@@ -9,6 +9,7 @@ The source baseline is `tetherto/qvac-fabric-llm.cpp@2db8b046d555316019ae75d1be9
 | Location | What to inspect |
 |---|---|
 | [Technical proposal](bitnet/proposal/README.md) | English PDF and editable Word draft covering all eleven assignment topics |
+| [Chinese proposal companion](bitnet/proposal/README_ZH.md) | Chinese PDF and editable Word with the same sixteen sections, figures and measured values |
 | [Validation](bitnet/validation/README.md) | Original TQ2_0 matvec PoC, stock4x1 specialization, independent FP64 reference, hand-checkable/dense/real-input tests |
 | [Source walkthrough](bitnet/docs/SOURCE_WALKTHROUGH.md) | Input/output contract, graph flow, dispatch and stock fallback |
 | [Build and run](bitnet/docs/BUILD_AND_RUN.md) | Fresh builds, standalone test and model conversion |
