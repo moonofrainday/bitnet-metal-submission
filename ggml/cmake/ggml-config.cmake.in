@@ -1,0 +1,295 @@
+@PACKAGE_INIT@
+
+@GGML_VARIABLES_EXPANDED@
+
+# Find all dependencies before creating any target.
+include(CMakeFindDependencyMacro)
+find_dependency(Threads)
+if (NOT GGML_SHARED_LIB)
+    set(GGML_BASE_INTERFACE_LINK_LIBRARIES "")
+    set(GGML_CPU_INTERFACE_LINK_LIBRARIES "")
+    set(GGML_CPU_INTERFACE_LINK_OPTIONS   "")
+
+    if (APPLE AND GGML_ACCELERATE)
+        find_library(ACCELERATE_FRAMEWORK Accelerate)
+        if(NOT ACCELERATE_FRAMEWORK)
+            set(${CMAKE_FIND_PACKAGE_NAME}_FOUND 0)
+            return()
+        endif()
+        list(APPEND GGML_CPU_INTERFACE_LINK_LIBRARIES ${ACCELERATE_FRAMEWORK})
+    endif()
+
+    if (GGML_OPENMP_ENABLED)
+        find_dependency(OpenMP)
+        set(GGML_OPENMP_INTERFACE_LINK_LIBRARIES "")
+        if (TARGET OpenMP::OpenMP_C)
+            list(APPEND GGML_OPENMP_INTERFACE_LINK_LIBRARIES OpenMP::OpenMP_C)
+        endif()
+        if (TARGET OpenMP::OpenMP_CXX)
+            list(APPEND GGML_OPENMP_INTERFACE_LINK_LIBRARIES OpenMP::OpenMP_CXX)
+        endif()
+        list(APPEND GGML_BASE_INTERFACE_LINK_LIBRARIES ${GGML_OPENMP_INTERFACE_LINK_LIBRARIES})
+        list(APPEND GGML_CPU_INTERFACE_LINK_LIBRARIES ${GGML_OPENMP_INTERFACE_LINK_LIBRARIES})
+    endif()
+
+    if (GGML_CPU_HBM)
+        find_library(memkind memkind)
+        if(NOT memkind)
+            set(${CMAKE_FIND_PACKAGE_NAME}_FOUND 0)
+            return()
+        endif()
+        list(APPEND GGML_CPU_INTERFACE_LINK_LIBRARIES memkind)
+    endif()
+
+    if (GGML_BLAS)
+        find_dependency(BLAS)
+        list(APPEND GGML_BLAS_INTERFACE_LINK_LIBRARIES ${BLAS_LIBRARIES})
+        list(APPEND GGML_BLAS_INTERFACE_LINK_OPTIONS   ${BLAS_LINKER_FLAGS})
+    endif()
+
+    if (GGML_CUDA)
+        set(GGML_CUDA_INTERFACE_LINK_LIBRARIES "")
+        find_dependency(CUDAToolkit)
+        if (GGML_STATIC)
+            list(APPEND GGML_CUDA_INTERFACE_LINK_LIBRARIES $<LINK_ONLY:CUDA::cudart_static>)
+            if (WIN32)
+                list(APPEND GGML_CUDA_INTERFACE_LINK_LIBRARIES $<LINK_ONLY:CUDA::cublas> $<LINK_ONLY:CUDA::cublasLt>)
+            else()
+                list(APPEND GGML_CUDA_INTERFACE_LINK_LIBRARIES $<LINK_ONLY:CUDA::cublas_static> $<LINK_ONLY:CUDA::cublasLt_static>)
+            endif()
+        endif()
+        if (NOT GGML_CUDA_NO_VMM)
+            list(APPEND GGML_CUDA_INTERFACE_LINK_LIBRARIES $<LINK_ONLY:CUDA::cuda_driver>)
+        endif()
+    endif()
+
+    if (GGML_METAL)
+        find_library(FOUNDATION_LIBRARY Foundation)
+        find_library(METAL_FRAMEWORK    Metal)
+        find_library(METALKIT_FRAMEWORK MetalKit)
+        if(NOT FOUNDATION_LIBRARY OR NOT METAL_FRAMEWORK OR NOT METALKIT_FRAMEWORK)
+            set(${CMAKE_FIND_PACKAGE_NAME}_FOUND 0)
+            return()
+        endif()
+        set(GGML_METAL_INTERFACE_LINK_LIBRARIES
+            ${FOUNDATION_LIBRARY} ${METAL_FRAMEWORK} ${METALKIT_FRAMEWORK})
+    endif()
+
+    if (GGML_OPENCL)
+        find_dependency(OpenCL)
+        set(GGML_OPENCL_INTERFACE_LINK_LIBRARIES $<LINK_ONLY:OpenCL::OpenCL>)
+    endif()
+
+    # Under GGML_BACKEND_DL the Vulkan backend ships as a standalone module that
+    # is dlopen'd at runtime; the consumer links only ggml/ggml-base and never
+    # references Vulkan::Vulkan (the backend foreach below is skipped entirely
+    # when GGML_BACKEND_DL is set). Hard-requiring the Vulkan SDK at the
+    # consumer's configure time is therefore spurious for DL builds and breaks
+    # CPU-only consumers (e.g. @qvac/classification-ggml) on build hosts without
+    # a Vulkan SDK. Keep the dependency for non-DL builds, which link it directly.
+    if (GGML_VULKAN AND NOT GGML_BACKEND_DL)
+        find_dependency(Vulkan)
+        set(GGML_VULKAN_INTERFACE_LINK_LIBRARIES $<LINK_ONLY:Vulkan::Vulkan>)
+    endif()
+
+    if (GGML_HIP)
+        find_dependency(hip)
+        find_dependency(hipblas)
+        find_dependency(rocblas)
+        set(GGML_HIP_INTERFACE_LINK_LIBRARIES hip::host roc::rocblas roc::hipblas)
+    endif()
+
+    if (GGML_SYCL)
+        set(GGML_SYCL_INTERFACE_LINK_LIBRARIES "")
+        find_package(DNNL)
+        if (${DNNL_FOUND} AND GGML_SYCL_TARGET STREQUAL "INTEL")
+            list(APPEND GGML_SYCL_INTERFACE_LINK_LIBRARIES DNNL::dnnl)
+        endif()
+        if (WIN32)
+            find_dependency(IntelSYCL)
+            find_dependency(MKL)
+            list(APPEND GGML_SYCL_INTERFACE_LINK_LIBRARIES IntelSYCL::SYCL_CXX MKL::MKL MKL::MKL_SYCL)
+        endif()
+    endif()
+
+    if (GGML_OPENCL)
+        # OpenCL::OpenCL, from the find_dependency(OpenCL) above, is the canonical
+        # target. pkg-config can contribute extra transitive flags that matter when
+        # linking statically, so consult it when it is available - but do not make it
+        # a hard requirement. A static consumer on a system with a working CMake
+        # OpenCL package but no pkg-config (common on Windows and in minimal build
+        # images) would otherwise fail find_package(ggml) outright, for a lookup that
+        # only supplements one already done.
+        # The probe also uses its own prefix: pkg_check_modules(OpenCL ...) writes
+        # OpenCL_FOUND / OpenCL_LIBRARIES etc., clobbering the values that
+        # find_dependency(OpenCL) just set.
+        find_package(PkgConfig QUIET)
+        if (PKG_CONFIG_FOUND)
+            pkg_check_modules(GGML_PC_OPENCL QUIET IMPORTED_TARGET OpenCL)
+            if (TARGET PkgConfig::GGML_PC_OPENCL)
+                list(APPEND GGML_OPENCL_INTERFACE_LINK_LIBRARIES PkgConfig::GGML_PC_OPENCL)
+            endif()
+        endif()
+    endif()
+
+endif()
+
+set_and_check(GGML_INCLUDE_DIR "@PACKAGE_GGML_INCLUDE_INSTALL_DIR@")
+set_and_check(GGML_LIB_DIR "@PACKAGE_GGML_LIB_INSTALL_DIR@")
+#set_and_check(GGML_BIN_DIR "@PACKAGE_GGML_BIN_INSTALL_DIR@")
+
+if (NOT GGML_SHARED_LIB AND GGML_CPU_KLEIDIAI)
+    unset(KLEIDIAI_LIBRARY CACHE)
+    unset(KLEIDIAI_LIBRARY)
+    find_library(KLEIDIAI_LIBRARY kleidiai
+        REQUIRED
+        HINTS ${GGML_LIB_DIR}
+        NO_CMAKE_FIND_ROOT_PATH)
+    list(APPEND GGML_CPU_INTERFACE_LINK_LIBRARIES ${KLEIDIAI_LIBRARY})
+endif()
+
+# Include the exported targets file
+include("${CMAKE_CURRENT_LIST_DIR}/ggml-targets.cmake")
+
+if(NOT TARGET ggml::ggml)
+    find_package(Threads REQUIRED)
+
+    unset(GGML_LIBRARY CACHE)
+    find_library(GGML_LIBRARY ggml
+        REQUIRED
+        HINTS ${GGML_LIB_DIR}
+        NO_CMAKE_FIND_ROOT_PATH)
+
+    add_library(ggml::ggml UNKNOWN IMPORTED)
+    set_target_properties(ggml::ggml
+        PROPERTIES
+            IMPORTED_LOCATION "${GGML_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${GGML_INCLUDE_DIR}")
+
+    unset(GGML_BASE_LIBRARY CACHE)
+    find_library(GGML_BASE_LIBRARY ggml-base
+        REQUIRED
+        HINTS ${GGML_LIB_DIR}
+        NO_CMAKE_FIND_ROOT_PATH)
+
+    add_library(ggml::ggml-base UNKNOWN IMPORTED)
+    set_target_properties(ggml::ggml-base
+        PROPERTIES
+            IMPORTED_LOCATION "${GGML_BASE_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${GGML_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "${GGML_BASE_INTERFACE_LINK_LIBRARIES}")
+
+    if(GGML_MAX_NAME)
+        set_property(TARGET ggml::ggml-base APPEND PROPERTY
+            INTERFACE_COMPILE_DEFINITIONS "GGML_MAX_NAME=${GGML_MAX_NAME}")
+    endif()
+
+    set(_ggml_all_targets "")
+    if (NOT GGML_BACKEND_DL)
+        foreach(_ggml_backend ${GGML_AVAILABLE_BACKENDS})
+            string(REPLACE "-" "_" _ggml_backend_pfx "${_ggml_backend}")
+            string(TOUPPER "${_ggml_backend_pfx}" _ggml_backend_pfx)
+
+            unset(${_ggml_backend_pfx}_LIBRARY CACHE)
+            find_library(${_ggml_backend_pfx}_LIBRARY ${_ggml_backend}
+                REQUIRED
+                HINTS ${GGML_LIB_DIR}
+                NO_CMAKE_FIND_ROOT_PATH)
+
+            message(STATUS "Found ${${_ggml_backend_pfx}_LIBRARY}")
+
+            add_library(ggml::${_ggml_backend} UNKNOWN IMPORTED)
+            set_target_properties(ggml::${_ggml_backend}
+                PROPERTIES
+                    INTERFACE_INCLUDE_DIRECTORIES "${GGML_INCLUDE_DIR}"
+                    IMPORTED_LINK_INTERFACE_LANGUAGES "CXX"
+                    IMPORTED_LOCATION "${${_ggml_backend_pfx}_LIBRARY}"
+                    INTERFACE_COMPILE_FEATURES c_std_90
+                    POSITION_INDEPENDENT_CODE ON)
+
+            string(REGEX MATCH "^ggml-cpu" is_cpu_variant "${_ggml_backend}")
+            if(is_cpu_variant)
+                list(APPEND GGML_CPU_INTERFACE_LINK_LIBRARIES "ggml::ggml-base")
+                set_target_properties(ggml::${_ggml_backend}
+                PROPERTIES
+                    INTERFACE_LINK_LIBRARIES "${GGML_CPU_INTERFACE_LINK_LIBRARIES}")
+
+                if(GGML_CPU_INTERFACE_LINK_OPTIONS)
+                    set_target_properties(ggml::${_ggml_backend}
+                        PROPERTIES
+                            INTERFACE_LINK_OPTIONS "${GGML_CPU_INTERFACE_LINK_OPTIONS}")
+                endif()
+
+            else()
+                list(APPEND ${_ggml_backend_pfx}_INTERFACE_LINK_LIBRARIES "ggml::ggml-base")
+                set_target_properties(ggml::${_ggml_backend}
+                    PROPERTIES
+                        INTERFACE_LINK_LIBRARIES "${${_ggml_backend_pfx}_INTERFACE_LINK_LIBRARIES}")
+
+                if(${_ggml_backend_pfx}_INTERFACE_LINK_OPTIONS)
+                    set_target_properties(ggml::${_ggml_backend}
+                        PROPERTIES
+                            INTERFACE_LINK_OPTIONS "${${_ggml_backend_pfx}_INTERFACE_LINK_OPTIONS}")
+                endif()
+            endif()
+
+            list(APPEND _ggml_all_targets ggml::${_ggml_backend})
+        endforeach()
+    endif()
+
+    list(APPEND GGML_INTERFACE_LINK_LIBRARIES ggml::ggml-base "${_ggml_all_targets}")
+    set_target_properties(ggml::ggml
+        PROPERTIES
+            INTERFACE_LINK_LIBRARIES "${GGML_INTERFACE_LINK_LIBRARIES}")
+
+endif()
+
+# ggml::all aggregates every backend target the package ships. The hand-rolled
+# branch above builds it while discovering the backends itself, but that branch
+# only runs when ggml-targets.cmake did NOT define ggml::ggml. Now that the
+# exported targets file is included unconditionally above, the common install
+# takes the other path and would leave ggml::all undefined, so any consumer
+# linking it fails at generate time with
+#   Target ... links to: ggml::all but the target was not found
+# Rebuild the aggregate here from the backend list recorded at install time.
+if(NOT TARGET ggml::all)
+    set(_ggml_all_targets "")
+    if (NOT GGML_BACKEND_DL)
+        foreach(_ggml_backend ${GGML_AVAILABLE_BACKENDS})
+            if (TARGET ggml::${_ggml_backend})
+                list(APPEND _ggml_all_targets ggml::${_ggml_backend})
+            endif()
+        endforeach()
+    endif()
+
+    add_library(ggml::all INTERFACE IMPORTED)
+    set_target_properties(ggml::all
+        PROPERTIES
+            INTERFACE_LINK_LIBRARIES "${_ggml_all_targets}")
+    unset(_ggml_all_targets)
+endif()
+
+if(GGML_VECTOR_INDEX AND NOT TARGET ggml::ggml-vector-index)
+    find_library(GGML_VECTOR_INDEX_LIBRARY ggml-vector-index
+        REQUIRED
+        HINTS ${GGML_LIB_DIR}
+        NO_CMAKE_FIND_ROOT_PATH)
+
+    add_library(ggml::ggml-vector-index UNKNOWN IMPORTED)
+    set_target_properties(ggml::ggml-vector-index
+        PROPERTIES
+            INTERFACE_INCLUDE_DIRECTORIES "${GGML_INCLUDE_DIR}"
+            IMPORTED_LINK_INTERFACE_LANGUAGES "CXX"
+            IMPORTED_LOCATION "${GGML_VECTOR_INDEX_LIBRARY}"
+            INTERFACE_COMPILE_FEATURES cxx_std_17
+            POSITION_INDEPENDENT_CODE ON)
+endif()
+
+if(TARGET ggml::ggml-vector-index AND NOT TARGET ggml::vector-index)
+    add_library(ggml::vector-index INTERFACE IMPORTED)
+    set_target_properties(ggml::vector-index
+        PROPERTIES
+            INTERFACE_LINK_LIBRARIES ggml::ggml-vector-index)
+endif()
+
+check_required_components(ggml)
