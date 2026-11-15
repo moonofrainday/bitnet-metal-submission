@@ -15,7 +15,7 @@ This revision addresses model semantics, exact authored-PoC qualification, optim
 
 1. `REVIEW_SEMANTICS.md` / `.json`: public contract, exact-source qualification, Q controls, BF16/F32 ON/OFF and teacher forcing.
 2. `ORIGINAL_POC_PHONE.md` / `original-poc-phone-summary.json`: original source/binary identity and all five phone cases, including a separate derived-ActQuant input control.
-3. `PHONE_QUALITY_SMOKE.md` / `phone-quality-smoke-summary.json`: independent raw-logit scoring and limits of the 128-target measurement.
+3. `PHONE_QUALITY_SMOKE.md` / `phone-ppl-summary.json`: independent raw-logit scoring and limits of the 128-target measurement.
 4. `PROFILE_NUMERICS.md` / `guard-control-summary.json`: same-stock guard control, paired wall statistics, head/Amdahl and acceptance rationale.
 5. `RERUN.md`: build, numerical/reference, phone and CPU reanalysis entry points.
 
