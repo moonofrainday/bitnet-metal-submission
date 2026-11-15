@@ -1,0 +1,218 @@
+{
+  "scope": "Derived numerical/quality-smoke analysis only. No raw tensors, logits, corpus text, per-row data, absolute paths, or performance claims.",
+  "model_revision": "04c3b9ad9361b824064a1f25ea60a8be9599b127",
+  "reference_transformers_commit": "096f25ae1f501a084d8ff2dcaf25fbc2bd60eba4",
+  "GGUF_sha256": "52257df879ab4366d97228e7bda94a9a3c6a9065ec44e7879a8b87d54e568cd2",
+  "checkpoint_safetensors_sha256": "8143ae115ed6babe5e5ada8fb8c5b769d8f417802b2db042ad98b4f7ed73975b",
+  "reference_qualification": "AST-selected immutable official arithmetic, inference-only plumbing/compile decorators removed; streamed eager CPU, no KV; not an unmodified full Transformers package. Separate BF16 and F32 profiles; original BF16 parameter values losslessly lifted in F32.",
+  "confirmed_semantic_deviation": "Public checkpoint per-token ActQuant quantize/dequantize absent from tested QVAC Metal graph. F32 dtype alone was not used as proof.",
+  "same_input_Q_cases": [
+    {
+      "step": 1,
+      "X_values_changed": 2559,
+      "weight_max_abs_difference": 0.0,
+      "stock_vs_unquantized_FP64": {
+        "values": 2560,
+        "failed_rows": 0,
+        "nonfinite": 0,
+        "max_abs_error": 9.509993446954468e-06,
+        "max_error_over_tolerance": 0.04677661384768213,
+        "relative_L2": 2.048860199537772e-06,
+        "RMSE": 2.6672383460492203e-06
+      },
+      "stock_vs_quantized_FP64": {
+        "values": 2560,
+        "failed_rows": 2498,
+        "nonfinite": 0,
+        "max_abs_error": 0.028416419985660468,
+        "max_error_over_tolerance": 126.15111118358503,
+        "relative_L2": 0.006030672451238065,
+        "RMSE": 0.007852173229632163
+      }
+    },
+    {
+      "step": 16,
+      "X_values_changed": 2560,
+      "weight_max_abs_difference": 0.0,
+      "stock_vs_unquantized_FP64": {
+        "values": 2560,
+        "failed_rows": 0,
+        "nonfinite": 0,
+        "max_abs_error": 9.595010098450985e-06,
+        "max_error_over_tolerance": 0.04620356574918632,
+        "relative_L2": 2.1190522468394007e-06,
+        "RMSE": 2.572224660542413e-06
+      },
+      "stock_vs_quantized_FP64": {
+        "values": 2560,
+        "failed_rows": 2491,
+        "nonfinite": 0,
+        "max_abs_error": 0.03488806737004779,
+        "max_error_over_tolerance": 171.06284468759597,
+        "relative_L2": 0.007358485224517848,
+        "RMSE": 0.008933450649519099
+      }
+    },
+    {
+      "step": 32,
+      "X_values_changed": 2559,
+      "weight_max_abs_difference": 0.0,
+      "stock_vs_unquantized_FP64": {
+        "values": 2560,
+        "failed_rows": 0,
+        "nonfinite": 0,
+        "max_abs_error": 8.449031852819644e-06,
+        "max_error_over_tolerance": 0.04171273243562723,
+        "relative_L2": 2.0318121036785515e-06,
+        "RMSE": 2.522062589773009e-06
+      },
+      "stock_vs_quantized_FP64": {
+        "values": 2560,
+        "failed_rows": 2502,
+        "nonfinite": 0,
+        "max_abs_error": 0.033746916480595246,
+        "max_error_over_tolerance": 144.40969071061812,
+        "relative_L2": 0.006733657641199161,
+        "RMSE": 0.008367063492242928
+      }
+    }
+  ],
+  "F32_teacher_forced": {
+    "logit_vectors": 33,
+    "vocabulary": 128256,
+    "prompt_tokens": 27,
+    "fixed_continuation_tokens": 32,
+    "ON_OFF_comparison": {
+      "values": 4232448,
+      "nonfinite": 0,
+      "max_abs": 1.4370098114013672,
+      "frozen_tolerance_failures": 4229641,
+      "max_error_over_tolerance": 4166.80303579043,
+      "relative_L2": 0.03756827566626354,
+      "RMSE": 0.25163479145942164
+    },
+    "ON_OFF_greedy_agreement": 31,
+    "QVAC_vs_reference": {
+      "quant_on": {
+        "values": 4232448,
+        "nonfinite": 0,
+        "max_abs": 1.4380550384521484,
+        "RMSE": 0.25197921387568667,
+        "relative_L2": 0.03761969683973323,
+        "frozen_tolerance_failures": 4229647,
+        "max_error_over_tolerance": 4158.182233582763,
+        "greedy_agree_positions": 31
+      },
+      "quant_off": {
+        "values": 4232448,
+        "nonfinite": 0,
+        "max_abs": 0.005445241928100586,
+        "RMSE": 0.0007240584062516951,
+        "relative_L2": 0.00011095713757027732,
+        "frozen_tolerance_failures": 2944811,
+        "max_error_over_tolerance": 21.325679856868735,
+        "greedy_agree_positions": 33
+      }
+    },
+    "token18": {
+      "qvac_stock": {
+        "greedy_token_id": 14515,
+        "computations_minus_graphics": -0.0051441192626953125,
+        "specific_tokens": {
+          "83699": {
+            "logit": 22.353647232055664,
+            "rank_competition": 2
+          },
+          "14515": {
+            "logit": 22.35879135131836,
+            "rank_competition": 1
+          }
+        }
+      },
+      "quant_on": {
+        "greedy_token_id": 83699,
+        "computations_minus_graphics": 0.09494400024414062,
+        "specific_tokens": {
+          "83699": {
+            "logit": 22.358903884887695,
+            "rank_competition": 1
+          },
+          "14515": {
+            "logit": 22.263959884643555,
+            "rank_competition": 2
+          }
+        }
+      },
+      "quant_off": {
+        "greedy_token_id": 14515,
+        "computations_minus_graphics": -0.005908966064453125,
+        "specific_tokens": {
+          "83699": {
+            "logit": 22.353071212768555,
+            "rank_competition": 2
+          },
+          "14515": {
+            "logit": 22.358980178833008,
+            "rank_competition": 1
+          }
+        }
+      }
+    }
+  },
+  "PPL": {
+    "dataset": "Salesforce/wikitext",
+    "revision": "b08601e04326c79dfdd32d625aee71d232d685c3",
+    "configuration": "wikitext-2-raw-v1",
+    "split": "test",
+    "scored_tokens": 128,
+    "BOS_tokens": 1,
+    "scoring": "Independent FP64 stable logsumexp of saved F32 logits; old Torch FP32 scoring retained separately",
+    "qualification": "Tiny data-defined test slice; nonrepresentative, not evidence of pretraining exclusion or quality acceptance",
+    "profiles": {
+      "BF16": {
+        "quant_on": {
+          "sum_nll": 378.1539968826243,
+          "mean_nll": 2.9543281006455024,
+          "perplexity": 19.188825428058678
+        },
+        "quant_off": {
+          "sum_nll": 377.5486238774371,
+          "mean_nll": 2.949598624042477,
+          "perplexity": 19.098286596563682
+        }
+      },
+      "F32": {
+        "quant_on": {
+          "sum_nll": 377.7578482956558,
+          "mean_nll": 2.9512331898098108,
+          "perplexity": 19.129529529407147
+        },
+        "quant_off": {
+          "sum_nll": 377.48345890828915,
+          "mean_nll": 2.949089522721009,
+          "perplexity": 19.08856610818628
+        }
+      }
+    }
+  },
+  "old_strict_CPU_Metal_exit_code": 1,
+  "new_strict_semantics_exit_code": 1,
+  "processing_exit_code": 0,
+  "full_model_semantic_acceptance": false,
+  "team_checkpoint_acceptance": null,
+  "remaining_dependencies": [
+    "Explicit checkpoint-specific ActQuant graph integration",
+    "Matched cached/precision intermediate and teacher-forced validation",
+    "Representative held-out NLL/PPL and task budgets",
+    "Team-specific activation/scaling/tokenizer contract"
+  ],
+  "source_entries": [
+    "../../reference/q_activation_semantics.py",
+    "../../reference/streamed_reference.py",
+    "../../reference/analyze_reference.py",
+    "../../reference/score_logits_fp64.py",
+    "../../reference/repair_rankings.py",
+    "../../reference/prepare_sources.py",
+    "../../reference/RERUN.md"
+  ]
+}

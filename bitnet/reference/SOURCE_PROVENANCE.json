@@ -1,0 +1,36 @@
+{
+  "official_transformers_revision": "096f25ae1f501a084d8ff2dcaf25fbc2bd60eba4",
+  "official_sources": {
+    "official-modeling-bitnet-096f25ae.py": {
+      "sha256": "e3965a8a9768519fdd22f376d216e665fe5f6d74a0a40c87da097b119c5d6e38",
+      "license": "Apache-2.0; original headers preserved",
+      "url": "https://raw.githubusercontent.com/huggingface/transformers/096f25ae1f501a084d8ff2dcaf25fbc2bd60eba4/src/transformers/models/bitnet/modeling_bitnet.py"
+    },
+    "official-rope-utils-096f25ae.py": {
+      "sha256": "3a0bcdd0d4223c7645fc4bdcc53ff43d16689ead85e0751ed604dd173dba4358",
+      "license": "Apache-2.0; original headers preserved",
+      "url": "https://raw.githubusercontent.com/huggingface/transformers/096f25ae1f501a084d8ff2dcaf25fbc2bd60eba4/src/transformers/modeling_rope_utils.py"
+    },
+    "official-activations-096f25ae.py": {
+      "sha256": "284dc2ef1515e1c6aef4ceb35c9cf9c29d43ae97f77d802533783cfede009fef",
+      "license": "Apache-2.0; original headers preserved",
+      "url": "https://raw.githubusercontent.com/huggingface/transformers/096f25ae1f501a084d8ff2dcaf25fbc2bd60eba4/src/transformers/activations.py"
+    },
+    "official-bitnet-096f25ae.py": {
+      "sha256": "a8b3170f1824f010701f4e033fbc33d199bc2ea344ddbf2554594b66fada8b1c",
+      "license": "Apache-2.0; original headers preserved",
+      "url": "https://raw.githubusercontent.com/huggingface/transformers/096f25ae1f501a084d8ff2dcaf25fbc2bd60eba4/src/transformers/integrations/bitnet.py"
+    }
+  },
+  "scope": "Source only. Raw corpora, checkpoint, logits, tensors and row data are intentionally excluded.",
+  "license_sha256": "77fd4710def9ec3c0f6225800e0235f15a425abd4a8b03559127fcd782612049",
+  "reference_scripts_sha256": {
+    "score_logits_fp64.py": "5ef3cb5e0f3439b4c409e7bda5be8259413cac606a861183db1f8fd5fea9c046",
+    "prepare_sources.py": "dc08e4f1bf48fc6c9c0ed9d53ef4dc4955a61df372a79d0056a0ec5b161b4aff",
+    "repair_rankings.py": "00fe3b6b1069fac104ad9d4cac621bab271cc54724ef19c2a908b647403f47b1",
+    "streamed_reference.py": "b27062c63dd554e27b95e0b2df9169e1358f6f684061ff9f45777f9e2230b1fd",
+    "analyze_reference.py": "35152192f2f7194360ade2eeffb6b2227000b89d171780e3b7e129713e937da5",
+    "q_activation_semantics.py": "8b2325836ebad847703e7492aa77e414844b7f00568cb928baad7782a04e656c"
+  },
+  "packaging_note": "Portable dataset/source/dependency path arguments and corpus-description labels added to streamed driver; reference arithmetic unchanged. Old local raw results and serialization-repair audit are preserved."
+}
