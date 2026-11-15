@@ -54,6 +54,11 @@ GGML_BACKEND_API bool ggml_backend_metal_supports_family(ggml_backend_t backend,
 // capture all command buffers committed the next time `ggml_backend_graph_compute` is called
 GGML_BACKEND_API void ggml_backend_metal_capture_next_compute(ggml_backend_t backend);
 
+// Takes the last diagnostic layer-0 FFN slice timestamp on the calling thread.
+GGML_BACKEND_API double ggml_backend_metal_bitnet_ffn_take_us(void);
+// stage 0 is normalized FFN input through down, stage 1 is the Transformer block.
+GGML_BACKEND_API double ggml_backend_metal_bitnet_take_us(int stage, int layer);
+
 GGML_BACKEND_API ggml_backend_reg_t ggml_backend_metal_reg(void);
 
 #ifdef GGML_METAL_CUSTOM_OPS

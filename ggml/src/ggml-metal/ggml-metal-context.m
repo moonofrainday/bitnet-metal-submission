@@ -7,11 +7,13 @@
 #import "ggml-metal-common.h"
 #import "ggml-metal-ops.h"
 #import "ggml-metal-fusion.h"
+#import "ggml-metal.h"
 
 #import <Foundation/Foundation.h>
 #import <TargetConditionals.h>
 
 #import <Metal/Metal.h>
+#include <math.h>
 #include <stdio.h>
 
 #undef MIN
@@ -496,6 +498,67 @@ bool ggml_metal_cpy_tensor_async(ggml_metal_t ctx_src, ggml_metal_t ctx_dst, con
     }
 }
 
+static _Thread_local double bitnet_slice_us[2][30];
+
+double ggml_backend_metal_bitnet_take_us(int stage, int layer) {
+    if (stage < 0 || stage > 1 || layer < 0 || layer >= 30) {
+        return 0.0;
+    }
+    const double value = bitnet_slice_us[stage][layer];
+    bitnet_slice_us[stage][layer] = 0.0;
+    return value;
+}
+
+double ggml_backend_metal_bitnet_ffn_take_us(void) {
+    return ggml_backend_metal_bitnet_take_us(0, 0);
+}
+
+static int ggml_metal_bitnet_timing_layer(const char * name, const char * prefix) {
+    const size_t length = strlen(prefix);
+    if (strncmp(name, prefix, length) != 0 || name[length] < '0' || name[length] > '9') {
+        return -1;
+    }
+    char * end = NULL;
+    const long layer = strtol(name + length, &end, 10);
+    return *end == 0 && layer >= 0 && layer < 30 ? (int) layer : -1;
+}
+
+static int ggml_metal_bitnet_timing_slice(const struct ggml_cgraph * gf) {
+    if (gf->n_nodes < 8 || gf->n_nodes > 64) {
+        return -1;
+    }
+    const bool ffn = getenv("GGML_METAL_BITNET_FFN_TIME") != NULL;
+    const bool block = getenv("GGML_METAL_BITNET_LAYER_TIME") != NULL;
+    if (!ffn && !block) {
+        return -1;
+    }
+    const struct ggml_tensor * first = NULL;
+    const struct ggml_tensor * last = NULL;
+    for (int i = 0; i < gf->n_nodes; ++i) {
+        const struct ggml_tensor * node = gf->nodes[i];
+        if (!ggml_op_is_empty(node->op) && !ggml_is_empty(node) && (node->flags & GGML_TENSOR_FLAG_COMPUTE)) {
+            if (!first) {
+                first = node;
+            }
+            last = node;
+        }
+    }
+    if (!first || !last || first->ne[1] != 1 || last->ne[1] != 1) {
+        return -1;
+    }
+    const int ffn_layer = ggml_metal_bitnet_timing_layer(last->name, "ffn_down-");
+    if (ffn && ffn_layer >= 0 && first->op == GGML_OP_MUL_MAT && last->op == GGML_OP_MUL_MAT &&
+        ggml_metal_bitnet_timing_layer(first->name, "ffn_gate-") == ffn_layer) {
+        return 2*ffn_layer;
+    }
+    const int block_layer = ggml_metal_bitnet_timing_layer(last->name, "l_out-");
+    if (block && block_layer >= 0 && first->op == GGML_OP_RMS_NORM && last->op == GGML_OP_ADD &&
+        ggml_metal_bitnet_timing_layer(first->name, "norm-") == block_layer) {
+        return 2*block_layer + 1;
+    }
+    return -1;
+}
+
 enum ggml_status ggml_metal_graph_compute(ggml_metal_t ctx, struct ggml_cgraph * gf) {
     if (ctx->has_error) {
         GGML_LOG_ERROR("%s: backend is in error state from a previous command buffer failure - recreate the backend to recover\n", __func__);
@@ -618,6 +681,16 @@ enum ggml_status ggml_metal_graph_compute(ggml_metal_t ctx, struct ggml_cgraph *
         }
 
         dispatch_apply(n_cb, ctx->d_queue, ctx->encode_async);
+
+        const int bitnet_slice = ggml_metal_bitnet_timing_slice(gf);
+        if (bitnet_slice >= 0 && ctx->n_nodes_0 == gf->n_nodes) {
+            id<MTLCommandBuffer> command = ctx->cmd_bufs[n_cb].obj;
+            [command waitUntilCompleted];
+            const double start = command.GPUStartTime;
+            const double end = command.GPUEndTime;
+            bitnet_slice_us[bitnet_slice % 2][bitnet_slice / 2] = command.status == MTLCommandBufferStatusCompleted &&
+                isfinite(start) && isfinite(end) && start > 0 && end > start ? (end - start) * 1e6 : 0.0;
+        }
 
         // for debugging: block until graph is computed
         //[ctx->cmd_buf_last waitUntilCompleted];

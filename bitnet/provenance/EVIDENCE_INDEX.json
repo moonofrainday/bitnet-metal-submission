@@ -1,0 +1,62 @@
+{
+  "policy": "Only source, derived analysis and digest-only evidence provenance; raw artifacts remain local.",
+  "historical_note_origin": "separate bitnet-metal-lab experiment archive",
+  "entries": [
+    {
+      "id": "public-2b",
+      "experiment": "2026-11-07_133437-public-2b-compat",
+      "relative_note": "README.md",
+      "sha256": "335252039d6686cb5413a9a89b72ff74b68bcf080e305fdd0fc040135f2ac09a",
+      "bytes": 18335,
+      "raw_evidence_included": false
+    },
+    {
+      "id": "q-phone",
+      "experiment": "2026-11-12_202159+0900-iphone-candidate-sequence",
+      "relative_note": "Q_RESULTS.md",
+      "sha256": "1cb82a29c72118d4536dd964ff076e1ce5ca288279854b1133ab285dbfb4fef5",
+      "bytes": 10768,
+      "raw_evidence_included": false
+    },
+    {
+      "id": "phone-shaders",
+      "experiment": "2026-11-12_202159+0900-iphone-candidate-sequence",
+      "relative_note": "SHADERS.md",
+      "sha256": "9eb717c040432e3ddc68886b139b09093aaa025ebcb4a3ff1ba1482cf0f5871a",
+      "bytes": 5035,
+      "raw_evidence_included": false
+    },
+    {
+      "id": "phone-graph",
+      "experiment": "2026-11-12_202159+0900-iphone-candidate-sequence",
+      "relative_note": "PHONE_CORRECTNESS.md",
+      "sha256": "7a849d35d94d80fc2f3725de0914b8db39f4460dfdbc974ddc4d599c66cc2109",
+      "bytes": 17733,
+      "raw_evidence_included": false
+    },
+    {
+      "id": "primary-f8-numerics",
+      "experiment": "2026-11-12_231133+0900-iphone-f8-numerics",
+      "relative_note": "README.md",
+      "sha256": "cc3f05610274dc517b48a5699f9b25ad88fc354b096ed26a820ec1faae36e56e",
+      "bytes": 9187,
+      "raw_evidence_included": false
+    },
+    {
+      "id": "independent-f8-numerics",
+      "experiment": "2026-11-13_080244+0900-iphone-independent-gf8",
+      "relative_note": "README.md",
+      "sha256": "bb9815b253430d706596f85b153a75668eb14967cf1418fd26f5124396440805",
+      "bytes": 10853,
+      "raw_evidence_included": false
+    },
+    {
+      "id": "direct-gf8",
+      "experiment": "2026-11-13_080244+0900-iphone-independent-gf8",
+      "relative_note": "PERFORMANCE.md",
+      "sha256": "99eecdf2ebc114a180c27a90c1d449d4321db1305d737937cdaf5dd7d16d5e4e",
+      "bytes": 6002,
+      "raw_evidence_included": false
+    }
+  ]
+}

@@ -85,8 +85,25 @@ void ggml_metal_encoder_debug_group_push(ggml_metal_encoder_t encoder, const cha
 void ggml_metal_encoder_debug_group_pop (ggml_metal_encoder_t encoder);
 
 void ggml_metal_encoder_set_pipeline(ggml_metal_encoder_t encoder, struct ggml_metal_pipeline_with_params pipeline);
+const char * ggml_metal_pipeline_name(struct ggml_metal_pipeline_with_params pipeline);
+// Borrowed native encoder object; valid only for the lifetime of this encoder.
+void * ggml_metal_encoder_get_obj(ggml_metal_encoder_t encoder);
+void ggml_metal_encoder_ffn_ablation_configure(ggml_metal_encoder_t encoder, bool enabled, uint64_t task, char mode, int step, int slice_start, int slice_end, const void * graph, bool gpu);
+void ggml_metal_encoder_ffn_ablation_node(ggml_metal_encoder_t encoder, const struct ggml_tensor * node, int layer, int node_index);
+
+bool ggml_metal_encoder_bitnet_shadow(ggml_metal_encoder_t encoder, struct ggml_metal_pipeline_with_params pipeline,
+        struct ggml_metal_buffer_id source, size_t bytes, const char * path);
+void ggml_metal_bitnet_shadow_wait(void);
 
 void ggml_metal_encoder_set_bytes (ggml_metal_encoder_t encoder, void * data, size_t size, int idx);
+bool ggml_metal_buffer_contains(struct ggml_metal_buffer_id buffer, size_t bytes);
+void ggml_metal_encoder_trace_bitnet_stage(ggml_metal_encoder_t encoder, struct ggml_metal_pipeline_with_params pipeline,
+        const char * route, int tokens);
+void ggml_metal_encoder_trace_bitnet_node(ggml_metal_encoder_t encoder, struct ggml_metal_pipeline_with_params pipeline,
+        const char * route, int layer, const struct ggml_tensor * node, const struct ggml_tensor * output,
+        int grid_x, int grid_y, int grid_z, int threads_x, int threads_y);
+void ggml_metal_encoder_trace_bitnet(ggml_metal_encoder_t encoder, struct ggml_metal_pipeline_with_params pipeline,
+        const char * route, int tokens, int grid_x, int grid_y, int grid_z, int threads_y);
 void ggml_metal_encoder_set_buffer(ggml_metal_encoder_t encoder, struct ggml_metal_buffer_id buffer, int idx);
 
 void ggml_metal_encoder_set_threadgroup_memory_size(ggml_metal_encoder_t encoder, size_t size, int idx);
@@ -110,6 +127,10 @@ void ggml_metal_library_free(ggml_metal_library_t lib);
 
 ggml_metal_device_t ggml_metal_library_get_device(ggml_metal_library_t lib);
 
+struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_poc_pipeline(ggml_metal_library_t lib);
+struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_ffn_pipeline(ggml_metal_library_t lib, bool fused);
+struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_ffn_mechanism_pipeline(ggml_metal_library_t lib, int kind);
+struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_ffn_k_pipeline(ggml_metal_library_t lib);
 struct ggml_metal_pipeline_with_params ggml_metal_library_get_pipeline    (ggml_metal_library_t lib, const char * name);
 struct ggml_metal_pipeline_with_params ggml_metal_library_compile_pipeline(ggml_metal_library_t lib, const char * base, const char * name, ggml_metal_cv_t cv);
 

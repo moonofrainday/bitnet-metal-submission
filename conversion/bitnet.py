@@ -26,6 +26,7 @@ class BitnetModel(TextModel):
 
     def set_gguf_parameters(self):
         super().set_gguf_parameters()
+        self.gguf_writer.add_hidden_act(self.hparams.get("hidden_act", "silu"))
         self.gguf_writer.add_rope_scaling_type(gguf.RopeScalingType.LINEAR)
         self.gguf_writer.add_rope_scaling_factor(1.0)
 
@@ -76,7 +77,10 @@ class BitnetModel(TextModel):
 
         new_name = self.map_tensor_name(name)
 
-        ternary_weight = False
+        # dequant_model already reconstructed the offline packed weights and scale.
+        quant_config = self.hparams.get("quantization_config", {})
+        ternary_weight = (quant_config.get("quant_method") == "bitnet"
+                          and quant_config.get("quantization_mode") == "offline")
 
         if name.endswith(".weight"):
             scale_tensor = self._bitnet_weight_scales.pop(new_name, None)

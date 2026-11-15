@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "experiment_id": "2026-11-15_170005+0900-clean-poc-stock4x1",
+  "origin_project_commit": "7fcf557fb593800df38fd217c02e07d3594dea4b",
+  "scope": "public-2B layer0 pre-RoPE Q; captured stock W/X; three operator inputs only",
+  "contract": {
+    "M": 2560,
+    "K": 2560,
+    "N": 1,
+    "weights": "TQ2_0",
+    "activation": "F32",
+    "output": "F32",
+    "block_values": 256,
+    "block_bytes": 66,
+    "row_bytes": 660,
+    "weights_bytes": 1689600,
+    "activation_bytes": 10240,
+    "W_ne": [
+      2560,
+      2560,
+      1,
+      1
+    ],
+    "W_nb": [
+      66,
+      660,
+      1689600,
+      1689600
+    ]
+  },
+  "weight_validation": {
+    "block_count": 25600,
+    "block_scale_sha256": "fbf1c41942eadd4efe1226bbf9cc4f66c6a2548c5faa9b2118ca715935693745",
+    "min_scale": 0.0,
+    "max_scale": 1.21875,
+    "illegal_code_slots": 0,
+    "nonfinite_scales": 0,
+    "scale_encoding": "little-endian IEEE binary16 at byte offsets 64:66"
+  },
+  "model_verification": {
+    "performed": true,
+    "model_bytes": 1203563808,
+    "model_sha256": "52257df879ab4366d97228e7bda94a9a3c6a9065ec44e7879a8b87d54e568cd2",
+    "tensor": "blk.0.attn_q.weight",
+    "tensor_type": "TQ2_0",
+    "tensor_shape_ggml": [
+      2560,
+      2560
+    ],
+    "tensor_bytes": 1689600,
+    "tensor_sha256": "b2dea7f42cacfd08ed780df979f6f28240026795b1f5c87ca8c16fc7da23dc58",
+    "captured_tensor_bytes_exact": true,
+    "numpy_version": "2.2.6"
+  },
+  "capture_evidence": {
+    "capture_experiment": "2026-11-11-mac-multilayer",
+    "capture_relative_path": "run-primary/0/stock",
+    "audit_experiment": "2026-11-11-mac-layer0-numerics",
+    "audit_relative_path": "q-input-audit/summary.json",
+    "audit_sha256": "ad06e730ebcd4c87b974a7a982149e78244bd1fc45441d6eb7858f7b262ad4ec",
+    "qvac_commit": "2db8b046d555316019ae75d1be90484adc8b9330"
+  },
+  "cases": [
+    {
+      "id": "real-step-1",
+      "step": 1,
+      "weights_sha256": "b2dea7f42cacfd08ed780df979f6f28240026795b1f5c87ca8c16fc7da23dc58",
+      "activation_sha256": "b9dd234a8c2df09fc138988b88c69acae92115131c267154a35ab297ccacbb56",
+      "activation_validation": {
+        "values": 2560,
+        "nonfinite": 0,
+        "minimum": -0.06138584762811661,
+        "maximum": 0.0792967826128006,
+        "l2": 0.8296946615939048
+      }
+    },
+    {
+      "id": "real-step-16",
+      "step": 16,
+      "weights_sha256": "b2dea7f42cacfd08ed780df979f6f28240026795b1f5c87ca8c16fc7da23dc58",
+      "activation_sha256": "8314cd7fe2f5deaa64ef8a7c9cbb1d9254bc430eed863ea4792c46a3c99c887e",
+      "activation_validation": {
+        "values": 2560,
+        "nonfinite": 0,
+        "minimum": -0.06228170171380043,
+        "maximum": 0.09023871272802353,
+        "l2": 0.8483061552145746
+      }
+    },
+    {
+      "id": "real-step-32",
+      "step": 32,
+      "weights_sha256": "b2dea7f42cacfd08ed780df979f6f28240026795b1f5c87ca8c16fc7da23dc58",
+      "activation_sha256": "d9d86ba66b364b44f0e91cc3e063492397c71f3c74adadc477714accb7fdc7ba",
+      "activation_validation": {
+        "values": 2560,
+        "nonfinite": 0,
+        "minimum": -0.07236003875732422,
+        "maximum": 0.08295221626758575,
+        "l2": 0.7796574227297718
+      }
+    }
+  ],
+  "payloads_published": false,
+  "runtime_dependency_on_historical_paths": false,
+  "note": "Digest-only provenance. The optional five-case run needs locally supplied captured W/X. The default model-free smoke generates its own two fixtures."
+}

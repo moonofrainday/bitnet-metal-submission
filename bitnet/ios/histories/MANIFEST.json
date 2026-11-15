@@ -1,0 +1,29 @@
+{
+  "scope": "Small reproducible workload configuration, not captured tensors or benchmark results",
+  "files": {
+    "primary/prompt.txt": {
+      "source": "2026-11-07_161542-public-2b-poc-replay/prompt.txt",
+      "sha256": "24dc7f824ba28ac7184b57ddaf2e720dc91fad9f8a8c1c9771a5bb73464a8cad"
+    },
+    "primary/prompt.ids": {
+      "source": "2026-11-07_161542-public-2b-poc-replay/prompt.ids",
+      "sha256": "dc5c8cf8183e26d69b90bf0e738e9a1abd59ad24f6a25d4a966f3b4c2f2f2309"
+    },
+    "primary/continuation.ids": {
+      "source": "2026-11-07_161542-public-2b-poc-replay/continuation.ids",
+      "sha256": "133846839e21f99182cb0aeb7a442bd5c26b04f75cfe3bd48a5f6516ccc45fd2"
+    },
+    "independent/prompt.txt": {
+      "source": "2026-11-11_235620+0900-stock-arithmetic-bridge/robustness/second-stock/prompt.txt",
+      "sha256": "f71a5b48332b23d3a8e983bd1cfd35f188e25c956d71f0dfebf878ba9a8f7571"
+    },
+    "independent/prompt.ids": {
+      "source": "2026-11-11_235620+0900-stock-arithmetic-bridge/robustness/second-stock/prompt.ids",
+      "sha256": "28b9d69abbe64d43041d6880229703ef21bf5fa01c1fbe7c934bd1e277d17d1d"
+    },
+    "independent/continuation.ids": {
+      "source": "2026-11-11_235620+0900-stock-arithmetic-bridge/robustness/second-stock/continuation.ids",
+      "sha256": "e6be6d4d73ea35649ab05b5dcfce5753f9c94e6784c2509cb7877e792d05d871"
+    }
+  }
+}

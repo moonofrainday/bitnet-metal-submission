@@ -1,0 +1,126 @@
+{
+  "created_UTC": "2026-11-15T08:20:20.401708+00:00",
+  "CPU_only": true,
+  "GPU_or_build_executed": false,
+  "original_native_data_modified": false,
+  "tests": [
+    {
+      "name": "all_zero_reference_exact_pass",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "pointwise_numeric_failure_detected",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "nonfinite_fails_not_silently_ignored",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "independent_hand_known_answer",
+      "pass": true,
+      "detail": [
+        1.375,
+        0.0,
+        -1.25
+      ]
+    },
+    {
+      "name": "packed_known_answer_contract_pass",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "reserved_trit_code_rejected",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "preparation_reserved_code_rejected",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "nonfinite_scale_rejected",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "preparation_nonfinite_activation_rejected",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "executable_positive_control_exit0",
+      "pass": true,
+      "detail": {
+        "actual_exit": 0
+      }
+    },
+    {
+      "name": "executable_numeric_failure_exit1",
+      "pass": true,
+      "detail": {
+        "actual_exit": 1,
+        "strict_exit": 1
+      }
+    },
+    {
+      "name": "processing0_never_relabels_numeric_acceptance",
+      "pass": true,
+      "detail": {
+        "actual_exit": 0,
+        "strict_exit": 1
+      }
+    },
+    {
+      "name": "executable_missing_without_observed_failure_exit2",
+      "pass": true,
+      "detail": {
+        "actual_exit": 2,
+        "strict_exit": 2
+      }
+    },
+    {
+      "name": "executable_nonfinite_exit1",
+      "pass": true,
+      "detail": {
+        "actual_exit": 1
+      }
+    },
+    {
+      "name": "native_declared_false_never_hidden_by_recomputed_rows",
+      "pass": true,
+      "detail": {
+        "actual_exit": 1
+      }
+    },
+    {
+      "name": "missing_real_cases_never_auto_reduce_scope",
+      "pass": true,
+      "detail": {
+        "actual_exit": 2
+      }
+    },
+    {
+      "name": "explicit_model_free_two_case_scope_exit0",
+      "pass": true,
+      "detail": {
+        "actual_exit": 0,
+        "scope_note": "CPU-derived subset control; not a new native/GPU run"
+      }
+    }
+  ],
+  "pass": true,
+  "evaluator_cli_controls_on_copied_native_outputs": true,
+  "native_harness_executed_by_controls": false,
+  "evidence_origin": {
+    "project_commit": "7fcf557fb593800df38fd217c02e07d3594dea4b",
+    "experiment_id": "2026-11-15_170005+0900-clean-poc-stock4x1",
+    "original_analysis_relative_path": "analysis/CPU_CHECKS.json",
+    "qualification": "Historical evaluator controls; does not rerun the native C++ harness"
+  }
+}

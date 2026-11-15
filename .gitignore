@@ -161,3 +161,28 @@ a.out.*
 
 AGENTS.local.md
 .pi/SYSTEM.md
+
+# BitNet submission: generated or private experiment payloads stay local.
+/.local/
+/build-apple/
+/bitnet/local/
+/bitnet/artifacts/
+/bitnet/**/__pycache__/
+/bitnet/**/*.pyc
+/bitnet/**/build/
+/bitnet/**/results/
+*.air
+*.metallib
+*.dylib
+*.xcframework/
+*.framework/
+*.app/
+*.gputrace/
+*.f32
+*.f64
+*.npz
+*.npy
+*.safetensors
+*.mobileprovision
+*.p12
+*.p8

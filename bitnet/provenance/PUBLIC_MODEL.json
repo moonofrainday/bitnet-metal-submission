@@ -1,0 +1,23 @@
+{
+  "checkpoint": "microsoft/bitnet-b1.58-2B-4T",
+  "source_revision": "04c3b9ad9361b824064a1f25ea60a8be9599b127",
+  "source_packed_safetensors_sha256": "8143ae115ed6babe5e5ada8fb8c5b769d8f417802b2db042ad98b4f7ed73975b",
+  "converted_filename": "microsoft-bitnet-b1.58-2B-4T-tq2_0.gguf",
+  "converted_sha256": "52257df879ab4366d97228e7bda94a9a3c6a9065ec44e7879a8b87d54e568cd2",
+  "converted_bytes": 1203563808,
+  "architecture": "bitnet",
+  "blocks": 30,
+  "hidden": 2560,
+  "ffn": 6912,
+  "q_heads": 20,
+  "kv_heads": 5,
+  "vocabulary": 128256,
+  "unique_parameters": 2412820480,
+  "tensor_types": {
+    "TQ2_0": 210,
+    "F16": 1,
+    "F32": 121
+  },
+  "public_checkpoint_not_team_checkpoint": true,
+  "artifact_included": false
+}

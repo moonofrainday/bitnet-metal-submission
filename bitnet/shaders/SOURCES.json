@@ -1,0 +1,49 @@
+{
+  "note": "Copied without shader edits. Historical paths identify the private research archive; they are not runtime dependencies.",
+  "files": {
+    "stock4x1.metal": {
+      "historical_source": "outputs/experiments/2026-11-12_202159+0900-iphone-candidate-sequence/shaders/stock4x1.metal",
+      "sha256": "99a6f27566340ff465d1ca6242a4faf5a1e08dda9b676de2622e8ff99e5fa028"
+    },
+    "dual.metal": {
+      "historical_source": "outputs/experiments/2026-11-12_202159+0900-iphone-candidate-sequence/shaders/dual.metal",
+      "sha256": "40404a2f784ee938bf6147101498615b5d1f6f9b4f158df837a1e30677441808"
+    },
+    "post.metal": {
+      "historical_source": "outputs/experiments/2026-11-12_202159+0900-iphone-candidate-sequence/shaders/post.metal",
+      "sha256": "6638c76705b33b86e71215a2ed9a29b77a231b7df9b86870e9b2803091e13314"
+    },
+    "up-epilogue.metal": {
+      "historical_source": "outputs/experiments/2026-11-12_202159+0900-iphone-candidate-sequence/shaders/up-epilogue.metal",
+      "sha256": "aabdcab5741e6be39409d12c56f94674f9bbe752d5ae6e02b6e2146620b65329"
+    },
+    "k0-postnorm-inplace.metal": {
+      "historical_source": "outputs/experiments/2026-11-12_202159+0900-iphone-candidate-sequence/shaders/k0-postnorm-inplace.metal",
+      "sha256": "823cba270743b85e8cb37f850da3ea3a0a4292556af002be2f4e1cd55c48e499"
+    },
+    "k0-postnorm-reference.metal": {
+      "historical_source": "outputs/experiments/2026-11-12_202159+0900-iphone-candidate-sequence/shaders/k0-postnorm-reference.metal",
+      "sha256": "19704f3685b9cfe39e71bf639912ac3694edad9af8f02f878a811b78494d33c8"
+    },
+    "f8-gate-up.metal": {
+      "historical_source": "outputs/experiments/2026-11-12_202159+0900-iphone-candidate-sequence/shaders/f8-gate-up.metal",
+      "sha256": "58d0d9f4a5a5f628f540ecb5e00688ac7cedb5b58026f2a8274927bdd734789a"
+    },
+    "c-expand.metal": {
+      "historical_source": "outputs/experiments/2026-11-12_202159+0900-iphone-candidate-sequence/shaders/c-expand.metal",
+      "sha256": "a72309048481fe4e8bd04fd662644de7df86f161cfd5426415d0bca1180aa634"
+    },
+    "include-expand/contract.h": {
+      "historical_source": "outputs/experiments/2026-11-12_202159+0900-iphone-candidate-sequence/shaders/include-expand/contract.h",
+      "sha256": "7e7360d7c9a2d20f0d7a4a47630ba80a499ad308192ef67a2f444228e2377e65"
+    },
+    "original/matvec.metal": {
+      "historical_source": "outputs/experiments/2026-11-07-stage2/matvec.metal",
+      "sha256": "db8b1fd40120adee0bf2f8bc4db01ef7e7edf11692d285e143fa15f24c408b84"
+    },
+    "original/contract.h": {
+      "historical_source": "outputs/experiments/2026-11-07-stage2/contract.h",
+      "sha256": "e65ee18fb1a5f0e4597ccf628168d72ae6c9e988f3c0c1d289803f6a5332737f"
+    }
+  }
+}

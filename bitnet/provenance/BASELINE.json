@@ -1,0 +1,394 @@
+{
+  "upstream_repository": "https://github.com/tetherto/qvac-fabric-llm.cpp.git",
+  "upstream_commit": "2db8b046d555316019ae75d1be90484adc8b9330",
+  "upstream_tree": "e2bcec7c44d87c7bbe1ad2f310e0c2931bf594f0",
+  "baseline_import_commit": "6d365c96ffd33fa5e70c14251c986b2358cc8b94",
+  "snapshot_tree_identical": false,
+  "compatibility_and_backend_patch_sha256": "62e92bb1e35cd6671257c49509ee3c1b6a9abaa423d40a656adcc53fd72f73b8",
+  "created_at": "2026-11-15T17:50:55.439939+09:00",
+  "baseline_import_tree": "f8040399bff5a5048d1a02a2720245d11bd2803d",
+  "source_files_identical_except_declared_exclusions": true,
+  "excluded_paths": [
+    {
+      "path": ".github/workflows/ai-issues.yml",
+      "upstream_blob": "3f01ea8561a3f70feece375dc542f6afd6b77253",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/bench.yml.disabled",
+      "upstream_blob": "f2d7e16e981ac7c694749bb17e4e78bc68828871",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/build-3rd-party.yml",
+      "upstream_blob": "15c74a46c10d3a375c6bc569e3cc36fd8fc9f63d",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/build-and-test-snapdragon.yml",
+      "upstream_blob": "eb6a4445ca210a97bfe47b95c6725c2f13828efd",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/build-android.yml",
+      "upstream_blob": "5ceeb19eef351ce1828a131b3e7a4dce80afc83d",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/build-apple.yml",
+      "upstream_blob": "bcb83b873f55001cb627ef44511bcafb54096bd2",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/build-cache.yml",
+      "upstream_blob": "172cc931b87cd5206a5140d0266845ad45aa4750",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/build-cann.yml",
+      "upstream_blob": "8dd05f6c786a9c8a7c3773f6d3d964c02fbdbc65",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/build-cmake-pkg.yml",
+      "upstream_blob": "d90659954846619b310d7f122a00b50bac45c679",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/build-cpu.yml",
+      "upstream_blob": "5db0d8e4ac8889b2c3d68f6afe2aba3c16d662d7",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/build-cross.yml",
+      "upstream_blob": "c01c82e050f6b5d4b5d03fd59be589b49aa1b049",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/build-cuda-ubuntu.yml",
+      "upstream_blob": "f851ea3b06847e69910d3f5dd53e1c030f5466e6",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/build-cuda-windows.yml",
+      "upstream_blob": "309f41789c402c4795dca5fd146f11a7b770c886",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/build-ibm.yml",
+      "upstream_blob": "27e89e730624ea98c252757f6685e6c3fd2a8400",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/build-msys.yml",
+      "upstream_blob": "8afe5c0a9b87ef15356470d4fd9df03eab95314e",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/build-opencl.yml",
+      "upstream_blob": "045fa5622829505e0f0a6426a8edbfa4d001e34f",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/build-openvino.yml",
+      "upstream_blob": "c06ca90435e8a61d7f88259405cca0b744f86ef0",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/build-riscv.yml",
+      "upstream_blob": "5509af2a75ff894cd2f18f4f145a7a10a2585dc6",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/build-rpc.yml",
+      "upstream_blob": "ee490a6f4bd0a0b5a0bd2c5a3ae1e0ac34cfd5a1",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/build-sanitize.yml",
+      "upstream_blob": "bca86dc4a5c6a78f3b167533876244fae99a9667",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/build-sycl.yml",
+      "upstream_blob": "8d4d19e7af5783ca8d51c78ea28a699bedef50f5",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/build-virtgpu.yml",
+      "upstream_blob": "3621b2e3be2b621764e9c31a0cff979b3593ef40",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/build-vulkan.yml",
+      "upstream_blob": "891b0ee16bf4bae75c16ea1b2e5eb9515fc9f623",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/build-wasm.yml",
+      "upstream_blob": "0349092944ecc8acafed8155b0274c4ddeb1d8fe",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/build-webgpu.yml",
+      "upstream_blob": "fef028759fee758faf66e0e95da234e3450b7c7d",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/check-approvals.yml",
+      "upstream_blob": "f827c729e804129bbef1e534b9231a68f9b2174e",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/check-vendor.yml",
+      "upstream_blob": "a5a706ccee2afb1a629f3ffc5e0750919a3e4789",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/ci-self-hosted-cpu.yml",
+      "upstream_blob": "b9960d4a064d7bd64a916e0630c41632f58e9ca5",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/ci-self-hosted-cuda.yml",
+      "upstream_blob": "eeaa6c3fd1e1e44af3909d19f4acb5194dc4b5b2",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/ci-self-hosted-kleidiai.yml",
+      "upstream_blob": "754bbb6e8d1ea326cec5cde4e6be2a812b1a510e",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/ci-self-hosted-metal.yml",
+      "upstream_blob": "9afb8e8adc2c4694698655ec1a5af6e27b329330",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/ci-self-hosted-openvino.yml",
+      "upstream_blob": "8048e9daf5997139672491b0e50ec699bd391ff0",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/ci-self-hosted-vulkan.yml",
+      "upstream_blob": "4e56f2e3042e7f26224fe9878872542344571521",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/ci-self-hosted-webgpu.yml",
+      "upstream_blob": "32bd9dcdc5e8e75f62eafeacd6eac7193986928c",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/close-issue.yml",
+      "upstream_blob": "744319c262b491426cd6df0e810f7d66f2b60d56",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/code-style.yml",
+      "upstream_blob": "fc88903deec4de791c7d34a74fa3d3293121ae33",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/copilot-setup-steps.yml",
+      "upstream_blob": "5527e73b6f3d20308b75769dc2522337ca8749eb",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/docker.yml",
+      "upstream_blob": "75b3343095a985a4de200dfee6e9a576b55ee3f6",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/editorconfig.yml",
+      "upstream_blob": "8124f2cd196b39511a440991ecdd52ce8dec02c4",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/gguf-publish.yml",
+      "upstream_blob": "367b29c60f947802d5c832582e64d2eec5b0eacf",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/hip-quality-check.yml",
+      "upstream_blob": "201b5141b0b884005b38e27e4818d4dd3cc656c4",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/labeler.yml",
+      "upstream_blob": "bc2c9ea45b8a02f954903374624d7bc674f8e1bf",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/make-release.yml",
+      "upstream_blob": "2e5e44caaab80bdad8f94d7de814c7d9ef37851f",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/models-check.yml",
+      "upstream_blob": "2f21f8ab7086518768d46a0164a36d36c026d147",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/pr-draft-label.yml",
+      "upstream_blob": "67a2bf3c28c59d46fd264b8f83b349ed16f67771",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/pre-tokenizer-hashes.yml",
+      "upstream_blob": "80ba9664ca5a28d1e71a2f384928d5f9a4b1e480",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/python-check-requirements.yml",
+      "upstream_blob": "68cdad3bae818c1e6500beab33cc1d726efec2cf",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/python-lint.yml",
+      "upstream_blob": "8dedc6605668e86d0fd7d0e5830f8edd186bf0df",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/python-type-check.yml",
+      "upstream_blob": "44affda09751c7287fa899e7114e8fc99c8f12c7",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/release-publish.yml",
+      "upstream_blob": "39b6753a16b68868d8856d4f5864632397359718",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/release.yml",
+      "upstream_blob": "0a732a914659505ec325dfc11d6adc68039a0737",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/reusable-authorize-self-hosted.yml",
+      "upstream_blob": "0a84b7ae7ea128f3a3d17559557426edcfd01343",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/security-baseline.yml",
+      "upstream_blob": "2797dcda4e9faaa9e10274bf29c9c057f2ee405e",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/server-sanitize.yml",
+      "upstream_blob": "488aa54f5901038fda3da2a54e191582dcb8cd5d",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/server-self-hosted.yml",
+      "upstream_blob": "eb832112987244ffce98d75904e9586898595eb7",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/server.yml",
+      "upstream_blob": "8bb1b1be41f29ef9622ec4edc4b6f12cb7957c30",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/ui-build-self-hosted.yml",
+      "upstream_blob": "ead4dcdc5be7fa9fbff62ac04f264b179443a27b",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/ui-build.yml",
+      "upstream_blob": "e0d8dd065e98bb86ed7a9926a1437fa5369f1012",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/ui-publish.yml",
+      "upstream_blob": "d77b899b2302b743c88870bc7143fdaa2d38b369",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/ui-self-hosted.yml",
+      "upstream_blob": "8eb5605c5b38302e2a216a080ba6dec0b34de62a",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/ui.yml",
+      "upstream_blob": "9fa1561a556a74c01025fe7388ff1e3960e59538",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/update-ops-docs.yml",
+      "upstream_blob": "ad58828188423375185ed75db803184e61e14f3b",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    },
+    {
+      "path": ".github/workflows/winget.yml",
+      "upstream_blob": "8b5bd355c16e54e40acd6ecf272f2318f12e936b",
+      "mode": "100644",
+      "reason": "Upstream CI is omitted from the private source submission; available OAuth scope does not allow workflow creation."
+    }
+  ],
+  "full_exact_upstream_snapshot_preserved_locally": true,
+  "full_snapshot_local_import_commit": "6385678956791926bf5f956cd6e252610924914a",
+  "publication_note": "The published baseline omits upstream CI workflow files only. All other upstream paths, modes and blobs match the pinned source tree."
+}

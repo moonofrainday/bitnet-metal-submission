@@ -1,0 +1,36 @@
+{
+  "scope": "CPU-only portable iPhone runner contract checks; no Xcode build, signing, devicectl, or GPU work",
+  "static_test_methods_passed": 6,
+  "synthetic_qualification_controls_passed": 15,
+  "runtime_route_controls": {
+    "stock_positive": 1,
+    "unexpected_custom_stock_routes_rejected": 8,
+    "custom_prefill_event_types_rejected": 2
+  },
+  "install_gate_blocks_missing_install_before_external_actions": true,
+  "missing_qualification_rejected": true,
+  "nonobject_qualification_rejected": true,
+  "actual_archived_qualification": {
+    "artifact": "2026-11-12_202159+0900-iphone-candidate-sequence/runs/Q-operator-verify/operator/qualification.json",
+    "schema_accepted": true,
+    "case_count": 9,
+    "rows_per_case": 2560,
+    "total_rows": 23040,
+    "failed_rows": 0,
+    "nonfinite_rows": 0,
+    "all_GPU_completed": true,
+    "library_hashes_match_original_fixture_manifest": true
+  },
+  "tested_code_sha256": {
+    "bitnet/ios/run.py": "a5e4ec2542674242d9f81c6c32e90a0b564a920961391b0258ca479b38676b5d",
+    "bitnet/ios/common.py": "3ab2bb67fde3f027ce2125f25b9bcdd977f36ba3455e2e5051a9384ea5f00ead",
+    "bitnet/ios/build.py": "ac540df44d3a5cf6403d8d379c65395d924555cff8ff22ba97cbad734890e8c1"
+  },
+  "controls_source_sha256": "7ae5146326ffe0936a8655d28f6fe5986b66995c117e299bf53240a9b05dfa27",
+  "limitations": [
+    "Synthetic runner controls are not a fresh device execution",
+    "Actual archived schema check validates portability of the verifier, not new GPU correctness",
+    "On-device executable hash was not queried; runner requires installation of selected host build",
+    "Full frozen V1 acceptance remains separate from scoped functional checks"
+  ]
+}

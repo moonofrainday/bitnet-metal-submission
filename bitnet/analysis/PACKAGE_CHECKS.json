@@ -1,0 +1,107 @@
+{
+  "created_at": "2026-11-15T18:07:49.077371+09:00",
+  "scope": "Fresh source/build/numerical package verification, not new phone execution or performance.",
+  "host": {
+    "architecture": "arm64",
+    "hardware": "MacBook Pro M2 Pro, 16 GB unified memory",
+    "macOS": "27.2.1 (26B131)",
+    "Xcode": "27.2 (27B52)",
+    "SDKs": {
+      "macOS": "27.2",
+      "iPhoneOS": "27.2"
+    }
+  },
+  "core": {
+    "eight_file_diff_matches_canonical_patch": true,
+    "patch_sha256": "62e92bb1e35cd6671257c49509ee3c1b6a9abaa423d40a656adcc53fd72f73b8",
+    "fresh_patched_build_pass": true,
+    "TQ2_0_MTL0": {
+      "passed": 59,
+      "executed": 59,
+      "failed": 0,
+      "unsupported": 0
+    },
+    "help_informational_exit_code": 1,
+    "script_final_exit_code": 0
+  },
+  "clean_standalone": {
+    "fresh_pristine_pin_build": true,
+    "old_dylibs_reused": false,
+    "model_free_exit_code": 0,
+    "model_free_flags": {
+      "execution_pass": true,
+      "parity_pass": true,
+      "fp64_pass": true,
+      "knownanswer_pass": true,
+      "coverage_pass": true,
+      "overall_pass": true
+    },
+    "model_free_GPU_values": 15360,
+    "backend_regression": {
+      "backend": "MTL0",
+      "passed": 59,
+      "executed": 59,
+      "failed": 0,
+      "unsupported": 0,
+      "unselected_cases": null,
+      "note": "Nonselected operations/backends are outside this filtered count"
+    },
+    "five_case_exit_code": 0,
+    "five_case_flags": {
+      "parity_pass": true,
+      "fp64_pass": true,
+      "coverage_pass": true,
+      "model_output_pass": null,
+      "overall_pass": true
+    },
+    "five_case_GPU_values": 38400,
+    "whole_model_acceptance_inferred": false
+  },
+  "iphone_build": {
+    "source_rebuilt": true,
+    "sdk": "iphoneos",
+    "architecture": "arm64",
+    "XCFramework_build_pass": true,
+    "helper_objects_compile_pass": true,
+    "SwiftUI_unsigned_build_pass": true,
+    "final_exit_code": 0,
+    "framework_sha256": "17200022cf6ec68d9542272aa9ce008f01b712922f591a7c305a2b3036e03b7a",
+    "signed": false,
+    "installed": false,
+    "phone_executed": false,
+    "phone_performance_measured": false
+  },
+  "offline_shader_build": {
+    "sdk": "iphoneos",
+    "passed": true,
+    "GPU_executed": false
+  },
+  "preserved_initial_packaging_errors": [
+    {
+      "stage": "Mac helper help",
+      "exit_code": 1,
+      "resolution": "Accept the pinned informational help status only after verifying expected usage; final complete entry rerun passed."
+    },
+    {
+      "stage": "iOS archive collection",
+      "exit_code": 1,
+      "resolution": "Collect the six archives actually required with MTMD disabled; final fresh build passed."
+    }
+  ],
+  "local_record_digests": {
+    "patched_mac_entry_RUN": "56e76820b47d80acd8db44762518da2fcf91b4785c7100693468fa06b0361f8c",
+    "pristine_model_free_RUN": "5b15f57d14111901cae8dc3f5637bfe3f46bc983da89be927531ab2ea04abbd5",
+    "five_case_independent_SUMMARY": "b7cde9bffadcc85df15376e87c2e45aa1388ae2859e7ad543bb5e14a2aa944b7",
+    "iphone_unsigned_BUILD": "2cd667e83ea6a2f713345f7381da15b4f81acc1824644646339aa58a20946de5",
+    "offline_iphone_shaders_BUILD": "cdd1629ba0db512e4a6a95812f00baac38b45ca400a59b6748fbc2e023646f74"
+  },
+  "raw_records_published": false,
+  "Mac_inference_performance_claims": false,
+  "historical_FFN_FP64_failure_preserved": true,
+  "historical_CPU_Metal_token_parity_strict_exit_code": 1,
+  "publication_baseline": {
+    "upstream_CI_excluded": 63,
+    "all_other_upstream_files_identical": true,
+    "runtime_compile_inputs_unchanged_by_exclusion": true
+  }
+}

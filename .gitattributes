@@ -1,0 +1,5 @@
+# Preserve audited patch bytes and the tokenizer-significant assistant space.
+bitnet/patches/*.patch -text -whitespace
+bitnet/ios/histories/*/prompt.txt -text -whitespace
+# Curated CSV checksums bind the original line endings.
+bitnet/validation/analysis/*.csv -text

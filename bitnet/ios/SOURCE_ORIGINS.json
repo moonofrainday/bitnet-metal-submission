@@ -1,0 +1,30 @@
+{
+  "src/CandidateReplay.mm": {
+    "origin": "2026-11-12_202159+0900-iphone-candidate-sequence/q-v3/iphone-app/CandidateReplay.mm",
+    "origin_sha256": "bde3eca8f85571bc20ed72ef0e781583dc16035827a307bf8639fcee8056064d"
+  },
+  "src/iphone-q.mm": {
+    "origin": "2026-11-12_202159+0900-iphone-candidate-sequence/q-v3/iphone-q.mm",
+    "origin_sha256": "46cccf81f1cf5d18d4fef4171f3c8e994c29d6fcdc4259cad789e334885652c2"
+  },
+  "src/iphone-q.h": {
+    "origin": "2026-11-12_202159+0900-iphone-candidate-sequence/q-v3/iphone-q.h",
+    "origin_sha256": "78cb8962ceb92064273d0e3367a6aa475ad995b27bfe7ed8d32553d0f30622f5"
+  },
+  "src/iphone-operator.mm": {
+    "origin": "2026-11-12_202159+0900-iphone-candidate-sequence/operator/iphone-operator.mm",
+    "origin_sha256": "d6a38b0051feef1880a7d560bc934c6cd7515fbd57f7df7d60709d94015b9b70"
+  },
+  "src/iphone-operator.h": {
+    "origin": "2026-11-12_202159+0900-iphone-candidate-sequence/operator/iphone-operator.h",
+    "origin_sha256": "7dd2cc3791a979764cb5914681030423656a093702041548bd5e0708b211cbf5"
+  },
+  "src/alias-stock-ffn.h": {
+    "origin": "2026-11-12_202159+0900-iphone-candidate-sequence/operator/alias-stock-ffn.h",
+    "origin_sha256": "9c8145c6a3d7aefa974434e312c78da2b6d0951bfaec67e7fe39390cd26dc6bf"
+  },
+  "src/llama_swiftuiApp.swift": {
+    "origin": "2026-11-12_231133+0900-iphone-f8-numerics/iphone-app/source/examples/llama.swiftui/llama.swiftui/llama_swiftuiApp.swift",
+    "origin_sha256": "6574efb92cfef03eff3bd5e3b5d2420a8f0552a9dfbe6e5408749e2778019974"
+  }
+}

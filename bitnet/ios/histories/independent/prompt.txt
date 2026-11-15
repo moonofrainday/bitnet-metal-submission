@@ -1,0 +1,1 @@
+System: You are a helpful AI assistant.<|eot_id|>User: Explain why memory bandwidth matters for mobile AI inference.<|eot_id|>Assistant: 

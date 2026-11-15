@@ -14,6 +14,123 @@
 #include <algorithm>
 #include <limits>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <filesystem>
+#include <set>
+
+static int ggml_metal_bitnet_layer(const char * name, const char * prefix) {
+    const size_t length = std::strlen(prefix);
+    if (std::strncmp(name, prefix, length) != 0 || name[length] < '0' || name[length] > '9') {
+        return -1;
+    }
+    char * end = nullptr;
+    const long layer = std::strtol(name + length, &end, 10);
+    if (*end || layer < 0 || layer >= 30) {
+        return -1;
+    }
+    char expected[64];
+    std::snprintf(expected, sizeof(expected), "%s%ld", prefix, layer);
+    return std::strcmp(name, expected) == 0 ? (int) layer : -1;
+}
+
+static bool ggml_metal_bitnet_layer_name(const ggml_tensor * tensor, const char * prefix, int layer) {
+    return tensor && layer >= 0 && ggml_metal_bitnet_layer(tensor->name, prefix) == layer;
+}
+
+static bool ggml_metal_bitnet_selected_layer(int layer) {
+    const char * config = std::getenv("GGML_METAL_BITNET_LAYERS");
+    if (!config || std::strcmp(config, "0") == 0) {
+        return layer == 0;
+    }
+    if (std::strcmp(config, "0-3") == 0) {
+        return layer >= 0 && layer <= 3;
+    }
+    if (std::strcmp(config, "0-29") == 0) {
+        return layer >= 0 && layer <= 29;
+    }
+    return false;
+}
+
+static bool ggml_metal_bitnet_weight_name(const ggml_tensor * weight, int layer, const char * projection) {
+    if (!weight || layer < 0) {
+        return false;
+    }
+    char expected[96];
+    std::snprintf(expected, sizeof(expected), "blk.%d.%s.weight", layer, projection);
+    return std::strcmp(weight->name, expected) == 0;
+}
+
+
+#include <atomic>
+#include <chrono>
+#include <cinttypes>
+#include <mutex>
+#include <thread>
+#include <vector>
+#include <pthread.h>
+#include <time.h>
+
+// Experimental diagnostics are disabled unless explicitly requested. Durations
+// are worker CPU work, not elapsed model critical-path time or GPU timestamps.
+using bitnet_abc_clock = std::chrono::steady_clock;
+static uint64_t bitnet_abc_now() {
+    return (uint64_t) std::chrono::duration_cast<std::chrono::nanoseconds>(bitnet_abc_clock::now().time_since_epoch()).count();
+}
+struct bitnet_abc_task {
+    uint64_t task = 0, thread = 0, task_start_ns = 0, task_end_ns = 0;
+    uintptr_t graph = 0, encoder = 0;
+    char mode = 'A'; int step = 0;
+    uint64_t encode_calls = 0, ffn_encode_calls = 0;
+    uint64_t check_calls = 0, target_checks = 0, guard_passes = 0, commits = 0, stock_continuations = 0;
+    uint64_t guard_ns = 0, target_guard_ns = 0, commit_ns = 0, ffn_encode_ns = 0;
+    uint64_t names_layout_ns = 0, graph_check_ns = 0, buffer_check_ns = 0, pipeline_check_ns = 0;
+    uint64_t guard_timers = 0, commit_timers = 0, encode_timers = 0, substage_timers = 0;
+};
+static std::atomic<uint64_t> bitnet_abc_next_task{0};
+static std::mutex bitnet_abc_stats_mutex;
+static std::vector<bitnet_abc_task> bitnet_abc_tasks;
+extern "C" __attribute__((visibility("default"))) void ggml_backend_metal_ffn_ablation_diag_reset(void) {
+    std::lock_guard<std::mutex> lock(bitnet_abc_stats_mutex);
+    bitnet_abc_tasks.clear(); bitnet_abc_next_task.store(0);
+}
+extern "C" __attribute__((visibility("default"))) int ggml_backend_metal_ffn_ablation_diag_write(const char * path) {
+    ggml_metal_bitnet_shadow_wait();
+    std::vector<uint64_t> costs; costs.reserve(10000);
+    for (int i = 0; i < 10000; ++i) { const auto a = bitnet_abc_now(); const auto b = bitnet_abc_now(); costs.push_back(b-a); }
+    std::sort(costs.begin(), costs.end());
+    const auto positive=std::upper_bound(costs.begin(),costs.end(),uint64_t(0));
+    const uint64_t minimum_positive=positive==costs.end()?0:*positive;
+    struct timespec resolution{}; const int resolution_status=clock_getres(CLOCK_MONOTONIC,&resolution);
+    const uint64_t nominal_api_resolution_ns=uint64_t(resolution.tv_sec)*1000000000ULL+uint64_t(resolution.tv_nsec);
+    FILE * f = std::fopen(path, "w"); if (!f) { return 1; }
+    std::lock_guard<std::mutex> lock(bitnet_abc_stats_mutex);
+    std::fprintf(f, "{\"schema\":1,\"units\":\"nanoseconds\",\"clock\":\"std::chrono::steady_clock\",\"clock_is_steady\":%s,\"nominal_duration_period_ns\":%.12g,\"nominal_api_resolution_ns\":%llu,\"clock_getres_status\":%d,\"observed_min_positive_clock_pair_ns\":%llu,\"calibration_pairs\":10000,\"clock_pair_p50_ns\":%llu,\"clock_pair_p95_ns\":%llu,\"clock_pair_min_ns\":%llu,\"interval_note\":\"Raw CPU worker work; nested/overlapping durations must not be added or called model critical-path time. No diagnostic clock or counter writes when disabled.\",\"tasks\":[",
+        bitnet_abc_clock::is_steady ? "true" : "false", 1.e9*double(bitnet_abc_clock::period::num)/double(bitnet_abc_clock::period::den),
+        (unsigned long long)nominal_api_resolution_ns,resolution_status,(unsigned long long)minimum_positive,
+        (unsigned long long)costs[5000],(unsigned long long)costs[9500],(unsigned long long)costs.front());
+    bool first = true;
+    for (const auto & r : bitnet_abc_tasks) {
+        std::fprintf(f, "%s{\"task\":%llu,\"thread\":%llu,\"graph\":%llu,\"encoder\":%llu,\"mode\":\"%c\",\"step\":%d",
+            first?"":",",(unsigned long long)r.task,(unsigned long long)r.thread,(unsigned long long)r.graph,(unsigned long long)r.encoder,r.mode,r.step); first=false;
+#define ABC_FIELD(x) std::fprintf(f, ",\"" #x "\":%llu", (unsigned long long)r.x)
+        ABC_FIELD(task_start_ns); ABC_FIELD(task_end_ns); ABC_FIELD(encode_calls); ABC_FIELD(ffn_encode_calls); ABC_FIELD(check_calls); ABC_FIELD(target_checks); ABC_FIELD(guard_passes); ABC_FIELD(commits); ABC_FIELD(stock_continuations);
+        ABC_FIELD(guard_ns); ABC_FIELD(target_guard_ns); ABC_FIELD(commit_ns); ABC_FIELD(ffn_encode_ns); ABC_FIELD(names_layout_ns); ABC_FIELD(graph_check_ns); ABC_FIELD(buffer_check_ns); ABC_FIELD(pipeline_check_ns);
+        ABC_FIELD(guard_timers); ABC_FIELD(commit_timers); ABC_FIELD(encode_timers); ABC_FIELD(substage_timers);
+#undef ABC_FIELD
+        std::fputs("}",f);
+    }
+    std::fputs("]}\n", f); const bool bad = std::ferror(f); std::fclose(f); return bad ? 1 : 0;
+}
+static bool bitnet_abc_flag(const char * name) { const char * v=std::getenv(name); return v && std::strcmp(v,"0")!=0; }
+static int bitnet_abc_ffn_node_layer(const ggml_tensor * node) {
+    for (const char * p : {"ffn_gate-", "ffn_up-", "ffn_down-", "ffn_relu-", "ffn_sqr(relu)-", "ffn_sub_out-", "ffn_sub_norm-"}) {
+        const int l=ggml_metal_bitnet_layer(node->name,p); if(l>=0) { return l; }
+    }
+    if (node->op==GGML_OP_RMS_NORM && node->src[0]) { return ggml_metal_bitnet_layer(node->src[0]->name,"ffn_sub_out-"); }
+    return -1;
+}
 
 // threadgroups needed to fill the GPU
 // TODO: dedup
@@ -40,6 +157,8 @@ static ggml_metal_buffer_id ggml_metal_get_buffer_id(const ggml_tensor * t) {
     return ggml_metal_buffer_get_id(ctx, t);
 }
 
+static bool ggml_metal_bitnet_numerics_active();
+
 struct ggml_metal_op {
     ggml_metal_op(
         ggml_metal_device_t dev,
@@ -61,7 +180,33 @@ struct ggml_metal_op {
         this->use_concurrency = use_concurrency;
         this->use_capture     = use_capture;
         this->debug_graph     = debug_graph;
+        this->numerics_capture = ggml_metal_bitnet_numerics_active();
         this->gf              = gf;
+        const char * abc = std::getenv("GGML_METAL_BITNET_FFN_ABLATION");
+        if (abc) {
+            if (abc[1] || (abc[0]!='A' && abc[0]!='B' && abc[0]!='C')) { GGML_ABORT("invalid FFN ablation mode"); }
+            ablation_mode = abc[0];
+            if (std::getenv("GGML_METAL_BITNET_FFN_MECHANISM") || bitnet_abc_flag("GGML_METAL_BITNET_FFN") || bitnet_abc_flag("GGML_METAL_BITNET_POC")) {
+                GGML_ABORT("FFN ablation modes must not be mixed with legacy custom switches");
+            }
+        }
+        ablation_shadow_all = bitnet_abc_flag("GGML_METAL_BITNET_FFN_ABLATION_SHADOW_ALL");
+        ablation_cpu = bitnet_abc_flag("GGML_METAL_BITNET_FFN_ABLATION_CPU");
+        ablation_trace = bitnet_abc_flag("GGML_METAL_BITNET_FFN_ABLATION_TRACE");
+        const bool ablation_gpu = bitnet_abc_flag("GGML_METAL_BITNET_FFN_ABLATION_GPU");
+        ablation_count = ablation_cpu || ablation_trace || ablation_gpu || bitnet_abc_flag("GGML_METAL_BITNET_FFN_ABLATION_COUNT");
+        if (ablation_count) {
+            ablation_stats.task = bitnet_abc_next_task.fetch_add(1);
+            pthread_threadid_np(nullptr, &ablation_stats.thread);
+            ablation_stats.mode = ablation_mode ? ablation_mode : 'A';
+            const char * st = std::getenv("GGML_METAL_BITNET_FFN_STEP");
+            ablation_stats.step = st ? std::atoi(st) : -1;
+            ablation_stats.graph = (uintptr_t)gf; ablation_stats.encoder = (uintptr_t)enc;
+            if(ablation_cpu) { ablation_stats.task_start_ns=bitnet_abc_now(); }
+        }
+        ggml_metal_encoder_ffn_ablation_configure(enc, ablation_trace, ablation_stats.task,
+                ablation_mode ? ablation_mode : 'A', ablation_stats.step, idx_start, idx_end, gf, ablation_gpu);
+
 
         idxs.reserve(gf->n_nodes);
 
@@ -76,6 +221,11 @@ struct ggml_metal_op {
     }
 
     ~ggml_metal_op() {
+        if (ablation_count) {
+            if(ablation_cpu) { ablation_stats.task_end_ns=bitnet_abc_now(); }
+            std::lock_guard<std::mutex> lock(bitnet_abc_stats_mutex);
+            bitnet_abc_tasks.push_back(ablation_stats);
+        }
         ggml_metal_encoder_end_encoding(this->enc);
         ggml_metal_encoder_free(this->enc);
         ggml_mem_ranges_free(this->mem_ranges);
@@ -134,8 +284,13 @@ struct ggml_metal_op {
     // shared fusion debugging context
     ggml_metal_fusion_info * finfo;
 
+    char ablation_mode = 0;
+    bool ablation_count = false, ablation_cpu = false, ablation_trace = false, ablation_shadow_all = false;
+    bitnet_abc_task ablation_stats;
+
     bool use_concurrency;
     bool use_capture;
+    bool numerics_capture = false;
 
     int debug_graph;
 
@@ -663,21 +818,34 @@ static int ggml_metal_op_encode_impl(ggml_metal_op_t ctx, int idx) {
     return n_fuse;
 }
 
+static void ggml_metal_bitnet_numerics_before(ggml_metal_op_t ctx, int idx);
+static void ggml_metal_bitnet_numerics_after(ggml_metal_op_t ctx, int idx, int consumed);
+
 int ggml_metal_op_encode(ggml_metal_op_t ctx, int idx) {
+    const auto * abc_node = ctx->node(idx);
+    const int abc_layer = (ctx->ablation_count || ctx->ablation_trace) ? bitnet_abc_ffn_node_layer(abc_node) : -1;
+    if (ctx->ablation_count) { ++ctx->ablation_stats.encode_calls; if (abc_layer>=0) { ++ctx->ablation_stats.ffn_encode_calls; } }
+    if (ctx->ablation_trace) { ggml_metal_encoder_ffn_ablation_node(ctx->enc, abc_node, abc_layer, ctx->graph_idx(idx)); }
+    const uint64_t abc_start = ctx->ablation_cpu && abc_layer>=0 ? bitnet_abc_now() : 0;
     if (ctx->use_capture) {
         ggml_metal_encoder_debug_group_push(ctx->enc, ggml_op_desc(ctx->node(idx)));
     }
 
+    if (ctx->numerics_capture) {ggml_metal_bitnet_numerics_before(ctx, idx);}
     int res = ggml_metal_op_encode_impl(ctx, idx);
     if (idx + res > ctx->n_nodes()) {
         GGML_ABORT("fusion error: nodes spanning multiple encoders have been fused. this indicates a bug in the fusion logic %s",
                 "https://github.com/ggml-org/llama.cpp/pull/14849");
     }
 
+    if (ctx->numerics_capture) {ggml_metal_bitnet_numerics_after(ctx, idx, res);}
+
     if (ctx->use_capture) {
         ggml_metal_encoder_debug_group_pop(ctx->enc);
     }
 
+    if (abc_start) { ctx->ablation_stats.ffn_encode_ns += bitnet_abc_now()-abc_start; ++ctx->ablation_stats.encode_timers; }
+    if (ctx->ablation_trace) { ggml_metal_encoder_ffn_ablation_node(ctx->enc, nullptr, -1, -1); }
     return res;
 }
 
@@ -1020,8 +1188,8 @@ static int ggml_metal_op_unary_mul(ggml_metal_op_t ctx, int idx, int n_fuse) {
     return n_fuse;
 }
 
-int ggml_metal_op_unary(ggml_metal_op_t ctx, int idx) {
-    if (ctx->use_fusion()) {
+static int ggml_metal_op_unary_single(ggml_metal_op_t ctx, int idx, bool allow_fusion) {
+    if (allow_fusion && ctx->use_fusion()) {
         int n = 1;
         const ggml_metal_fusion * fusion = ctx->can_fuse(idx, GGML_METAL_FUSION_FULL, &n);
         if (fusion && ggml_metal_fusion_get_id(fusion) == GGML_METAL_FUSION_UNARY_MUL) {
@@ -1108,21 +1276,46 @@ int ggml_metal_op_unary(ggml_metal_op_t ctx, int idx) {
     ggml_metal_encoder_set_buffer  (enc, bid_src0, 1);
     ggml_metal_encoder_set_buffer  (enc, bid_dst,  2);
 
+    int bitnet_grid_x, bitnet_grid_y, bitnet_grid_z, bitnet_threads;
     if (pipeline.cnt) {
         const int n = pipeline.c4 ? ggml_nelements(op)/4 : ggml_nelements(op);
 
         const int nth = MIN(256, n);
 
-        ggml_metal_encoder_dispatch_threadgroups(enc, (n + nth - 1)/nth, 1, 1, nth, 1, 1);
+        bitnet_grid_x = (n + nth - 1)/nth;
+        bitnet_grid_y = bitnet_grid_z = 1;
+        bitnet_threads = nth;
+        ggml_metal_encoder_dispatch_threadgroups(enc, bitnet_grid_x, 1, 1, nth, 1, 1);
     } else {
         const int nth_max = MIN(256, ggml_metal_pipeline_max_theads_per_threadgroup(pipeline));
         const int nth = MIN(args.ne00, nth_max);
         const int nk0 = (args.ne00 + nth - 1)/nth;
 
-        ggml_metal_encoder_dispatch_threadgroups(enc, nk0*ne01, ne02, ne03, nth, 1, 1);
+        bitnet_grid_x = nk0*ne01;
+        bitnet_grid_y = ne02;
+        bitnet_grid_z = ne03;
+        bitnet_threads = nth;
+        ggml_metal_encoder_dispatch_threadgroups(enc, bitnet_grid_x, ne02, ne03, nth, 1, 1);
     }
 
+    if (std::getenv("GGML_METAL_BITNET_FFN_TRACE")) {
+        const int relu_layer = ggml_metal_bitnet_layer(op->name, "ffn_relu-");
+        const int sqr_layer = ggml_metal_bitnet_layer(op->name, "ffn_sqr(relu)-");
+        if (relu_layer >= 0) {
+            ggml_metal_encoder_trace_bitnet_stage(enc, pipeline, "ffn-relu", op->ne[1]);
+            ggml_metal_encoder_trace_bitnet_node(enc, pipeline, "ffn-relu", relu_layer, op, op,
+                    bitnet_grid_x, bitnet_grid_y, bitnet_grid_z, bitnet_threads, 1);
+        } else if (sqr_layer >= 0) {
+            ggml_metal_encoder_trace_bitnet_stage(enc, pipeline, "ffn-sqr", op->ne[1]);
+            ggml_metal_encoder_trace_bitnet_node(enc, pipeline, "ffn-sqr", sqr_layer, op, op,
+                    bitnet_grid_x, bitnet_grid_y, bitnet_grid_z, bitnet_threads, 1);
+        }
+    }
     return 1;
+}
+
+int ggml_metal_op_unary(ggml_metal_op_t ctx, int idx) {
+    return ggml_metal_op_unary_single(ctx, idx, true);
 }
 
 int ggml_metal_op_glu(ggml_metal_op_t ctx, int idx) {
@@ -3137,13 +3330,449 @@ static int ggml_metal_op_mul_mv_glu(ggml_metal_op_t ctx, int idx, int n_fuse) {
 
 // encode the mat-vec op into dst; the store adds res when dst is a fused ADD.
 // with norm (a fused RMS_NORM + MUL) the kernel reads the norm input row and normalizes it with the weight w
+static bool ggml_metal_bitnet_poc_target(const ggml_tensor * op) {
+    return op->op == GGML_OP_MUL_MAT &&
+        ggml_metal_bitnet_weight_name(op->src[0], ggml_metal_bitnet_layer(op->name, "Qcur-"), "attn_q");
+}
+
+static bool ggml_metal_bitnet_poc_flag(const char * name) {
+    const char * value = std::getenv(name);
+    return value && std::strcmp(value, "1") == 0;
+}
+
+static bool ggml_metal_bitnet_poc_layout(const ggml_tensor * t, ggml_type type,
+        const int64_t (&ne)[4], const size_t (&nb)[4]) {
+    return t && !t->view_src && t->view_offs == 0 && t->buffer && t->type == type &&
+        std::memcmp(t->ne, ne, sizeof(ne)) == 0 && std::memcmp(t->nb, nb, sizeof(nb)) == 0;
+}
+
+static bool ggml_metal_bitnet_poc_disjoint(ggml_metal_buffer_id a, size_t a_bytes,
+        ggml_metal_buffer_id b, size_t b_bytes) {
+    return a.metal != b.metal || a.offs + a_bytes <= b.offs || b.offs + b_bytes <= a.offs;
+}
+
+enum class bitnet_ffn_projection { none, gate, up, down };
+
+static bitnet_ffn_projection ggml_metal_bitnet_ffn_projection(const ggml_tensor * op) {
+    if (op->op != GGML_OP_MUL_MAT || !op->src[0]) {
+        return bitnet_ffn_projection::none;
+    }
+    if (ggml_metal_bitnet_weight_name(op->src[0], ggml_metal_bitnet_layer(op->name, "ffn_gate-"), "ffn_gate")) {
+        return bitnet_ffn_projection::gate;
+    }
+    if (ggml_metal_bitnet_weight_name(op->src[0], ggml_metal_bitnet_layer(op->name, "ffn_up-"), "ffn_up")) {
+        return bitnet_ffn_projection::up;
+    }
+    if (ggml_metal_bitnet_weight_name(op->src[0], ggml_metal_bitnet_layer(op->name, "ffn_down-"), "ffn_down")) {
+        return bitnet_ffn_projection::down;
+    }
+    return bitnet_ffn_projection::none;
+}
+
+static int ggml_metal_bitnet_ffn_layer(const ggml_tensor * op) {
+    const auto projection = ggml_metal_bitnet_ffn_projection(op);
+    switch (projection) {
+        case bitnet_ffn_projection::gate: return ggml_metal_bitnet_layer(op->name, "ffn_gate-");
+        case bitnet_ffn_projection::up:   return ggml_metal_bitnet_layer(op->name, "ffn_up-");
+        case bitnet_ffn_projection::down: return ggml_metal_bitnet_layer(op->name, "ffn_down-");
+        default: return -1;
+    }
+}
+
+static const char * ggml_metal_bitnet_ffn_stock_route(bitnet_ffn_projection projection) {
+    switch (projection) {
+        case bitnet_ffn_projection::gate: return "ffn-stock-gate";
+        case bitnet_ffn_projection::up:   return "ffn-stock-up";
+        case bitnet_ffn_projection::down: return "ffn-stock-down";
+        default: return nullptr;
+    }
+}
+
+static bool ggml_metal_bitnet_ffn_mode(const char * expected) {
+    const char * mode = std::getenv("GGML_METAL_BITNET_FFN");
+    return mode && std::strcmp(mode, expected) == 0;
+}
+
+static bool ggml_metal_bitnet_ffn_reject(const ggml_tensor * node, const char * reason, bool trace) {
+    if (trace) {
+        std::fprintf(stderr, "BITNET_FFN_FALLBACK node=%s n=%lld reason=%s layer=%d\n",
+                node->name, (long long) node->ne[1], reason, ggml_metal_bitnet_ffn_layer(node));
+    }
+    return false;
+}
+
+static bool ggml_metal_bitnet_ffn_vector(const ggml_tensor * tensor, int64_t elements) {
+    const int64_t ne[] = { elements, 1, 1, 1 };
+    const size_t bytes = (size_t) elements * sizeof(float);
+    const size_t nb[] = { sizeof(float), bytes, bytes, bytes };
+    return ggml_metal_bitnet_poc_layout(tensor, GGML_TYPE_F32, ne, nb);
+}
+
+static bool ggml_metal_bitnet_k_shadow_step(const char * step) {
+    return step && std::atoi(step)>0 && (ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_FFN_K_SHADOW_ALL") ||
+            std::strcmp(step,"1")==0 || std::strcmp(step,"16")==0 || std::strcmp(step,"32")==0);
+}
+
+static void ggml_metal_bitnet_k_save_weight(const char * directory, int layer, const char * role, const ggml_tensor * tensor) {
+    static std::mutex mutex;
+    static std::set<std::string> saved;
+    std::lock_guard<std::mutex> lock(mutex);
+    const auto folder=std::filesystem::path(directory)/"weights"/("layer-"+std::to_string(layer));
+    const auto file=folder/role;
+    if (saved.count(file.string())) {return;}
+    std::filesystem::create_directories(folder);
+    std::vector<uint8_t> bytes(ggml_nbytes(tensor));
+    ggml_backend_tensor_get(tensor,bytes.data(),0,bytes.size());
+    FILE * output=std::fopen(file.c_str(),"wb");
+    if (!output) {GGML_ABORT("K weight diagnostic open failed");}
+    const bool wrote=std::fwrite(bytes.data(),1,bytes.size(),output)==bytes.size();
+    const bool closed=std::fclose(output)==0;
+    if (!wrote || !closed) {GGML_ABORT("K weight diagnostic write failed");}
+    saved.insert(file.string());
+    std::fprintf(stderr,"BITNET_FFN_K_WEIGHT path=%s node=%s bytes=%zu actual_tensor_readback=1\n",file.c_str(),tensor->name,bytes.size());
+}
+
+static bool ggml_metal_bitnet_ffn_expand_layout(const ggml_tensor * op) {
+    const int64_t ne[] = { 2560, 6912, 1, 1 };
+    const size_t nb[] = { 66, 660, 4561920, 4561920 };
+    return ggml_metal_bitnet_poc_layout(op->src[0], GGML_TYPE_TQ2_0, ne, nb) &&
+           ggml_metal_bitnet_ffn_vector(op->src[1], 2560) && ggml_metal_bitnet_ffn_vector(op, 6912) &&
+           ggml_metal_bitnet_layer_name(op->src[1], "ffn_norm-", ggml_metal_bitnet_ffn_layer(op));
+}
+
+static bool ggml_metal_bitnet_numerics_active() {
+    const char * directory=std::getenv("GGML_METAL_BITNET_FFN_NUMERICS_DIR");
+    const char * route=std::getenv("GGML_METAL_BITNET_FFN_NUMERICS_ROUTE");
+    const char * text=std::getenv("GGML_METAL_BITNET_FFN_STEP");
+    if (!directory || !directory[0] || !ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_FFN_DECODE") || !text) {return false;}
+    char * end=nullptr;
+    const long step=std::strtol(text,&end,10);
+    if (*end || step<1 || step>32) {return false;}
+    if (!route || (std::strcmp(route,"S") && std::strcmp(route,"F8"))) {GGML_ABORT("FFN numerics route must be S or F8");}
+    if (std::getenv("GGML_METAL_BITNET_FFN_MECHANISM") || ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_POC") ||
+            (std::strcmp(route,"S")==0 && std::getenv("GGML_METAL_BITNET_FFN")) ||
+            (std::strcmp(route,"F8")==0 && !ggml_metal_bitnet_ffn_mode("fused"))) {GGML_ABORT("FFN numerics route flags differ");}
+    return ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_FFN_NUMERICS_ALL") || step==1 || step==16 || step==32;
+}
+
+static void ggml_metal_bitnet_numerics_copy(ggml_metal_op_t ctx,const ggml_tensor * tensor,int layer,const char * role,const char * phase,int consumed) {
+    const int64_t n=(std::strcmp(role,"x")==0 || std::strcmp(role,"down")==0 || std::strcmp(role,"residual")==0 || std::strcmp(role,"l_out")==0) ? 2560 : 6912;
+    if (!ggml_metal_bitnet_ffn_vector(tensor,n)) {GGML_ABORT("FFN numerics vector contract failed for %s",role);}
+    const auto binding=ggml_metal_get_buffer_id(tensor);
+    if (binding.offs%4 || !ggml_metal_buffer_contains(binding,ggml_nbytes(tensor))) {GGML_ABORT("FFN numerics bounds failed");}
+    const auto pipeline=ggml_metal_library_get_bitnet_ffn_mechanism_pipeline(ctx->lib,3);
+    if (!pipeline.pipeline) {GGML_ABORT("FFN numerics copy pipeline unavailable");}
+    char path[4096];
+    std::snprintf(path,sizeof(path),"%s/step-%s/layer-%d/%s.f32",std::getenv("GGML_METAL_BITNET_FFN_NUMERICS_DIR"),std::getenv("GGML_METAL_BITNET_FFN_STEP"),layer,role);
+    std::fprintf(stderr,"BITNET_F8_NUMERIC_SHADOW route=%s layer=%d step=%s role=%s phase=%s node=%s op=%s type=%s ne=[%lld,%lld,%lld,%lld] nb=[%zu,%zu,%zu,%zu] buffer=%p offset=%zu bytes=%zu bounds=1 materialized=1 consumed=%d path=%s\n",
+            std::getenv("GGML_METAL_BITNET_FFN_NUMERICS_ROUTE"),layer,std::getenv("GGML_METAL_BITNET_FFN_STEP"),role,phase,tensor->name,ggml_op_name(tensor->op),ggml_type_name(tensor->type),
+            (long long)tensor->ne[0],(long long)tensor->ne[1],(long long)tensor->ne[2],(long long)tensor->ne[3],tensor->nb[0],tensor->nb[1],tensor->nb[2],tensor->nb[3],binding.metal,binding.offs,ggml_nbytes(tensor),consumed,path);
+    ggml_metal_op_concurrency_reset(ctx);
+    if (!ctx->mem_ranges) {ggml_metal_encoder_memory_barrier(ctx->enc);}
+    if (!ggml_metal_encoder_bitnet_shadow(ctx->enc,pipeline,binding,ggml_nbytes(tensor),path)) {GGML_ABORT("FFN numerics copy failed");}
+    ggml_metal_op_concurrency_reset(ctx);
+    if (!ctx->mem_ranges) {ggml_metal_encoder_memory_barrier(ctx->enc);}
+}
+
+static void ggml_metal_bitnet_numerics_weight(const ggml_tensor * tensor,int layer,const char * role) {
+    const bool gamma=std::strcmp(role,"subnorm.f32")==0;
+    if (!tensor || (gamma ? !ggml_metal_bitnet_ffn_vector(tensor,6912) : tensor->type!=GGML_TYPE_TQ2_0 || ggml_nbytes(tensor)!=4561920)) {GGML_ABORT("FFN numerics weight contract failed");}
+    const auto binding=ggml_metal_get_buffer_id(tensor);
+    if (!ggml_metal_buffer_contains(binding,ggml_nbytes(tensor))) {GGML_ABORT("FFN numerics static bounds failed");}
+    const char * shared=std::getenv("GGML_METAL_BITNET_FFN_NUMERICS_WEIGHTS_DIR");
+    const auto root=shared && shared[0] ? std::filesystem::path(shared) : std::filesystem::path(std::getenv("GGML_METAL_BITNET_FFN_NUMERICS_DIR"))/"weights";
+    const auto folder=root/("layer-"+std::to_string(layer));const auto file=folder/role;
+    static std::mutex mutex;static std::set<std::string> saved;
+    std::lock_guard<std::mutex> lock(mutex);
+    const bool fresh=saved.count(file.string())==0;
+    if (fresh) {
+        std::filesystem::create_directories(folder);std::vector<uint8_t> bytes(ggml_nbytes(tensor));ggml_backend_tensor_get(tensor,bytes.data(),0,bytes.size());
+        FILE * output=std::fopen(file.c_str(),"wb");if (!output) {GGML_ABORT("FFN numerics weight open failed");}
+        const bool wrote=std::fwrite(bytes.data(),1,bytes.size(),output)==bytes.size();const bool closed=std::fclose(output)==0;
+        if (!wrote || !closed) {GGML_ABORT("FFN numerics weight write failed");}saved.insert(file.string());
+    }
+    std::fprintf(stderr,"BITNET_F8_NUMERIC_WEIGHT route=%s layer=%d step=%s role=%s node=%s type=%s ne=[%lld,%lld,%lld,%lld] nb=[%zu,%zu,%zu,%zu] buffer=%p offset=%zu bytes=%zu bounds=1 actual_readback=%d cached_immutable_model=%d path=%s\n",
+            std::getenv("GGML_METAL_BITNET_FFN_NUMERICS_ROUTE"),layer,std::getenv("GGML_METAL_BITNET_FFN_STEP"),role,tensor->name,ggml_type_name(tensor->type),
+            (long long)tensor->ne[0],(long long)tensor->ne[1],(long long)tensor->ne[2],(long long)tensor->ne[3],tensor->nb[0],tensor->nb[1],tensor->nb[2],tensor->nb[3],binding.metal,binding.offs,ggml_nbytes(tensor),fresh,!fresh,file.c_str());
+}
+
+static void ggml_metal_bitnet_numerics_dispatch(ggml_metal_op_t ctx,const ggml_tensor * node,const ggml_tensor * output,ggml_metal_pipeline_with_params pipeline,int gx,int gy,int gz,int tx,int ty,int add,int norm,int consumed) {
+    if (!ctx->numerics_capture) {return;}
+    int layer=ggml_metal_bitnet_ffn_layer(node);
+    if (layer<0) {for (const char * prefix : {"ffn_sub_out-","ffn_sub_norm-","l_out-"}) {layer=ggml_metal_bitnet_layer(node->name,prefix);if (layer>=0) {break;}}}
+    if (layer<0 && node->op==GGML_OP_RMS_NORM && node->src[0]) {layer=ggml_metal_bitnet_layer(node->src[0]->name,"ffn_sub_out-");}
+    if (layer<0) {return;}
+    std::fprintf(stderr,"BITNET_F8_NUMERIC_DISPATCH route=%s layer=%d step=%s node=%s output=%s op=%s pipeline=%s grid=[%d,%d,%d] threads=[%d,%d,1] add=%d norm=%d consumed=%d src0=%s src1=%s\n",
+            std::getenv("GGML_METAL_BITNET_FFN_NUMERICS_ROUTE"),layer,std::getenv("GGML_METAL_BITNET_FFN_STEP"),node->name,output->name,ggml_op_name(node->op),ggml_metal_pipeline_name(pipeline),gx,gy,gz,tx,ty,add,norm,consumed,node->src[0]?node->src[0]->name:"none",node->src[1]?node->src[1]->name:"none");
+}
+
+static void ggml_metal_bitnet_numerics_before(ggml_metal_op_t ctx,int idx) {
+    if (!ctx->numerics_capture) {return;}
+    const auto * node=ctx->node(idx);const auto projection=ggml_metal_bitnet_ffn_projection(node);const int layer=ggml_metal_bitnet_ffn_layer(node);
+    if (projection==bitnet_ffn_projection::gate || projection==bitnet_ffn_projection::up) {
+        if (!ggml_metal_bitnet_ffn_expand_layout(node)) {GGML_ABORT("FFN numerics projection layout failed");}
+        ggml_metal_bitnet_numerics_weight(node->src[0],layer,projection==bitnet_ffn_projection::gate?"ffn_gate.tq2":"ffn_up.tq2");
+        if (projection==bitnet_ffn_projection::gate) {ggml_metal_bitnet_numerics_copy(ctx,node->src[1],layer,"x","before-gate",0);}
+    } else if (projection==bitnet_ffn_projection::down) {
+        const auto * input=node->src[1];
+        if (!ggml_metal_bitnet_ffn_vector(node,2560) || !ggml_metal_bitnet_layer_name(input,"ffn_sub_norm-",layer) || input->op!=GGML_OP_MUL || !input->src[0] || input->src[0]->op!=GGML_OP_RMS_NORM || !ggml_metal_bitnet_weight_name(input->src[1],layer,"ffn_sub_norm")) {GGML_ABORT("FFN numerics down/norm edge failed");}
+        ggml_metal_bitnet_numerics_weight(node->src[0],layer,"ffn_down.tq2");ggml_metal_bitnet_numerics_weight(input->src[1],layer,"subnorm.f32");
+        float eps;std::memcpy(&eps,input->src[0]->op_params,sizeof(eps));
+        std::fprintf(stderr,"BITNET_F8_NUMERIC_NORM route=%s layer=%d step=%s input=%s weighted_output=%s gamma=%s epsilon=%.12g\n",std::getenv("GGML_METAL_BITNET_FFN_NUMERICS_ROUTE"),layer,std::getenv("GGML_METAL_BITNET_FFN_STEP"),input->src[0]->src[0]->name,input->name,input->src[1]->name,eps);
+        ggml_metal_bitnet_numerics_copy(ctx,input,layer,"down-input","before-down",0);
+    }
+    const int residual_layer=ggml_metal_bitnet_layer(node->name,"l_out-");
+    if (residual_layer>=0) {
+        if (node->op!=GGML_OP_ADD) {GGML_ABORT("FFN numerics l_out is not residual ADD");}
+        const ggml_tensor * down=node->src[0];const ggml_tensor * residual=node->src[1];
+        if (ggml_metal_bitnet_ffn_projection(down)!=bitnet_ffn_projection::down) {std::swap(down,residual);}
+        if (ggml_metal_bitnet_ffn_projection(down)!=bitnet_ffn_projection::down || ggml_metal_bitnet_ffn_layer(down)!=residual_layer || !ggml_metal_bitnet_layer_name(residual,"ffn_inp-",residual_layer)) {GGML_ABORT("FFN numerics residual graph edge failed");}
+        std::fprintf(stderr,"BITNET_F8_NUMERIC_RESIDUAL route=%s layer=%d step=%s output=%s down=%s residual=%s\n",std::getenv("GGML_METAL_BITNET_FFN_NUMERICS_ROUTE"),residual_layer,std::getenv("GGML_METAL_BITNET_FFN_STEP"),node->name,down->name,residual->name);
+        ggml_metal_bitnet_numerics_copy(ctx,residual,residual_layer,"residual","before-residual-add",0);
+    }
+}
+
+static void ggml_metal_bitnet_numerics_after(ggml_metal_op_t ctx,int idx,int consumed) {
+    if (!ctx->numerics_capture) {return;}
+    const auto * node=ctx->node(idx);const auto * last=ctx->node(idx+consumed-1);const auto projection=ggml_metal_bitnet_ffn_projection(node);const int layer=ggml_metal_bitnet_ffn_layer(node);
+    if (projection==bitnet_ffn_projection::gate && consumed==5 && ggml_metal_bitnet_layer_name(last,"ffn_sub_out-",layer)) {
+        const auto * up=ctx->node(idx+2);ggml_metal_bitnet_numerics_weight(up->src[0],layer,"ffn_up.tq2");
+        for (const char * role : {"gate","up"}) {std::fprintf(stderr,"BITNET_F8_NUMERIC_MATERIALIZATION route=%s layer=%d step=%s role=%s materialized=0 source=hidden-fused-projection consumed=5 replay_required=1\n",std::getenv("GGML_METAL_BITNET_FFN_NUMERICS_ROUTE"),layer,std::getenv("GGML_METAL_BITNET_FFN_STEP"),role);}
+        ggml_metal_bitnet_numerics_copy(ctx,last,layer,"activation","after-fused-five",consumed);return;
+    }
+    if (projection==bitnet_ffn_projection::gate || projection==bitnet_ffn_projection::up || projection==bitnet_ffn_projection::down) {
+        if (consumed!=1 || last!=node) {GGML_ABORT("FFN numerics projection not independently materialized");}
+        ggml_metal_bitnet_numerics_copy(ctx,node,layer,projection==bitnet_ffn_projection::gate?"gate":projection==bitnet_ffn_projection::up?"up":"down","after-projection",consumed);return;
+    }
+    const int activation_layer=ggml_metal_bitnet_layer(last->name,"ffn_sub_out-");
+    if (activation_layer>=0) {ggml_metal_bitnet_numerics_copy(ctx,last,activation_layer,"activation","after-activation",consumed);return;}
+    const int residual_layer=ggml_metal_bitnet_layer(node->name,"l_out-");
+    if (residual_layer>=0) {
+        if (consumed!=1 || last!=node) {GGML_ABORT("FFN numerics l_out not independently materialized");}
+        ggml_metal_bitnet_numerics_copy(ctx,node,residual_layer,"l_out","after-residual-add",consumed);
+    }
+}
+
+static bool ggml_metal_bitnet_ffn_bindings(const ggml_tensor * const * tensors, ggml_metal_buffer_id * bindings, int count) {
+    for (int i = 0; i < count; ++i) {
+        bindings[i] = ggml_metal_get_buffer_id(tensors[i]);
+        if (bindings[i].offs % 32 != 0 || !ggml_metal_buffer_contains(bindings[i], ggml_nbytes(tensors[i]))) {
+            return false;
+        }
+        for (int j = 0; j < i; ++j) {
+            if (!ggml_metal_bitnet_poc_disjoint(bindings[j], ggml_nbytes(tensors[j]), bindings[i], ggml_nbytes(tensors[i]))) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+static bool ggml_metal_try_bitnet_ffn_split(ggml_metal_op_t ctx, const ggml_tensor * op,
+        bitnet_ffn_projection projection, bool trace) {
+    const int layer = ggml_metal_bitnet_ffn_layer(op);
+    if (!ggml_metal_bitnet_selected_layer(layer)) {
+        return ggml_metal_bitnet_ffn_reject(op, "layer-selection", trace);
+    }
+    if (!ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_FFN_DECODE") || !ggml_metal_bitnet_ffn_expand_layout(op)) {
+        return ggml_metal_bitnet_ffn_reject(op, "decode-or-layout", trace);
+    }
+    const ggml_tensor * tensors[] = { op->src[0], op->src[1], op };
+    ggml_metal_buffer_id bindings[3];
+    if (!ggml_metal_bitnet_ffn_bindings(tensors, bindings, 3)) {
+        return ggml_metal_bitnet_ffn_reject(op, "bindings", trace);
+    }
+    const auto pipeline = ggml_metal_library_get_bitnet_ffn_pipeline(ctx->lib, false);
+    if (!pipeline.pipeline) {
+        return ggml_metal_bitnet_ffn_reject(op, "pipeline", trace);
+    }
+    ggml_metal_encoder_set_pipeline(ctx->enc, pipeline);
+    for (int i = 0; i < 3; ++i) {
+        ggml_metal_encoder_set_buffer(ctx->enc, bindings[i], i);
+    }
+    ggml_metal_encoder_dispatch_threadgroups(ctx->enc, 432, 1, 1, 32, 2, 1);
+    if (trace) {
+        const char * route = projection == bitnet_ffn_projection::gate ? "ffn-c-gate" : "ffn-c-up";
+        std::fprintf(stderr, "BITNET_MULTILAYER_BIND route=%s layer=%d node=%s weight=%s w=%p+%zu x=%p+%zu y=%p+%zu bounds=1 disjoint=1\n",
+                route, layer, op->name, op->src[0]->name, bindings[0].metal, bindings[0].offs,
+                bindings[1].metal, bindings[1].offs, bindings[2].metal, bindings[2].offs);
+        ggml_metal_encoder_trace_bitnet(ctx->enc, pipeline,
+                route, 1, 432, 1, 1, 2);
+        ggml_metal_encoder_trace_bitnet_node(ctx->enc, pipeline, route, layer, op, op, 432, 1, 1, 32, 2);
+    }
+    return true;
+}
+
+static bool ggml_metal_try_bitnet_ffn_fused(ggml_metal_op_t ctx, int idx, bool trace) {
+    const auto * gate = ctx->node(idx);
+    const int layer = ggml_metal_bitnet_ffn_layer(gate);
+    if (!ggml_metal_bitnet_selected_layer(layer)) {
+        return ggml_metal_bitnet_ffn_reject(gate, "layer-selection", trace);
+    }
+    if (gate->ne[1] != 1 || !ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_FFN_DECODE")) {
+        return ggml_metal_bitnet_ffn_reject(gate, "decode-or-token-count", trace);
+    }
+    if (ctx->n_nodes() - idx < 5) {
+        return ggml_metal_bitnet_ffn_reject(gate, "encoder-slice", trace);
+    }
+    const auto * relu = ctx->node(idx + 1);
+    const auto * up   = ctx->node(idx + 2);
+    const auto * sqr  = ctx->node(idx + 3);
+    const auto * out  = ctx->node(idx + 4);
+    if (relu->op != GGML_OP_UNARY || ggml_get_unary_op(relu) != GGML_UNARY_OP_RELU || relu->src[0] != gate ||
+        ggml_metal_bitnet_ffn_projection(up) != bitnet_ffn_projection::up ||
+        ggml_metal_bitnet_ffn_layer(up) != layer || up->src[1] != gate->src[1] ||
+        sqr->op != GGML_OP_SQR || sqr->src[0] != relu ||
+        out->op != GGML_OP_MUL || out->src[0] != sqr || out->src[1] != up ||
+        !ggml_metal_bitnet_layer_name(out, "ffn_sub_out-", layer) ||
+        !ggml_metal_bitnet_layer_name(relu, "ffn_relu-", layer) ||
+        !ggml_metal_bitnet_layer_name(sqr, "ffn_sqr(relu)-", layer)) {
+        return ggml_metal_bitnet_ffn_reject(gate, "graph-edges", trace);
+    }
+    if (!ggml_metal_bitnet_ffn_expand_layout(gate) || !ggml_metal_bitnet_ffn_expand_layout(up) ||
+        !ggml_metal_bitnet_ffn_vector(relu, 6912) || !ggml_metal_bitnet_ffn_vector(sqr, 6912) ||
+        !ggml_metal_bitnet_ffn_vector(out, 6912)) {
+        return ggml_metal_bitnet_ffn_reject(gate, "layout", trace);
+    }
+    const ggml_op ops[] = { GGML_OP_MUL_MAT, GGML_OP_UNARY, GGML_OP_MUL_MAT, GGML_OP_SQR, GGML_OP_MUL };
+    const int nodes[] = { ctx->graph_idx(idx), ctx->graph_idx(idx + 1), ctx->graph_idx(idx + 2),
+                          ctx->graph_idx(idx + 3), ctx->graph_idx(idx + 4) };
+    if (!ggml_can_fuse_subgraph_ext(ctx->graph(), nodes, 5, ops, &nodes[4], 1)) {
+        return ggml_metal_bitnet_ffn_reject(gate, "consumers", trace);
+    }
+    const ggml_tensor * tensors[] = { gate->src[0], up->src[0], gate->src[1], out };
+    ggml_metal_buffer_id bindings[4];
+    if (!ggml_metal_bitnet_ffn_bindings(tensors, bindings, 4)) {
+        return ggml_metal_bitnet_ffn_reject(gate, "bindings", trace);
+    }
+    const auto pipeline = ggml_metal_library_get_bitnet_ffn_pipeline(ctx->lib, true);
+    if (!pipeline.pipeline) {
+        return ggml_metal_bitnet_ffn_reject(gate, "pipeline", trace);
+    }
+
+    // The first gate was checked by the caller. Check the other input and the true output.
+    if (!ggml_metal_op_concurrency_check(ctx, up) || !ggml_metal_op_concurrency_check(ctx, out)) {
+        ggml_metal_op_concurrency_reset(ctx);
+    }
+    ggml_metal_encoder_set_pipeline(ctx->enc, pipeline);
+    for (int i = 0; i < 4; ++i) {
+        ggml_metal_encoder_set_buffer(ctx->enc, bindings[i], i);
+    }
+    ggml_metal_encoder_dispatch_threadgroups(ctx->enc, 432, 1, 1, 32, 2, 1);
+    if (ctx->numerics_capture) {ggml_metal_bitnet_numerics_dispatch(ctx,gate,out,pipeline,432,1,1,32,2,0,0,5);}
+    if (trace) {
+        std::fprintf(stderr, "BITNET_FFN_BIND x=%p+%zu out=%p+%zu node=%s consumers=checked skipped=4\n",
+                bindings[2].metal, bindings[2].offs, bindings[3].metal, bindings[3].offs, out->name);
+        ggml_metal_encoder_trace_bitnet(ctx->enc, pipeline, "ffn-fused", 1, 432, 1, 1, 2);
+        std::fprintf(stderr, "BITNET_MULTILAYER_BIND route=ffn-fused layer=%d node=%s gate_weight=%s up_weight=%s gate_w=%p+%zu up_w=%p+%zu x=%p+%zu y=%p+%zu bounds=1 disjoint=1 consumers=checked\n",
+                layer, gate->name, gate->src[0]->name, up->src[0]->name, bindings[0].metal, bindings[0].offs,
+                bindings[1].metal, bindings[1].offs, bindings[2].metal, bindings[2].offs, bindings[3].metal, bindings[3].offs);
+        ggml_metal_encoder_trace_bitnet_node(ctx->enc, pipeline, "ffn-fused", layer, gate, out, 432, 1, 1, 32, 2);
+    }
+    return true;
+}
+
+static bool ggml_metal_try_bitnet_poc(ggml_metal_op_t ctx, const ggml_tensor * op, bool trace) {
+    // This isolated experiment may only replace layer-0 Q, regardless of a broader layer selection.
+    if (ggml_metal_bitnet_layer(op->name, "Qcur-") != 0) {
+        return false;
+    }
+    const char * rows_env = std::getenv("GGML_METAL_BITNET_POC_ROWS_PER_SIMD");
+    const char * simd_env = std::getenv("GGML_METAL_BITNET_POC_SIMD_PER_GROUP");
+    int rows_per_simdgroup = 8;
+    int simdgroups_per_threadgroup = 2;
+    const bool rows_valid = !rows_env || std::strcmp(rows_env, "4") == 0 || std::strcmp(rows_env, "8") == 0;
+    const bool simd_valid = !simd_env || std::strcmp(simd_env, "1") == 0 || std::strcmp(simd_env, "2") == 0 || std::strcmp(simd_env, "4") == 0;
+    if (rows_valid && rows_env) { rows_per_simdgroup = std::atoi(rows_env); }
+    if (simd_valid && simd_env) { simdgroups_per_threadgroup = std::atoi(simd_env); }
+    const bool geometry_valid = rows_valid && simd_valid &&
+        ((rows_per_simdgroup == 8 && simdgroups_per_threadgroup == 2) || rows_per_simdgroup == 4);
+    if (!geometry_valid) {
+        if (trace) {
+            std::fprintf(stderr, "BITNET_Q_FALLBACK node=%s layer=0 reason=geometry rows=%s simd=%s\n", op->name,
+                    rows_env ? rows_env : "default8", simd_env ? simd_env : "default2");
+        }
+        return false;
+    }
+    const int64_t weight_ne[] = { 2560, 2560, 1, 1 };
+    const size_t weight_nb[] = { 66, 660, 1689600, 1689600 };
+    const int64_t vector_ne[] = { 2560, 1, 1, 1 };
+    const size_t vector_nb[] = { 4, 10240, 10240, 10240 };
+    if (!ggml_metal_bitnet_poc_layout(op->src[0], GGML_TYPE_TQ2_0, weight_ne, weight_nb) ||
+        !ggml_metal_bitnet_poc_layout(op->src[1], GGML_TYPE_F32, vector_ne, vector_nb) ||
+        !ggml_metal_bitnet_poc_layout(op, GGML_TYPE_F32, vector_ne, vector_nb)) {
+        if (trace) {
+            std::fprintf(stderr, "BITNET_Q_FALLBACK node=%s layer=%d reason=layout\n", op->name, ggml_metal_bitnet_layer(op->name, "Qcur-"));
+        }
+        return false;
+    }
+
+    const auto w = ggml_metal_get_buffer_id(op->src[0]);
+    const auto x = ggml_metal_get_buffer_id(op->src[1]);
+    const auto y = ggml_metal_get_buffer_id(op);
+    const size_t w_bytes = ggml_nbytes(op->src[0]);
+    const size_t x_bytes = ggml_nbytes(op->src[1]);
+    const size_t y_bytes = ggml_nbytes(op);
+    if ((w.offs | x.offs | y.offs) % 32 != 0 ||
+        !ggml_metal_buffer_contains(w, w_bytes) ||
+        !ggml_metal_buffer_contains(x, x_bytes) ||
+        !ggml_metal_buffer_contains(y, y_bytes) ||
+        !ggml_metal_bitnet_poc_disjoint(x, x_bytes, y, y_bytes) ||
+        !ggml_metal_bitnet_poc_disjoint(w, w_bytes, y, y_bytes)) {
+        if (trace) {
+            std::fprintf(stderr, "BITNET_Q_FALLBACK node=%s layer=%d reason=bindings\n", op->name, ggml_metal_bitnet_layer(op->name, "Qcur-"));
+        }
+        return false;
+    }
+
+    const auto pipeline = ggml_metal_library_get_bitnet_poc_pipeline(ctx->lib);
+    if (!pipeline.pipeline) {
+        if (trace) {
+            std::fprintf(stderr, "BITNET_Q_FALLBACK node=%s layer=%d reason=pipeline\n", op->name, ggml_metal_bitnet_layer(op->name, "Qcur-"));
+        }
+        return false;
+    }
+    const int execution_width = ggml_metal_pipeline_thread_execution_width(pipeline);
+    const int max_threads = ggml_metal_pipeline_max_theads_per_threadgroup(pipeline);
+    if (execution_width != 32 || max_threads < 32*simdgroups_per_threadgroup ||
+            op->ne[0] % (rows_per_simdgroup*simdgroups_per_threadgroup) != 0) {
+        if (trace) {
+            std::fprintf(stderr, "BITNET_Q_FALLBACK node=%s layer=0 reason=pipeline_limits width=%d max_threads=%d requested=%d\n",
+                    op->name, execution_width, max_threads, 32*simdgroups_per_threadgroup);
+        }
+        return false;
+    }
+
+    ggml_metal_encoder_set_pipeline(ctx->enc, pipeline);
+    ggml_metal_encoder_set_buffer(ctx->enc, w, 0);
+    ggml_metal_encoder_set_buffer(ctx->enc, x, 1);
+    ggml_metal_encoder_set_buffer(ctx->enc, y, 2);
+    const int grid_x = op->ne[0] / (rows_per_simdgroup * simdgroups_per_threadgroup);
+    ggml_metal_encoder_dispatch_threadgroups(ctx->enc, grid_x, 1, 1, 32, simdgroups_per_threadgroup, 1);
+    if (trace) {
+        std::fprintf(stderr, "BITNET_Q_GEOMETRY node=%s rows_per_simd=%d simd_per_group=%d grid=%d threads=%d width=%d max_threads=%d checked=1\n",
+                op->name, rows_per_simdgroup, simdgroups_per_threadgroup, grid_x, 32*simdgroups_per_threadgroup, execution_width, max_threads);
+        std::fprintf(stderr,
+            "BITNET_BIND node=%s weight=%s w=%p+%zu x=%p+%zu y=%p+%zu xy_disjoint=1\n",
+            op->name, op->src[0]->name, w.metal, w.offs, x.metal, x.offs, y.metal, y.offs);
+        std::fprintf(stderr, "BITNET_MULTILAYER_BIND route=q-custom layer=%d node=%s weight=%s w=%p+%zu x=%p+%zu y=%p+%zu bounds=1 disjoint=1\n",
+                ggml_metal_bitnet_layer(op->name, "Qcur-"), op->name, op->src[0]->name,
+                w.metal, w.offs, x.metal, x.offs, y.metal, y.offs);
+        ggml_metal_encoder_trace_bitnet(ctx->enc, pipeline, "poc", 1, grid_x, 1, 1, simdgroups_per_threadgroup);
+        ggml_metal_encoder_trace_bitnet_node(ctx->enc, pipeline, "q-custom", ggml_metal_bitnet_layer(op->name, "Qcur-"),
+                op, op, grid_x, 1, 1, 32, simdgroups_per_threadgroup);
+    }
+    return true;
+}
+
 static void ggml_metal_op_mul_mat_mv_encode(
         ggml_metal_op_t     ctx,
         const ggml_tensor * op,
         const ggml_tensor * dst,
         const ggml_tensor * res,
         const ggml_tensor * norm,
-        const ggml_tensor * w) {
+        const ggml_tensor * w,
+        bool stock_only = false) {
     ggml_metal_library_t lib = ctx->lib;
     ggml_metal_encoder_t enc = ctx->enc;
 
@@ -3157,6 +3786,24 @@ static void ggml_metal_op_mul_mat_mv_encode(
     const int16_t r3 = ne13/ne03;
 
     const bool add = dst != op;
+
+    const bool target = ggml_metal_bitnet_poc_target(op);
+    const bool trace = target && ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_POC_TRACE");
+    if (!stock_only && !std::getenv("GGML_METAL_BITNET_FFN_MECHANISM") && target && ne11 == 1 && !add && !norm &&
+        ggml_metal_bitnet_selected_layer(ggml_metal_bitnet_layer(op->name, "Qcur-")) &&
+        ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_FFN_DECODE") &&
+        ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_POC") &&
+        ggml_metal_try_bitnet_poc(ctx, op, trace)) {
+        return;
+    }
+
+    const auto ffn = ggml_metal_bitnet_ffn_projection(op);
+    const char * ffn_route = ggml_metal_bitnet_ffn_stock_route(ffn);
+    const bool ffn_trace = ffn_route && ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_FFN_TRACE");
+    if (!stock_only && !std::getenv("GGML_METAL_BITNET_FFN_MECHANISM") && (ffn == bitnet_ffn_projection::gate || ffn == bitnet_ffn_projection::up) && !add && !norm &&
+        ggml_metal_bitnet_ffn_mode("split") && ggml_metal_try_bitnet_ffn_split(ctx, op, ffn, ffn_trace)) {
+        return;
+    }
 
     auto pipeline = ggml_metal_library_get_pipeline_mul_mv(lib, op, add, norm != nullptr);
 
@@ -3207,8 +3854,465 @@ static void ggml_metal_op_mul_mat_mv_encode(
         op->src[0]->type == GGML_TYPE_Q8_0) {
         ggml_metal_encoder_dispatch_threadgroups(enc, ((ne01 + nr0 - 1)/(nr0)), ((ne11 + nr1 - 1)/nr1), ne12*ne13, 32, nsg, 1);
     } else {
-        ggml_metal_encoder_dispatch_threadgroups(enc, ((ne01 + nr0*nsg - 1)/(nr0*nsg)), ((ne11 + nr1 - 1)/nr1), ne12*ne13, 32, nsg, 1);
+        const int grid_x = (ne01 + nr0*nsg - 1)/(nr0*nsg);
+        const int grid_y = (ne11 + nr1 - 1)/nr1;
+        const int grid_z = ne12*ne13;
+        ggml_metal_encoder_dispatch_threadgroups(enc, grid_x, grid_y, grid_z, 32, nsg, 1);
+        if (ctx->numerics_capture) {ggml_metal_bitnet_numerics_dispatch(ctx,op,dst,pipeline,grid_x,grid_y,grid_z,32,nsg,add,norm!=nullptr,1);}
+        if (trace) {
+            ggml_metal_encoder_trace_bitnet(enc, pipeline, "stock-mv", ne11, grid_x, grid_y, grid_z, nsg);
+            ggml_metal_encoder_trace_bitnet_node(enc, pipeline, "q-stock", ggml_metal_bitnet_layer(op->name, "Qcur-"),
+                    op, dst, grid_x, grid_y, grid_z, 32, nsg);
+        }
+        if (ffn_trace) {
+            if (ffn == bitnet_ffn_projection::down) {
+                const auto input = ggml_metal_get_buffer_id(src1);
+                std::fprintf(stderr, "BITNET_FFN_DOWN_BIND node=%s input=%s x=%p+%zu\n",
+                        op->name, src1->name, input.metal, input.offs);
+            }
+            ggml_metal_encoder_trace_bitnet(enc, pipeline, ffn_route, ne11, grid_x, grid_y, grid_z, nsg);
+            const auto weight = ggml_metal_get_buffer_id(op->src[0]);
+            const auto input = ggml_metal_get_buffer_id(src1);
+            const auto output = ggml_metal_get_buffer_id(dst);
+            std::fprintf(stderr, "BITNET_MULTILAYER_BIND route=%s layer=%d node=%s weight=%s w=%p+%zu x=%p+%zu y=%p+%zu\n",
+                    ffn_route, ggml_metal_bitnet_ffn_layer(op), op->name, op->src[0]->name,
+                    weight.metal, weight.offs, input.metal, input.offs, output.metal, output.offs);
+            ggml_metal_encoder_trace_bitnet_node(enc, pipeline, ffn_route, ggml_metal_bitnet_ffn_layer(op),
+                    op, dst, grid_x, grid_y, grid_z, 32, nsg);
+        }
     }
+    if (ctx->ablation_shadow_all && (ffn == bitnet_ffn_projection::gate || ffn == bitnet_ffn_projection::up) &&
+        ctx->ablation_mode!='C' && !std::getenv("GGML_METAL_BITNET_FFN_MECHANISM") &&
+        ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_FFN_DECODE") && op->ne[1]==1) {
+        const char * directory=std::getenv("GGML_METAL_BITNET_FFN_SHADOW_DIR");
+        const char * step=std::getenv("GGML_METAL_BITNET_FFN_STEP");
+        const int layer=ggml_metal_bitnet_ffn_layer(op);
+        if(directory && step && std::atoi(step)>0 && ggml_metal_bitnet_selected_layer(layer)) {
+            const auto shadow=ggml_metal_library_get_bitnet_ffn_mechanism_pipeline(ctx->lib,3);
+            if(!shadow.pipeline) { GGML_ABORT("A/B FFN diagnostic shadow pipeline missing"); }
+            char path[4096];std::snprintf(path,sizeof(path),"%s/step-%s/layer-%d/%s.f32",directory,step,layer,
+                ffn==bitnet_ffn_projection::gate ? "gate" : "up");
+            ggml_metal_op_concurrency_reset(ctx);
+            if(!ggml_metal_encoder_bitnet_shadow(enc,shadow,ggml_metal_get_buffer_id(dst),27648,path)) { GGML_ABORT("A/B FFN diagnostic shadow failed"); }
+            ggml_metal_op_concurrency_reset(ctx);
+        }
+    }
+    if (ffn == bitnet_ffn_projection::down && op->ne[1]==1 &&
+            ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_FFN_DECODE")) {
+        const char * mode=std::getenv("GGML_METAL_BITNET_FFN_MECHANISM");
+        const char * directory=std::getenv("GGML_METAL_BITNET_FFN_K_SHADOW_DIR");
+        const char * step=std::getenv("GGML_METAL_BITNET_FFN_STEP");
+        const int layer=ggml_metal_bitnet_ffn_layer(op);
+        if (mode && std::strcmp(mode,"K")==0 && directory && ggml_metal_bitnet_k_shadow_step(step) && ggml_metal_bitnet_selected_layer(layer)) {
+            ggml_metal_bitnet_k_save_weight(directory,layer,"ffn_down.tq2",op->src[0]);
+            const auto shadow=ggml_metal_library_get_bitnet_ffn_mechanism_pipeline(ctx->lib,3);
+            if (shadow.pipeline) {
+                char path[4096];std::snprintf(path,sizeof(path),"%s/step-%s/layer-%d/down.f32",directory,step,layer);
+                ggml_metal_op_concurrency_reset(ctx);
+                if (!ctx->mem_ranges) {ggml_metal_encoder_memory_barrier(enc);}
+                if (!ggml_metal_encoder_bitnet_shadow(enc,shadow,ggml_metal_get_buffer_id(dst),10240,path)) {GGML_ABORT("K down diagnostic shadow failed");}
+                ggml_metal_op_concurrency_reset(ctx);
+                if (!ctx->mem_ranges) {ggml_metal_encoder_memory_barrier(enc);}
+            } else {GGML_LOG_WARN("K down diagnostic copy pipeline unavailable\n");}
+        }
+    }
+
+}
+
+// New, independent mechanism route. It is never enabled by the legacy FFN/Q flags.
+static int ggml_metal_op_bin_single(ggml_metal_op_t ctx, int idx, bool allow_fusion);
+
+static bool ggml_metal_bitnet_exact_alias(ggml_metal_buffer_id a, size_t an, ggml_metal_buffer_id b, size_t bn) {
+    return a.metal == b.metal && a.offs == b.offs && an == bn;
+}
+
+struct bitnet_ffn_plan {
+    int idx=0, layer=-1;
+    const char * mode=nullptr;
+    const ggml_tensor * gate=nullptr, * relu=nullptr, * up=nullptr, * sqr=nullptr, * out=nullptr;
+    const ggml_tensor * ts[6]{};
+    ggml_metal_buffer_id bids[6]{};
+    ggml_metal_pipeline_with_params pipeline{};
+    ggml_metal_pipeline_with_params post_pipeline{};
+};
+
+// Reads graph/tensor/Metal buffer state and may materialize a CPU-side pipeline
+// cache. It never touches encoder/concurrency ranges or consumes graph nodes.
+static bool ggml_metal_check_ffn_plan(ggml_metal_op_t ctx, int idx, const char * mode, bool trace, bitnet_ffn_plan & plan) {
+    const uint64_t names_begin=ctx->ablation_cpu ? bitnet_abc_now() : 0;
+    const auto * gate = ctx->node(idx);
+    if (!mode) { return false; }
+    const bool a = std::strcmp(mode, "A") == 0;
+    const bool b = std::strcmp(mode, "B") == 0;
+    const bool c = std::strcmp(mode, "C") == 0;
+    const bool f = std::strcmp(mode, "F") == 0;
+    const bool g = std::strcmp(mode, "G") == 0;
+    const int layer = ggml_metal_bitnet_ffn_layer(gate);
+    if (layer < 0 || (!(c || g) && layer != 0)) { return false; }
+    if (!a && !b && !c && !f && !g) { return ggml_metal_bitnet_ffn_reject(gate, "mechanism-not-enabled", trace); }
+    if ((c || g) && !ggml_metal_bitnet_selected_layer(layer)) {
+        return ggml_metal_bitnet_ffn_reject(gate, "layer-selection", trace);
+    }
+    if (gate->ne[1] != 1 || !ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_FFN_DECODE")) {
+        return ggml_metal_bitnet_ffn_reject(gate, "decode-or-token-count", trace);
+    }
+    if (ctx->n_nodes() - idx < 5) { return ggml_metal_bitnet_ffn_reject(gate, "encoder-slice", trace); }
+    const auto * relu = ctx->node(idx + 1);
+    const auto * up = ctx->node(idx + 2);
+    const auto * sqr = ctx->node(idx + 3);
+    const auto * out = ctx->node(idx + 4);
+    if (relu->op != GGML_OP_UNARY || ggml_get_unary_op(relu) != GGML_UNARY_OP_RELU || relu->src[0] != gate ||
+            ggml_metal_bitnet_ffn_projection(up) != bitnet_ffn_projection::up || ggml_metal_bitnet_ffn_layer(up) != layer || up->src[1] != gate->src[1] ||
+            sqr->op != GGML_OP_SQR || sqr->src[0] != relu || out->op != GGML_OP_MUL || out->src[0] != sqr || out->src[1] != up ||
+            !ggml_metal_bitnet_layer_name(relu, "ffn_relu-", layer) || !ggml_metal_bitnet_layer_name(sqr, "ffn_sqr(relu)-", layer) || !ggml_metal_bitnet_layer_name(out, "ffn_sub_out-", layer)) {
+        return ggml_metal_bitnet_ffn_reject(gate, "graph-edges", trace);
+    }
+    if (!ggml_metal_bitnet_ffn_expand_layout(gate) || !ggml_metal_bitnet_ffn_expand_layout(up) ||
+            !ggml_metal_bitnet_ffn_vector(relu, 6912) || !ggml_metal_bitnet_ffn_vector(sqr, 6912) || !ggml_metal_bitnet_ffn_vector(out, 6912)) {
+        return ggml_metal_bitnet_ffn_reject(gate, "layout", trace);
+    }
+    const ggml_op ops[] = { GGML_OP_MUL_MAT, GGML_OP_UNARY, GGML_OP_MUL_MAT, GGML_OP_SQR, GGML_OP_MUL };
+    const int nodes[] = { ctx->graph_idx(idx), ctx->graph_idx(idx+1), ctx->graph_idx(idx+2), ctx->graph_idx(idx+3), ctx->graph_idx(idx+4) };
+    if(names_begin) { ctx->ablation_stats.names_layout_ns+=bitnet_abc_now()-names_begin; ++ctx->ablation_stats.substage_timers; }
+    const uint64_t graph_begin = ctx->ablation_cpu ? bitnet_abc_now() : 0;
+    const bool graph_ok=ggml_can_fuse_subgraph_ext(ctx->graph(), nodes, 5, ops, &nodes[4], 1);
+    if (graph_begin) { ctx->ablation_stats.graph_check_ns += bitnet_abc_now()-graph_begin; ++ctx->ablation_stats.substage_timers; }
+    if (!graph_ok) {
+        return ggml_metal_bitnet_ffn_reject(gate, "consumers", trace);
+    }
+    // Gate/out or up/out may alias exactly: epilogues read only their own row before overwriting it.
+    // Partial overlap is never allowed. All projection outputs must be disjoint from X and weights.
+    const uint64_t buffer_begin = ctx->ablation_cpu ? bitnet_abc_now() : 0;
+    const ggml_tensor * ts[] = { gate->src[0], up->src[0], gate->src[1], gate, up, out };
+    ggml_metal_buffer_id bids[6];
+    for (int i = 0; i < 6; ++i) {
+        bids[i] = ggml_metal_get_buffer_id(ts[i]);
+        if (bids[i].offs % 32 || !ggml_metal_buffer_contains(bids[i], ggml_nbytes(ts[i]))) {
+            return ggml_metal_bitnet_ffn_reject(gate, "bindings", trace);
+        }
+        for (int j = 0; j < i; ++j) {
+            const bool exact_inplace = i == 5 && j >= 3 && ggml_metal_bitnet_exact_alias(bids[i], ggml_nbytes(ts[i]), bids[j], ggml_nbytes(ts[j]));
+            if (!exact_inplace && !ggml_metal_bitnet_poc_disjoint(bids[i], ggml_nbytes(ts[i]), bids[j], ggml_nbytes(ts[j]))) {
+                return ggml_metal_bitnet_ffn_reject(gate, "partial-overlap", trace);
+            }
+        }
+    }
+    if (buffer_begin) { ctx->ablation_stats.buffer_check_ns += bitnet_abc_now()-buffer_begin; ++ctx->ablation_stats.substage_timers; }
+    const uint64_t pipeline_begin = ctx->ablation_cpu ? bitnet_abc_now() : 0;
+    const auto pipeline = f ? ggml_metal_pipeline_with_params{} : ggml_metal_library_get_bitnet_ffn_mechanism_pipeline(ctx->lib, a ? 0 : b ? 1 : 2);
+    const int nth = a ? 256 : 64;
+    if (!f && (!pipeline.pipeline || ggml_metal_pipeline_thread_execution_width(pipeline) != 32 || ggml_metal_pipeline_max_theads_per_threadgroup(pipeline) < nth)) {
+        return ggml_metal_bitnet_ffn_reject(gate, "mechanism-pipeline", trace);
+    }
+    const auto post_pipeline = g ? ggml_metal_library_get_bitnet_ffn_mechanism_pipeline(ctx->lib, 0) : ggml_metal_pipeline_with_params{};
+    if (g && (!post_pipeline.pipeline || ggml_metal_pipeline_thread_execution_width(post_pipeline) != 32 ||
+              ggml_metal_pipeline_max_theads_per_threadgroup(post_pipeline) < 256)) {
+        return ggml_metal_bitnet_ffn_reject(gate, "mechanism-post-pipeline", trace);
+    }
+    if (pipeline_begin) { ctx->ablation_stats.pipeline_check_ns += bitnet_abc_now()-pipeline_begin; ++ctx->ablation_stats.substage_timers; }
+    plan.idx=idx; plan.layer=layer; plan.mode=mode; plan.gate=gate; plan.relu=relu; plan.up=up; plan.sqr=sqr; plan.out=out; plan.pipeline=pipeline; plan.post_pipeline=post_pipeline;
+    for(int i=0;i<6;++i) { plan.ts[i]=ts[i]; plan.bids[i]=bids[i]; }
+    return true;
+}
+
+static bool ggml_metal_commit_ffn_plan(ggml_metal_op_t ctx, const bitnet_ffn_plan & plan, bool trace) {
+    const int idx=plan.idx, layer=plan.layer; const char * mode=plan.mode;
+    const auto * gate=plan.gate; const auto * up=plan.up; const auto * out=plan.out;
+    const bool a=std::strcmp(mode,"A")==0, b=std::strcmp(mode,"B")==0, c=std::strcmp(mode,"C")==0, f=std::strcmp(mode,"F")==0, g=std::strcmp(mode,"G")==0;
+    const auto & bids=plan.bids; const auto & ts=plan.ts; const auto pipeline=plan.pipeline;
+    const char * shadow_dir = std::getenv("GGML_METAL_BITNET_FFN_SHADOW_DIR");
+    const char * shadow_step = std::getenv("GGML_METAL_BITNET_FFN_STEP");
+    const bool shadow_requested = (a || c || f || g) && shadow_dir && shadow_step &&
+            (ctx->ablation_shadow_all ||
+             std::strcmp(shadow_step, "1") == 0 || std::strcmp(shadow_step, "16") == 0 || std::strcmp(shadow_step, "32") == 0);
+    const auto shadow_pipeline = shadow_requested ? ggml_metal_library_get_bitnet_ffn_mechanism_pipeline(ctx->lib, 3) : ggml_metal_pipeline_with_params{};
+    if (shadow_requested && !shadow_pipeline.pipeline) { return ggml_metal_bitnet_ffn_reject(gate, "shadow-pipeline", trace); }
+    auto take_shadows = [&]() {
+        if (!shadow_requested) { return; }
+        char gate_path[4096], up_path[4096];
+        if (c || g) {
+            std::snprintf(gate_path, sizeof(gate_path), "%s/step-%s/layer-%d/gate.f32", shadow_dir, shadow_step, layer);
+            std::snprintf(up_path, sizeof(up_path), "%s/step-%s/layer-%d/up.f32", shadow_dir, shadow_step, layer);
+        } else {
+            std::snprintf(gate_path, sizeof(gate_path), "%s/step-%s/gate.f32", shadow_dir, shadow_step);
+            std::snprintf(up_path, sizeof(up_path), "%s/step-%s/up.f32", shadow_dir, shadow_step);
+        }
+        if (!ggml_metal_encoder_bitnet_shadow(ctx->enc, shadow_pipeline, bids[3], 27648, gate_path) ||
+                !ggml_metal_encoder_bitnet_shadow(ctx->enc, shadow_pipeline, bids[4], 27648, up_path)) { GGML_ABORT("FFN diagnostic shadow allocation/encoding failed"); }
+        ggml_metal_op_concurrency_reset(ctx);
+    };
+    // Validate all pending reads/writes before replacing the five-node sequence.
+    for (int i = 0; i < 5; ++i) {
+        if (!ggml_metal_op_concurrency_check(ctx, ctx->node(idx+i))) { ggml_metal_op_concurrency_reset(ctx); }
+    }
+    if (a || b || f) {
+        // This is the real stock pipeline/argument ABI, explicitly bypassing all custom routes.
+        ggml_metal_op_mul_mat_mv_encode(ctx, gate, gate, gate, nullptr, nullptr, true);
+        if (a || f) { ggml_metal_op_mul_mat_mv_encode(ctx, up, up, up, nullptr, nullptr, true); }
+        ggml_metal_op_concurrency_reset(ctx);
+    }
+    if (a || f) { take_shadows(); }
+    if (!f) { ggml_metal_encoder_set_pipeline(ctx->enc, pipeline); }
+    if (f) {
+        ggml_metal_op_unary_single(ctx, idx+1, false);
+        ggml_metal_op_concurrency_reset(ctx);
+        ggml_metal_op_unary_single(ctx, idx+3, false);
+        ggml_metal_op_concurrency_reset(ctx);
+        ggml_metal_op_bin_single(ctx, idx+4, false);
+    } else if (a) {
+        ggml_metal_encoder_set_buffer(ctx->enc, bids[3], 0);
+        ggml_metal_encoder_set_buffer(ctx->enc, bids[4], 1);
+        ggml_metal_encoder_set_buffer(ctx->enc, bids[5], 2);
+        ggml_metal_encoder_dispatch_threadgroups(ctx->enc, 27, 1, 1, 256, 1, 1);
+        if (trace) { ggml_metal_encoder_trace_bitnet_node(ctx->enc, pipeline, "ffn-mech-A-post", layer, out, out, 27, 1, 1, 256, 1); }
+    } else if (b) {
+        ggml_metal_encoder_set_buffer(ctx->enc, bids[1], 0);
+        ggml_metal_encoder_set_buffer(ctx->enc, bids[2], 1);
+        ggml_metal_encoder_set_buffer(ctx->enc, bids[3], 2);
+        ggml_metal_encoder_set_buffer(ctx->enc, bids[5], 3);
+        ggml_metal_encoder_dispatch_threadgroups(ctx->enc, 864, 1, 1, 32, 2, 1);
+        if (trace) { ggml_metal_encoder_trace_bitnet_node(ctx->enc, pipeline, "ffn-mech-B-up", layer, up, out, 864, 1, 1, 32, 2); }
+    } else {
+        ggml_metal_encoder_set_buffer(ctx->enc, bids[0], 0);
+        ggml_metal_encoder_set_buffer(ctx->enc, bids[1], 1);
+        ggml_metal_encoder_set_buffer(ctx->enc, bids[2], 2);
+        ggml_metal_encoder_set_buffer(ctx->enc, bids[3], 3);
+        ggml_metal_encoder_set_buffer(ctx->enc, bids[4], 4);
+        ggml_metal_encoder_dispatch_threadgroups(ctx->enc, 864, 1, 2, 32, 2, 1);
+        if (trace) { ggml_metal_encoder_trace_bitnet_node(ctx->enc, pipeline, g ? "ffn-mech-G-dual" : "ffn-mech-C-dual", layer, gate, up, 864, 1, 2, 32, 2); }
+        ggml_metal_op_concurrency_reset(ctx);
+        if (g && !ctx->mem_ranges) { ggml_metal_encoder_memory_barrier(ctx->enc); }
+        take_shadows();
+        if (g) {
+            if (shadow_requested) { ggml_metal_encoder_memory_barrier(ctx->enc); }
+            ggml_metal_encoder_set_pipeline(ctx->enc, plan.post_pipeline);
+            ggml_metal_encoder_set_buffer(ctx->enc, bids[3], 0);
+            ggml_metal_encoder_set_buffer(ctx->enc, bids[4], 1);
+            ggml_metal_encoder_set_buffer(ctx->enc, bids[5], 2);
+            ggml_metal_encoder_dispatch_threadgroups(ctx->enc, 27, 1, 1, 256, 1, 1);
+            if (trace) {
+                std::fprintf(stderr, "BITNET_FFN_G_BARRIER layer=%d step=%s scope=buffers projections_to_post=1\n", layer, shadow_step ? shadow_step : "unrecorded");
+                ggml_metal_encoder_trace_bitnet_node(ctx->enc, plan.post_pipeline, "ffn-mech-G-post", layer, out, out, 27, 1, 1, 256, 1);
+            }
+        } else {
+            // Retain the actual stock post pipelines and their three FP32 stores.
+            ggml_metal_op_unary_single(ctx, idx+1, false);
+            ggml_metal_op_concurrency_reset(ctx);
+            ggml_metal_op_unary_single(ctx, idx+3, false);
+            ggml_metal_op_concurrency_reset(ctx);
+            ggml_metal_op_bin_single(ctx, idx+4, false);
+        }
+    }
+    if (trace) {
+        const char * step = shadow_step ? shadow_step : "unrecorded";
+        const char * roles[] = { "gate_weight", "up_weight", "shared_x", "gate", "up", "activation" };
+        for (int i = 0; i < 6; ++i) {
+            const ggml_tensor * t = ts[i];
+            std::fprintf(stderr, "BITNET_FFN_CONTRACT mode=%s layer=%d step=%s role=%s node=%s type=%s ne=[%lld,%lld,%lld,%lld] nb=[%zu,%zu,%zu,%zu] bytes=%zu buffer=%p offset=%zu bounds=1\n",
+                    mode, layer, step, roles[i], t->name, ggml_type_name(t->type),
+                    (long long) t->ne[0], (long long) t->ne[1], (long long) t->ne[2], (long long) t->ne[3],
+                    t->nb[0], t->nb[1], t->nb[2], t->nb[3], ggml_nbytes(t), bids[i].metal, bids[i].offs);
+        }
+        std::fprintf(stderr, "BITNET_FFN_IDENTITY mode=%s layer=%d step=%s node=%s gate_weight=%s up_weight=%s shared_x=%s output=%s\n",
+                mode, layer, step, gate->name, gate->src[0]->name, up->src[0]->name, gate->src[1]->name, out->name);
+        std::fprintf(stderr, "BITNET_FFN_MECHANISM mode=%s layer=%d consumed=5 dispatches=%d shared_x=1 consumers=checked gate_out_alias=%d up_out_alias=%d wg=%p+%zu wu=%p+%zu x=%p+%zu gate=%p+%zu up=%p+%zu out=%p+%zu weighted_norm_down=stock\n", mode, layer, f ? 5 : a ? 3 : b ? 2 : g ? 2 : 4,
+                ggml_metal_bitnet_exact_alias(bids[3],ggml_nbytes(gate),bids[5],ggml_nbytes(out)),ggml_metal_bitnet_exact_alias(bids[4],ggml_nbytes(up),bids[5],ggml_nbytes(out)),
+                bids[0].metal,bids[0].offs,bids[1].metal,bids[1].offs,bids[2].metal,bids[2].offs,bids[3].metal,bids[3].offs,bids[4].metal,bids[4].offs,bids[5].metal,bids[5].offs);
+    }
+    return true;
+}
+
+
+struct bitnet_ffn_k_plan {
+    int idx=0, layer=-1;
+    const ggml_tensor * nodes[7]{};
+    const ggml_tensor * ts[8]{};
+    ggml_metal_buffer_id bids[8]{};
+    ggml_metal_pipeline_with_params dual{}, postnorm{};
+    float epsilon=0.0f;
+};
+
+static bool ggml_metal_check_ffn_k_plan(ggml_metal_op_t ctx, int idx, bool trace, bitnet_ffn_k_plan & plan) {
+    const auto * gate = ctx->node(idx);
+    const int layer = ggml_metal_bitnet_ffn_layer(gate);
+    if (layer < 0) { return false; }
+    if (!ggml_metal_bitnet_selected_layer(layer)) { return ggml_metal_bitnet_ffn_reject(gate, "k-layer-selection", trace); }
+    if (gate->ne[1] != 1 || !ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_FFN_DECODE")) {
+        return ggml_metal_bitnet_ffn_reject(gate, "k-decode-or-token-count", trace);
+    }
+    if (ctx->n_nodes() - idx < 7) { return ggml_metal_bitnet_ffn_reject(gate, "k-encoder-slice", trace); }
+    const auto * relu = ctx->node(idx+1);
+    const auto * up = ctx->node(idx+2);
+    const auto * sqr = ctx->node(idx+3);
+    const auto * act = ctx->node(idx+4);
+    const auto * rms = ctx->node(idx+5);
+    const auto * norm = ctx->node(idx+6);
+    if (relu->op != GGML_OP_UNARY || ggml_get_unary_op(relu) != GGML_UNARY_OP_RELU || relu->src[0] != gate ||
+            ggml_metal_bitnet_ffn_projection(up) != bitnet_ffn_projection::up || ggml_metal_bitnet_ffn_layer(up) != layer || up->src[1] != gate->src[1] ||
+            sqr->op != GGML_OP_SQR || sqr->src[0] != relu || act->op != GGML_OP_MUL || act->src[0] != sqr || act->src[1] != up ||
+            rms->op != GGML_OP_RMS_NORM || rms->src[0] != act || norm->op != GGML_OP_MUL || norm->src[0] != rms || !norm->src[1] ||
+            !ggml_metal_bitnet_layer_name(relu,"ffn_relu-",layer) || !ggml_metal_bitnet_layer_name(sqr,"ffn_sqr(relu)-",layer) ||
+            !ggml_metal_bitnet_layer_name(act,"ffn_sub_out-",layer) || !ggml_metal_bitnet_layer_name(rms,"norm-",layer) ||
+            !ggml_metal_bitnet_layer_name(norm,"ffn_sub_norm-",layer) || !ggml_metal_bitnet_weight_name(norm->src[1],layer,"ffn_sub_norm")) {
+        return ggml_metal_bitnet_ffn_reject(gate, "k-graph-edges", trace);
+    }
+    if (!ggml_metal_bitnet_ffn_expand_layout(gate) || !ggml_metal_bitnet_ffn_expand_layout(up) ||
+            !ggml_metal_bitnet_ffn_vector(relu,6912) || !ggml_metal_bitnet_ffn_vector(sqr,6912) ||
+            !ggml_metal_bitnet_ffn_vector(act,6912) || !ggml_metal_bitnet_ffn_vector(rms,6912) ||
+            !ggml_metal_bitnet_ffn_vector(norm,6912) || !ggml_metal_bitnet_ffn_vector(norm->src[1],6912)) {
+        return ggml_metal_bitnet_ffn_reject(gate, "k-layout", trace);
+    }
+    float epsilon;
+    std::memcpy(&epsilon,rms->op_params,sizeof(epsilon));
+    if (epsilon != 1.0e-5f) { return ggml_metal_bitnet_ffn_reject(gate,"k-epsilon",trace); }
+    const int next = ctx->graph_idx(idx+6)+1;
+    if (next >= ggml_graph_n_nodes(ctx->graph())) { return ggml_metal_bitnet_ffn_reject(gate,"k-down-edge",trace); }
+    const auto * down = ggml_graph_node(ctx->graph(),next);
+    const int64_t down_ne[] = {6912,2560,1,1};
+    const size_t down_nb[] = {66,1782,4561920,4561920};
+    if (ggml_metal_bitnet_ffn_projection(down) != bitnet_ffn_projection::down || ggml_metal_bitnet_ffn_layer(down) != layer || down->src[1] != norm ||
+            !ggml_metal_bitnet_poc_layout(down->src[0],GGML_TYPE_TQ2_0,down_ne,down_nb) || !ggml_metal_bitnet_ffn_vector(down,2560)) {
+        return ggml_metal_bitnet_ffn_reject(gate,"k-down-edge",trace);
+    }
+    const ggml_op ops[] = { GGML_OP_MUL_MAT, GGML_OP_UNARY, GGML_OP_MUL_MAT, GGML_OP_SQR, GGML_OP_MUL, GGML_OP_RMS_NORM, GGML_OP_MUL };
+    const int nodes[] = {ctx->graph_idx(idx),ctx->graph_idx(idx+1),ctx->graph_idx(idx+2),ctx->graph_idx(idx+3),ctx->graph_idx(idx+4),ctx->graph_idx(idx+5),ctx->graph_idx(idx+6)};
+    if (!ggml_can_fuse_subgraph_ext(ctx->graph(),nodes,7,ops,&nodes[6],1)) {
+        return ggml_metal_bitnet_ffn_reject(gate,"k-consumers",trace);
+    }
+    const ggml_tensor * ts[] = {gate->src[0],up->src[0],gate->src[1],gate,up,act,norm->src[1],norm};
+    ggml_metal_buffer_id bids[8];
+    for (int i=0;i<8;++i) {
+        bids[i] = ggml_metal_get_buffer_id(ts[i]);
+        if (bids[i].offs%32 || !ggml_metal_buffer_contains(bids[i],ggml_nbytes(ts[i]))) {
+            return ggml_metal_bitnet_ffn_reject(gate,"k-bindings",trace);
+        }
+    }
+    if (!ggml_metal_bitnet_exact_alias(bids[3],ggml_nbytes(ts[3]),bids[5],ggml_nbytes(ts[5])) ||
+            !ggml_metal_bitnet_exact_alias(bids[4],ggml_nbytes(ts[4]),bids[7],ggml_nbytes(ts[7]))) {
+        return ggml_metal_bitnet_ffn_reject(gate,"k-alias-pattern",trace);
+    }
+    for (int i=0;i<8;++i) {
+        for (int j=0;j<i;++j) {
+            if ((i==5 && j==3) || (i==7 && j==4)) { continue; }
+            if (!ggml_metal_bitnet_poc_disjoint(bids[i],ggml_nbytes(ts[i]),bids[j],ggml_nbytes(ts[j]))) {
+                return ggml_metal_bitnet_ffn_reject(gate,"k-overlap",trace);
+            }
+        }
+    }
+    const auto dual = ggml_metal_library_get_bitnet_ffn_mechanism_pipeline(ctx->lib,2);
+    const auto postnorm = ggml_metal_library_get_bitnet_ffn_k_pipeline(ctx->lib);
+    if (!dual.pipeline || ggml_metal_pipeline_thread_execution_width(dual)!=32 || ggml_metal_pipeline_max_theads_per_threadgroup(dual)<64) {
+        return ggml_metal_bitnet_ffn_reject(gate,"k-dual-pipeline",trace);
+    }
+    if (!postnorm.pipeline || ggml_metal_pipeline_thread_execution_width(postnorm)!=32 || ggml_metal_pipeline_max_theads_per_threadgroup(postnorm)<1024) {
+        return ggml_metal_bitnet_ffn_reject(gate,"k-postnorm-pipeline",trace);
+    }
+    plan.idx=idx; plan.layer=layer; plan.epsilon=epsilon; plan.dual=dual; plan.postnorm=postnorm;
+    for (int i=0;i<7;++i) {plan.nodes[i]=ctx->node(idx+i);}
+    for (int i=0;i<8;++i) {plan.ts[i]=ts[i];plan.bids[i]=bids[i];}
+    return true;
+}
+
+static bool ggml_metal_try_ffn_k(ggml_metal_op_t ctx, int idx, bool trace) {
+    bitnet_ffn_k_plan plan;
+    if (!ggml_metal_check_ffn_k_plan(ctx,idx,trace,plan)) {return false;}
+    const auto & b=plan.bids;
+    const char * shadow_dir=std::getenv("GGML_METAL_BITNET_FFN_K_SHADOW_DIR");
+    const char * shadow_step=std::getenv("GGML_METAL_BITNET_FFN_STEP");
+    const bool take_shadows=shadow_dir && ggml_metal_bitnet_k_shadow_step(shadow_step);
+    const auto shadow=take_shadows ? ggml_metal_library_get_bitnet_ffn_mechanism_pipeline(ctx->lib,3) : ggml_metal_pipeline_with_params{};
+    if (take_shadows && !shadow.pipeline) {return ggml_metal_bitnet_ffn_reject(plan.nodes[0],"k-shadow-pipeline",trace);}
+    if (take_shadows) {
+        ggml_metal_bitnet_k_save_weight(shadow_dir,plan.layer,"ffn_gate.tq2",plan.ts[0]);
+        ggml_metal_bitnet_k_save_weight(shadow_dir,plan.layer,"ffn_up.tq2",plan.ts[1]);
+        ggml_metal_bitnet_k_save_weight(shadow_dir,plan.layer,"subnorm.f32",plan.ts[6]);
+    }
+    auto copy=[&](int slot,const char * role) {
+        char path[4096];std::snprintf(path,sizeof(path),"%s/step-%s/layer-%d/%s.f32",shadow_dir,shadow_step,plan.layer,role);
+        if (!ggml_metal_encoder_bitnet_shadow(ctx->enc,shadow,b[slot],ggml_nbytes(plan.ts[slot]),path)) {GGML_ABORT("K diagnostic shadow failed");}
+    };
+    for (int i=0;i<7;++i) {
+        if (!ggml_metal_op_concurrency_check(ctx,plan.nodes[i])) {ggml_metal_op_concurrency_reset(ctx);}
+    }
+    ggml_metal_encoder_set_pipeline(ctx->enc,plan.dual);
+    ggml_metal_encoder_set_buffer(ctx->enc,b[0],0);
+    ggml_metal_encoder_set_buffer(ctx->enc,b[1],1);
+    ggml_metal_encoder_set_buffer(ctx->enc,b[2],2);
+    ggml_metal_encoder_set_buffer(ctx->enc,b[3],3);
+    ggml_metal_encoder_set_buffer(ctx->enc,b[4],4);
+    ggml_metal_encoder_dispatch_threadgroups(ctx->enc,864,1,2,32,2,1);
+    if (trace) {ggml_metal_encoder_trace_bitnet_node(ctx->enc,plan.dual,"ffn-mech-K-dual",plan.layer,plan.nodes[0],plan.nodes[2],864,1,2,32,2);}
+    ggml_metal_op_concurrency_reset(ctx);
+    if (!ctx->mem_ranges) {ggml_metal_encoder_memory_barrier(ctx->enc);}
+    if (take_shadows) {
+        copy(2,"x");copy(3,"gate");copy(4,"up");
+        ggml_metal_op_concurrency_reset(ctx);
+        if (!ctx->mem_ranges) {ggml_metal_encoder_memory_barrier(ctx->enc);}
+    }
+    ggml_metal_encoder_set_pipeline(ctx->enc,plan.postnorm);
+    ggml_metal_encoder_set_buffer(ctx->enc,b[3],0);
+    ggml_metal_encoder_set_buffer(ctx->enc,b[4],1);
+    ggml_metal_encoder_set_buffer(ctx->enc,b[6],2);
+    ggml_metal_encoder_dispatch_threadgroups(ctx->enc,1,1,1,1024,1,1);
+    if (trace) {
+        const char * step=std::getenv("GGML_METAL_BITNET_FFN_STEP");
+        if (!step) {step="unrecorded";}
+        std::fprintf(stderr,"BITNET_FFN_K_BARRIER layer=%d step=%s scope=buffers projections_to_postnorm=1\n",plan.layer,step);
+        ggml_metal_encoder_trace_bitnet_node(ctx->enc,plan.postnorm,"ffn-mech-K-postnorm",plan.layer,plan.nodes[6],plan.nodes[6],1,1,1,1024,1);
+        const char * roles[]={"gate_weight","up_weight","shared_x","gate","up","activation","gamma","norm"};
+        for (int i=0;i<8;++i) {
+            const auto * t=plan.ts[i];
+            std::fprintf(stderr,"BITNET_FFN_K_CONTRACT mode=K layer=%d step=%s role=%s node=%s op=%s type=%s ne=[%lld,%lld,%lld,%lld] nb=[%zu,%zu,%zu,%zu] bytes=%zu buffer=%p offset=%zu bounds=1\n",
+                    plan.layer,step,roles[i],t->name,ggml_op_name(t->op),ggml_type_name(t->type),
+                    (long long)t->ne[0],(long long)t->ne[1],(long long)t->ne[2],(long long)t->ne[3],t->nb[0],t->nb[1],t->nb[2],t->nb[3],ggml_nbytes(t),b[i].metal,b[i].offs);
+        }
+        std::fprintf(stderr,"BITNET_FFN_K_IDENTITY mode=K layer=%d step=%s node=%s gate_weight=%s up_weight=%s shared_x=%s output=%s gamma=%s\n",
+                plan.layer,step,plan.nodes[0]->name,plan.ts[0]->name,plan.ts[1]->name,plan.ts[2]->name,plan.nodes[6]->name,plan.ts[6]->name);
+        std::fprintf(stderr,"BITNET_FFN_K_MECHANISM mode=K layer=%d step=%s consumed=7 dispatches=2 shared_x=1 consumers=checked gate_activation_alias=1 up_norm_alias=1 ranges_disjoint=1 epsilon=%.12g stock_down=1\n",plan.layer,step,plan.epsilon);
+    }
+    if (take_shadows) {
+        ggml_metal_op_concurrency_reset(ctx);
+        if (!ctx->mem_ranges) {ggml_metal_encoder_memory_barrier(ctx->enc);}
+        copy(5,"activation");copy(7,"down-input");
+        ggml_metal_op_concurrency_reset(ctx);
+        if (!ctx->mem_ranges) {ggml_metal_encoder_memory_barrier(ctx->enc);}
+    }
+    return true;
+}
+
+static bool ggml_metal_try_ffn_mechanism(ggml_metal_op_t ctx, int idx, bool trace) {
+    const char * mode=std::getenv("GGML_METAL_BITNET_FFN_MECHANISM");
+    bitnet_ffn_plan plan;
+    return mode && ggml_metal_check_ffn_plan(ctx,idx,mode,trace,plan) && ggml_metal_commit_ffn_plan(ctx,plan,trace);
+}
+
+// Called at the genuine mul-mat routing positions. C consumes up; B visits it
+// normally, so real selector/check counts are intentionally not equalized.
+static bool ggml_metal_try_ffn_ablation(ggml_metal_op_t ctx, int idx) {
+    const uint64_t begin=ctx->ablation_cpu ? bitnet_abc_now() : 0;
+    if (ctx->ablation_count) { ++ctx->ablation_stats.check_calls; }
+    const auto * node=ctx->node(idx);
+    const bool target=ggml_metal_bitnet_ffn_projection(node)==bitnet_ffn_projection::gate;
+    if (target && ctx->ablation_count) { ++ctx->ablation_stats.target_checks; }
+    bitnet_ffn_plan plan;
+    const bool ok=target && ggml_metal_check_ffn_plan(ctx,idx,"C",ctx->ablation_trace,plan);
+    if(begin) { const auto elapsed=bitnet_abc_now()-begin; ctx->ablation_stats.guard_ns+=elapsed; if(target)ctx->ablation_stats.target_guard_ns+=elapsed; ++ctx->ablation_stats.guard_timers; }
+    if(!ok) { return false; }
+    if(ctx->ablation_count) { ++ctx->ablation_stats.guard_passes; }
+    if(ctx->ablation_trace) {
+        std::fprintf(stderr,"FFN_ABLATION_PLAN_PASS mode=%c layer=%d step=%d node=%s graph=%p idx=%d state_mutations=0 pipeline_cache_only=1\n",ctx->ablation_mode,plan.layer,ctx->ablation_stats.step,node->name,(void*)ctx->graph(),ctx->graph_idx(idx));
+        for(int i=0;i<6;++i) { const auto*t=plan.ts[i]; std::fprintf(stderr,"FFN_ABLATION_BIND mode=%c layer=%d step=%d slot=%d node=%s type=%s ne=[%lld,%lld,%lld,%lld] nb=[%zu,%zu,%zu,%zu] buffer=%p offset=%zu bytes=%zu bounds=1\n",ctx->ablation_mode,plan.layer,ctx->ablation_stats.step,i,t->name,ggml_type_name(t->type),(long long)t->ne[0],(long long)t->ne[1],(long long)t->ne[2],(long long)t->ne[3],t->nb[0],t->nb[1],t->nb[2],t->nb[3],plan.bids[i].metal,plan.bids[i].offs,ggml_nbytes(t)); }
+    }
+    if(ctx->ablation_mode=='B') {
+        if(ctx->ablation_count) { ++ctx->ablation_stats.stock_continuations; }
+        if(ctx->ablation_trace) { std::fprintf(stderr,"FFN_ABLATION_STOCK_CONTINUE mode=B layer=%d step=%d consumed=0 custom_dispatches=0 state_mutations=0\n",plan.layer,ctx->ablation_stats.step); }
+        return false;
+    }
+    const uint64_t commit_begin=ctx->ablation_cpu ? bitnet_abc_now() : 0;
+    const bool committed=ggml_metal_commit_ffn_plan(ctx,plan,ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_FFN_TRACE"));
+    if(commit_begin) { ctx->ablation_stats.commit_ns+=bitnet_abc_now()-commit_begin; ++ctx->ablation_stats.commit_timers; }
+    if(committed && ctx->ablation_count) { ++ctx->ablation_stats.commits; }
+    return committed;
 }
 
 // the generic mat-vec kernel, or its 2-row Q4_0 variant if nc
@@ -3234,6 +4338,23 @@ static int ggml_metal_op_mul_mat_mv(ggml_metal_op_t ctx, int idx) {
 }
 
 int ggml_metal_op_mul_mat(ggml_metal_op_t ctx, int idx) {
+    if ((ctx->ablation_mode=='B' || ctx->ablation_mode=='C') && ggml_metal_try_ffn_ablation(ctx,idx)) { return 5; }
+    if (ggml_metal_bitnet_ffn_projection(ctx->node(idx)) == bitnet_ffn_projection::gate) {
+        const char * mechanism = std::getenv("GGML_METAL_BITNET_FFN_MECHANISM");
+        if (mechanism) {
+            const bool trace = ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_FFN_TRACE");
+            if (std::strcmp(mechanism,"K")==0) {
+                if (ggml_metal_try_ffn_k(ctx,idx,trace)) {return 7;}
+            } else if (ggml_metal_try_ffn_mechanism(ctx,idx,trace)) {
+                return 5;
+            }
+        }
+    }
+    if (ggml_metal_bitnet_ffn_projection(ctx->node(idx)) == bitnet_ffn_projection::gate &&
+        !std::getenv("GGML_METAL_BITNET_FFN_MECHANISM") && ggml_metal_bitnet_ffn_mode("fused") &&
+        ggml_metal_try_bitnet_ffn_fused(ctx, idx, ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_FFN_TRACE"))) {
+        return 5;
+    }
     if (ctx->use_fusion()) {
         int n = 1;
         const ggml_metal_fusion * fusion = ctx->can_fuse(idx, GGML_METAL_FUSION_FULL, &n);
@@ -3423,7 +4544,23 @@ int ggml_metal_op_mul_mat(ggml_metal_op_t ctx, int idx) {
         const int nr1 = pipeline.nr1;
         const int nsg = pipeline.nsg;
 
-        ggml_metal_encoder_dispatch_threadgroups(enc, ((ne11 + nr1 - 1) / nr1), ((ne01 + nr0 - 1) / nr0), ne12 * ne13, 32, nsg, 1);
+        const int grid_x = (ne11 + nr1 - 1) / nr1;
+        const int grid_y = (ne01 + nr0 - 1) / nr0;
+        const int grid_z = ne12 * ne13;
+        ggml_metal_encoder_dispatch_threadgroups(enc, grid_x, grid_y, grid_z, 32, nsg, 1);
+        if (ggml_metal_bitnet_poc_target(op) && ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_POC_TRACE")) {
+            ggml_metal_encoder_trace_bitnet(enc, pipeline, "stock-mm", ne11, grid_x, grid_y, grid_z, nsg);
+            ggml_metal_encoder_trace_bitnet_node(enc, pipeline, "q-stock", ggml_metal_bitnet_layer(op->name, "Qcur-"),
+                    op, op, grid_x, grid_y, grid_z, 32, nsg);
+        }
+        if (ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_FFN_TRACE")) {
+            const char * route = ggml_metal_bitnet_ffn_stock_route(ggml_metal_bitnet_ffn_projection(op));
+            if (route) {
+                ggml_metal_encoder_trace_bitnet(enc, pipeline, route, ne11, grid_x, grid_y, grid_z, nsg);
+                ggml_metal_encoder_trace_bitnet_node(enc, pipeline, route, ggml_metal_bitnet_ffn_layer(op),
+                        op, op, grid_x, grid_y, grid_z, 32, nsg);
+            }
+        }
     } else {
         return ggml_metal_op_mul_mat_mv(ctx, idx);
     }
@@ -5163,11 +6300,11 @@ int ggml_metal_op_flash_attn_ext(ggml_metal_op_t ctx, int idx) {
     return 1;
 }
 
-int ggml_metal_op_bin(ggml_metal_op_t ctx, int idx) {
+static int ggml_metal_op_bin_single(ggml_metal_op_t ctx, int idx, bool allow_fusion) {
     int n_fuse = 1;
     const ggml_metal_fusion * fusion = nullptr;
 
-    const bool use_fusion = ctx->use_fusion();
+    const bool use_fusion = allow_fusion && ctx->use_fusion();
 
     if (use_fusion) {
         int n = 1;
@@ -5302,10 +6439,15 @@ int ggml_metal_op_bin(ggml_metal_op_t ctx, int idx) {
     ggml_metal_encoder_set_buffer  (enc, bid_src1, 2);
     ggml_metal_encoder_set_buffer  (enc, bid_dst,  3);
 
+    int bitnet_grid_x, bitnet_grid_y, bitnet_grid_z, bitnet_threads;
     if (pipeline.cnt) {
         const int nth = MIN(256, args.ne0);
 
-        ggml_metal_encoder_dispatch_threadgroups(enc, (args.ne0 + nth - 1)/nth, ggml_nrows(op), 1, nth, 1, 1);
+        bitnet_grid_x = (args.ne0 + nth - 1)/nth;
+        bitnet_grid_y = ggml_nrows(op);
+        bitnet_grid_z = 1;
+        bitnet_threads = nth;
+        ggml_metal_encoder_dispatch_threadgroups(enc, bitnet_grid_x, bitnet_grid_y, 1, nth, 1, 1);
     } else {
         const int nth_max = MIN(256, ggml_metal_pipeline_max_theads_per_threadgroup(pipeline));
 
@@ -5315,10 +6457,25 @@ int ggml_metal_op_bin(ggml_metal_op_t ctx, int idx) {
             nth *= 2;
         }
 
+        bitnet_grid_x = ne01;
+        bitnet_grid_y = ne02;
+        bitnet_grid_z = ne03;
+        bitnet_threads = nth;
         ggml_metal_encoder_dispatch_threadgroups(enc, ne01, ne02, ne03, nth, 1, 1);
     }
 
+    if (ctx->numerics_capture) {ggml_metal_bitnet_numerics_dispatch(ctx,op,ctx->node(idx+n_fuse-1),pipeline,bitnet_grid_x,bitnet_grid_y,bitnet_grid_z,bitnet_threads,1,0,0,n_fuse);}
+    const int ffn_layer = ggml_metal_bitnet_layer(op->name, "ffn_sub_out-");
+    if (ffn_layer >= 0 && std::getenv("GGML_METAL_BITNET_FFN_TRACE")) {
+        ggml_metal_encoder_trace_bitnet_stage(enc, pipeline, "ffn-mul", op->ne[1]);
+        ggml_metal_encoder_trace_bitnet_node(enc, pipeline, "ffn-mul", ffn_layer, op, ctx->node(idx + n_fuse - 1),
+                bitnet_grid_x, bitnet_grid_y, bitnet_grid_z, bitnet_threads, 1);
+    }
     return n_fuse;
+}
+
+int ggml_metal_op_bin(ggml_metal_op_t ctx, int idx) {
+    return ggml_metal_op_bin_single(ctx, idx, true);
 }
 
 int ggml_metal_op_silu_back(ggml_metal_op_t ctx, int idx) {
@@ -5854,6 +7011,15 @@ int ggml_metal_op_norm(ggml_metal_op_t ctx, int idx) {
 
     ggml_metal_encoder_dispatch_threadgroups(enc, ne01, ne02, ne03, nth, 1, 1);
 
+    if (ctx->numerics_capture) {ggml_metal_bitnet_numerics_dispatch(ctx,op,ctx->node(idx+n_fuse-1),pipeline,ne01,ne02,ne03,nth,1,0,1,n_fuse);}
+    const int ffn_layer = ggml_metal_bitnet_layer(op->src[0]->name, "ffn_sub_out-");
+    if (ffn_layer >= 0 && std::getenv("GGML_METAL_BITNET_FFN_TRACE")) {
+        std::fprintf(stderr, "BITNET_FFN_NORM_BIND input=%s x=%p+%zu output=%s y=%p+%zu\n",
+                op->src[0]->name, bid_src0.metal, bid_src0.offs, ctx->node(idx + n_fuse - 1)->name, bid_dst.metal, bid_dst.offs);
+        ggml_metal_encoder_trace_bitnet_stage(enc, pipeline, "ffn-subnorm", op->ne[1]);
+        ggml_metal_encoder_trace_bitnet_node(enc, pipeline, "ffn-subnorm", ffn_layer, op,
+                ctx->node(idx + n_fuse - 1), ne01, ne02, ne03, nth, 1);
+    }
     return n_fuse;
 }
 

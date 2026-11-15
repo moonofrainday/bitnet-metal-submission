@@ -1,0 +1,54 @@
+{
+  "pinned_qvac_commit": "2db8b046d555316019ae75d1be90484adc8b9330",
+  "upstream_source_modifications": false,
+  "copies": [
+    {
+      "role": "Original model-free fixed-shape contract",
+      "path": "contract.h",
+      "sha256": "e65ee18fb1a5f0e4597ccf628168d72ae6c9e988f3c0c1d289803f6a5332737f",
+      "source_sha256": "e65ee18fb1a5f0e4597ccf628168d72ae6c9e988f3c0c1d289803f6a5332737f",
+      "byte_identical": true,
+      "origin": {
+        "project_commit": "7fcf557fb593800df38fd217c02e07d3594dea4b",
+        "repository_relative_path": "outputs/experiments/2026-11-07-stage2/contract.h"
+      }
+    },
+    {
+      "role": "Original authored explicit-unpack Metal PoC",
+      "path": "shaders/matvec.metal",
+      "sha256": "db8b1fd40120adee0bf2f8bc4db01ef7e7edf11692d285e143fa15f24c408b84",
+      "source_sha256": "db8b1fd40120adee0bf2f8bc4db01ef7e7edf11692d285e143fa15f24c408b84",
+      "byte_identical": true,
+      "origin": {
+        "project_commit": "7fcf557fb593800df38fd217c02e07d3594dea4b",
+        "repository_relative_path": "outputs/experiments/2026-11-07-stage2/matvec.metal"
+      }
+    },
+    {
+      "role": "Selected stock-arithmetic fixed 4x1 wrapper, preserved complete source",
+      "path": "shaders/stock4x1.metal",
+      "sha256": "99a6f27566340ff465d1ca6242a4faf5a1e08dda9b676de2622e8ff99e5fa028",
+      "source_sha256": "99a6f27566340ff465d1ca6242a4faf5a1e08dda9b676de2622e8ff99e5fa028",
+      "byte_identical": true,
+      "origin": {
+        "project_commit": "7fcf557fb593800df38fd217c02e07d3594dea4b",
+        "repository_relative_path": "outputs/experiments/2026-11-12_063053+0900-qcur0-coeff-tg/shaders/stock4x1.metal"
+      }
+    },
+    {
+      "role": "Native selector and ABI adapter; link only freshly built pinned QVAC libraries",
+      "path": "stock-runtime.h",
+      "sha256": "9164a832d5b196b822cce35cb85d8d029f0246104007f2df646ca6be58b8b643",
+      "source_sha256": "9164a832d5b196b822cce35cb85d8d029f0246104007f2df646ca6be58b8b643",
+      "byte_identical": true,
+      "origin": {
+        "project_commit": "7fcf557fb593800df38fd217c02e07d3594dea4b",
+        "repository_relative_path": "outputs/experiments/2026-11-12_063053+0900-qcur0-coeff-tg/stock-runtime.h"
+      }
+    }
+  ],
+  "baseline": "The actual stock pipeline must be selected through newly built QVAC libraries, never a copied stock kernel or an old dylib.",
+  "stock4x1_attribution": "The selected shader uses the existing QVAC stock helper arithmetic, specialized to fixed shape and 4x1 launch; it is not a new dot algorithm.",
+  "library_reuse_allowed": false,
+  "publication_note": "All runtime source checks resolve path relative to this validation directory. Origin metadata never supplies runtime files."
+}

@@ -81,6 +81,7 @@ void ggml_metal_cv_set_bool(ggml_metal_cv_t cv, bool value, int32_t idx) {
 
 struct ggml_metal_pipeline {
     id<MTLComputePipelineState> obj;
+    char * trace_name;
 };
 
 ggml_metal_pipeline_t ggml_metal_pipeline_init(void) {
@@ -95,6 +96,7 @@ ggml_metal_pipeline_t ggml_metal_pipeline_init(void) {
 
 void ggml_metal_pipeline_free(ggml_metal_pipeline_t pipeline) {
     [pipeline->obj release];
+    free(pipeline->trace_name);
 
     free(pipeline);
 }
@@ -829,6 +831,9 @@ struct ggml_metal_pipeline_with_params ggml_metal_library_compile_pipeline(ggml_
 
         res.pipeline = ggml_metal_pipeline_init();
         res.pipeline->obj = obj;
+        // Retain the function identity even when a pipeline is warmed untraced.
+        // This CPU-side label does not alter the compiled pipeline or GPU state.
+        res.pipeline->trace_name = strdup(base);
 
         ggml_metal_pipelines_add(lib->pipelines, name, res.pipeline);
     }
@@ -838,18 +843,103 @@ struct ggml_metal_pipeline_with_params ggml_metal_library_compile_pipeline(ggml_
     return res;
 }
 
+static struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_external_pipeline(
+        ggml_metal_library_t lib, const char * name, const char * path, int min_threads) {
+    struct ggml_metal_pipeline_with_params result = { 0 };
+    if (!path || !path[0]) {
+        return result;
+    }
+
+    [lib->lock lock];
+    result.pipeline = ggml_metal_pipelines_get(lib->pipelines, name);
+    if (!result.pipeline) {
+        @autoreleasepool {
+            id<MTLDevice> device = ggml_metal_device_get_obj(lib->dev);
+            NSString * filename = [NSString stringWithUTF8String:path];
+            NSURL * url = filename ? [NSURL fileURLWithPath:filename] : nil;
+            NSError * error = nil;
+            id<MTLLibrary> kernels = url ? [device newLibraryWithURL:url error:&error] : nil;
+            id<MTLFunction> function = [kernels newFunctionWithName:@(name)];
+            id<MTLComputePipelineState> pipeline = function ?
+                [device newComputePipelineStateWithFunction:function error:&error] : nil;
+            if (pipeline && pipeline.threadExecutionWidth == 32 && pipeline.maxTotalThreadsPerThreadgroup >= (NSUInteger) min_threads) {
+                result.pipeline = ggml_metal_pipeline_init();
+                result.pipeline->obj = pipeline;
+                result.pipeline->trace_name = strdup(name);
+                ggml_metal_pipelines_add(lib->pipelines, name, result.pipeline);
+            } else {
+                GGML_LOG_WARN("BitNet external pipeline %s unavailable: %s\n", name,
+                    error ? error.localizedDescription.UTF8String : "missing function or incompatible threadgroup");
+                [pipeline release];
+            }
+            [function release];
+            [kernels release];
+        }
+    }
+    [lib->lock unlock];
+    if (result.pipeline && (result.pipeline->obj.threadExecutionWidth != 32 ||
+            result.pipeline->obj.maxTotalThreadsPerThreadgroup < (NSUInteger) min_threads)) {
+        result.pipeline = NULL;
+    }
+    return result;
+}
+
+struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_poc_pipeline(ggml_metal_library_t lib) {
+    return ggml_metal_library_get_bitnet_external_pipeline(lib, "tq2_0_matvec_poc_c8x2",
+            getenv("GGML_METAL_BITNET_POC_METALLIB"), 32);
+}
+
+struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_ffn_pipeline(ggml_metal_library_t lib, bool fused) {
+    return ggml_metal_library_get_bitnet_external_pipeline(lib,
+            fused ? "tq2_0_matvec_ffn_gate_up_8x2" : "tq2_0_matvec_ffn_expand",
+            getenv(fused ? "GGML_METAL_BITNET_FFN_FUSED_METALLIB" : "GGML_METAL_BITNET_FFN_SPLIT_METALLIB"), 64);
+}
+
+struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_ffn_mechanism_pipeline(ggml_metal_library_t lib, int kind) {
+    const char * names[] = { "ffn_post_strict", "ffn_up_epilogue", "ffn_dual_projection", "ffn_shadow_copy" };
+    if (kind < 0 || kind > 3) {
+        struct ggml_metal_pipeline_with_params empty = { 0 };
+        return empty;
+    }
+    return ggml_metal_library_get_bitnet_external_pipeline(lib, names[kind],
+            getenv("GGML_METAL_BITNET_FFN_MECHANISM_METALLIB"), (kind == 0 || kind == 3) ? 256 : 64);
+}
+
+struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_ffn_k_pipeline(ggml_metal_library_t lib) {
+    struct ggml_metal_pipeline_with_params result = ggml_metal_library_get_bitnet_external_pipeline(lib,
+            "ffn_post_weighted_norm_inplace", getenv("GGML_METAL_BITNET_FFN_K_METALLIB"), 1024);
+    if (result.pipeline) {
+        id<MTLDevice> device = ggml_metal_device_get_obj(lib->dev);
+        if (result.pipeline->obj.staticThreadgroupMemoryLength > device.maxThreadgroupMemoryLength) {
+            result.pipeline = NULL;
+        }
+    }
+    return result;
+}
+
 //
 // MTLComputeCommandEncoder wrapper
 //
 
 struct ggml_metal_encoder {
     id<MTLComputeCommandEncoder> obj;
+    id<MTLCommandBuffer> command_buffer; // owned by the caller
+    bool abc_trace;
+    uint64_t abc_task, abc_seq, abc_barriers;
+    char abc_mode;
+    int abc_step, abc_layer, abc_op, abc_index, abc_slice_start, abc_slice_end;
+    const void * abc_graph;
+    char abc_node[GGML_MAX_NAME];
+    bool abc_active;
+
 };
 
 ggml_metal_encoder_t ggml_metal_encoder_init(ggml_metal_cmd_buf_t cmd_buf_raw, bool concurrent) {
     ggml_metal_encoder_t res = calloc(1, sizeof(struct ggml_metal_encoder));
 
     id<MTLCommandBuffer> cmd_buf = (id<MTLCommandBuffer>) cmd_buf_raw;
+
+    res->command_buffer = cmd_buf;
 
     if (concurrent) {
         res->obj = [cmd_buf computeCommandEncoderWithDispatchType: MTLDispatchTypeConcurrent];
@@ -877,23 +967,194 @@ void ggml_metal_encoder_debug_group_pop (ggml_metal_encoder_t encoder) {
     [encoder->obj popDebugGroup];
 }
 
+
+
+static dispatch_group_t ggml_metal_bitnet_shadow_group(void);
+static void ggml_metal_abc_event(ggml_metal_encoder_t e, const char * kind) {
+    // Hold the stdio lock across the prefix and complete typed-ABI payload.
+    // GPU completion callbacks may print from another thread between fields.
+    flockfile(stderr);
+    fprintf(stderr,"FFN_ABLATION_EVENT task=%llu mode=%c step=%d layer=%d node=%s index=%d slice=[%d,%d] graph=%p encoder=%p command=%p seq=%llu barriers=%llu kind=%s",
+        (unsigned long long)e->abc_task,e->abc_mode,e->abc_step,e->abc_layer,e->abc_node,e->abc_index,e->abc_slice_start,e->abc_slice_end,e->abc_graph,(void*)e->obj,(void*)e->command_buffer,(unsigned long long)++e->abc_seq,(unsigned long long)e->abc_barriers,kind);
+}
+void ggml_metal_encoder_ffn_ablation_configure(ggml_metal_encoder_t e, bool enabled, uint64_t task, char mode, int step, int slice_start, int slice_end, const void * graph, bool gpu) {
+    e->abc_trace=enabled; e->abc_task=task; e->abc_mode=mode; e->abc_step=step; e->abc_layer=-1;e->abc_index=-1;
+    e->abc_slice_start=slice_start;e->abc_slice_end=slice_end;e->abc_graph=graph;snprintf(e->abc_node,sizeof(e->abc_node),"none");
+    if(enabled) { ggml_metal_abc_event(e,"encoder_begin");fprintf(stderr,"\n");funlockfile(stderr); }
+    if(gpu) {
+        id<MTLCommandBuffer> command=e->command_buffer;
+        const uintptr_t encoder_address=(uintptr_t)e->obj;
+        dispatch_group_t group=ggml_metal_bitnet_shadow_group();dispatch_group_enter(group);
+        [command addCompletedHandler:^(id<MTLCommandBuffer> done) {
+            fprintf(stderr,"FFN_ABLATION_GPU mode=%c step=%d task=%llu command=%p encoder=%p slice=[%d,%d] status=%lu completed=%d gpu_start_s=%.17g gpu_end_s=%.17g gpu_elapsed_us=%.9g\n",
+                mode,step,(unsigned long long)task,(void*)done,(void*)encoder_address,slice_start,slice_end,(unsigned long)done.status,done.status==MTLCommandBufferStatusCompleted,done.GPUStartTime,done.GPUEndTime,(done.GPUEndTime-done.GPUStartTime)*1.e6);
+            dispatch_group_leave(group);
+        }];
+    }
+}
+void ggml_metal_encoder_ffn_ablation_node(ggml_metal_encoder_t e, const struct ggml_tensor * node, int layer, int node_index) {
+    if(e->abc_trace && e->abc_active) { ggml_metal_abc_event(e,"node_end");fprintf(stderr,"\n");funlockfile(stderr); }
+    e->abc_active=e->abc_trace && node && layer>=0;
+    if(e->abc_active) {
+        e->abc_layer=layer; e->abc_op=node->op;e->abc_index=node_index;snprintf(e->abc_node,sizeof(e->abc_node),"%s",node->name);
+        ggml_metal_abc_event(e,"node_begin");fprintf(stderr," op=%s\n",ggml_op_name(node->op));funlockfile(stderr);
+    }
+}
+static uint64_t ggml_metal_abc_hash(uint64_t h,const void*data,size_t size) {
+    const unsigned char*p=data;for(size_t i=0;i<size;++i){h^=p[i];h*=1099511628211ULL;}return h;
+}
+static void ggml_metal_abc_field(ggml_metal_encoder_t e,uint64_t *h,const char*name,const void*data,size_t size) {
+    *h=ggml_metal_abc_hash(*h,data,size);fprintf(stderr,"%s:",name);
+    const unsigned char*p=data;for(size_t i=0;i<size;++i)fprintf(stderr,"%02x",p[i]);fprintf(stderr,",");GGML_UNUSED(e);
+}
+static void ggml_metal_abc_args(ggml_metal_encoder_t e, const void * data, size_t size) {
+    uint64_t h=1469598103934665603ULL;
+#define ABC_ARG(name) ggml_metal_abc_field(e,&h,#name,&p->name,sizeof(p->name))
+    if ((e->abc_op==GGML_OP_MUL_MAT) && size==sizeof(ggml_metal_kargs_mul_mv)) {
+        const ggml_metal_kargs_mul_mv * p=data; fprintf(stderr," abi=mul_mv fields=");
+        ABC_ARG(ne00); ABC_ARG(ne01); ABC_ARG(ne02); ABC_ARG(nb00); ABC_ARG(nb01); ABC_ARG(nb02); ABC_ARG(nb03); ABC_ARG(ne10); ABC_ARG(ne11); ABC_ARG(ne12); ABC_ARG(nb10); ABC_ARG(nb11); ABC_ARG(nb12); ABC_ARG(nb13); ABC_ARG(ne0); ABC_ARG(ne1); ABC_ARG(nr0); ABC_ARG(r2); ABC_ARG(r3); ABC_ARG(eps);
+    }
+    else if ((e->abc_op==GGML_OP_UNARY || e->abc_op==GGML_OP_SQR) && size==sizeof(ggml_metal_kargs_unary)) {
+        const ggml_metal_kargs_unary * p=data; fprintf(stderr," abi=unary fields=");
+        ABC_ARG(ne00); ABC_ARG(ne01); ABC_ARG(ne02); ABC_ARG(ne03); ABC_ARG(nb00); ABC_ARG(nb01); ABC_ARG(nb02); ABC_ARG(nb03); ABC_ARG(ne0); ABC_ARG(ne1); ABC_ARG(ne2); ABC_ARG(ne3); ABC_ARG(nb0); ABC_ARG(nb1); ABC_ARG(nb2); ABC_ARG(nb3); ABC_ARG(slope); ABC_ARG(scale); ABC_ARG(bias); ABC_ARG(val); ABC_ARG(min); ABC_ARG(max);
+    }
+    else if ((e->abc_op==GGML_OP_MUL || e->abc_op==GGML_OP_ADD) && size==sizeof(ggml_metal_kargs_bin)) {
+        const ggml_metal_kargs_bin * p=data; fprintf(stderr," abi=bin fields=");
+        ABC_ARG(ne00); ABC_ARG(ne01); ABC_ARG(ne02); ABC_ARG(ne03); ABC_ARG(nb00); ABC_ARG(nb01); ABC_ARG(nb02); ABC_ARG(nb03); ABC_ARG(ne10); ABC_ARG(ne11); ABC_ARG(ne12); ABC_ARG(ne13); ABC_ARG(nb10); ABC_ARG(nb11); ABC_ARG(nb12); ABC_ARG(nb13); ABC_ARG(ne0); ABC_ARG(ne1); ABC_ARG(ne2); ABC_ARG(ne3); ABC_ARG(nb0); ABC_ARG(nb1); ABC_ARG(nb2); ABC_ARG(nb3); ABC_ARG(offs); ABC_ARG(o1);
+    }
+    else if ((e->abc_op==GGML_OP_RMS_NORM) && size==sizeof(ggml_metal_kargs_norm)) {
+        const ggml_metal_kargs_norm * p=data; fprintf(stderr," abi=norm fields=");
+        ABC_ARG(ne00); ABC_ARG(ne00_t); ABC_ARG(nb1); ABC_ARG(nb2); ABC_ARG(nb3); ABC_ARG(eps); ABC_ARG(nef1); ABC_ARG(nef2); ABC_ARG(nef3); ABC_ARG(nbf1); ABC_ARG(nbf2); ABC_ARG(nbf3); ABC_ARG(scale); ABC_ARG(bias);
+    }
+    else { fprintf(stderr," abi=raw fields=unclassified:"); h=ggml_metal_abc_hash(h,data,size); }
+#undef ABC_ARG
+    fprintf(stderr," hash=%016llx\n",(unsigned long long)h);funlockfile(stderr);
+}
+
+const char * ggml_metal_pipeline_name(struct ggml_metal_pipeline_with_params pipeline) {
+    return pipeline.pipeline && pipeline.pipeline->trace_name ? pipeline.pipeline->trace_name : "unlabelled";
+}
+
 void ggml_metal_encoder_set_pipeline(ggml_metal_encoder_t encoder, struct ggml_metal_pipeline_with_params pipeline) {
     if (!pipeline.pipeline) {
         GGML_ABORT("%s: nil Metal pipeline (missing kernel; see compile_pipeline log above)\n", __func__);
     }
 
+    if(encoder->abc_active) { ggml_metal_abc_event(encoder,"pipeline"); fprintf(stderr," pso=%p symbol=%s nr0=%d nr1=%d nsg=%d smem=%zu c4=%d cnt=%d\n",(void*)pipeline.pipeline->obj,pipeline.pipeline->trace_name?pipeline.pipeline->trace_name:"none",pipeline.nr0,pipeline.nr1,pipeline.nsg,pipeline.smem,pipeline.c4,pipeline.cnt);funlockfile(stderr); }
     [encoder->obj setComputePipelineState:pipeline.pipeline->obj];
 }
 
+void * ggml_metal_encoder_get_obj(ggml_metal_encoder_t encoder) {
+    return (void *) encoder->obj;
+}
+
+static dispatch_group_t ggml_metal_bitnet_shadow_group(void) {
+    static dispatch_group_t group;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ group = dispatch_group_create(); });
+    return group;
+}
+
+void ggml_metal_bitnet_shadow_wait(void) {
+    dispatch_group_wait(ggml_metal_bitnet_shadow_group(), DISPATCH_TIME_FOREVER);
+}
+
+bool ggml_metal_encoder_bitnet_shadow(ggml_metal_encoder_t encoder, struct ggml_metal_pipeline_with_params pipeline,
+        struct ggml_metal_buffer_id source, size_t bytes, const char * path) {
+    if (!pipeline.pipeline || (bytes != 6912*sizeof(float) && bytes != 2560*sizeof(float)) ||
+            !path || !ggml_metal_buffer_contains(source, bytes)) {
+        return false;
+    }
+    id<MTLBuffer> shadow = [encoder->obj.device newBufferWithLength:bytes options:MTLResourceStorageModeShared];
+    NSString * filename = [NSString stringWithUTF8String:path];
+    if (!shadow || !filename) { [shadow release]; return false; }
+    NSError * error = nil;
+    if (![[NSFileManager defaultManager] createDirectoryAtPath:filename.stringByDeletingLastPathComponent
+            withIntermediateDirectories:YES attributes:nil error:&error]) { [shadow release]; return false; }
+    [encoder->obj setComputePipelineState:pipeline.pipeline->obj];
+    [encoder->obj setBuffer:source.metal offset:source.offs atIndex:0];
+    [encoder->obj setBuffer:shadow offset:0 atIndex:1];
+    [encoder->obj dispatchThreadgroups:MTLSizeMake(bytes/(256*sizeof(float)),1,1) threadsPerThreadgroup:MTLSizeMake(256,1,1)];
+    id<MTLCommandBuffer> command = encoder->command_buffer;
+    dispatch_group_t group = ggml_metal_bitnet_shadow_group();
+    dispatch_group_enter(group);
+    fprintf(stderr, "BITNET_FFN_SHADOW_ENCODE path=%s bytes=%zu command=%p diagnostic_only=1\n", path, bytes, (void *) command);
+    [command addCompletedHandler:^(id<MTLCommandBuffer> done) {
+        bool saved = false;
+        if (done.status == MTLCommandBufferStatusCompleted) {
+            FILE * file = fopen(filename.fileSystemRepresentation, "wb");
+            if (file) { saved = fwrite(shadow.contents, 1, bytes, file) == bytes; saved = fclose(file) == 0 && saved; }
+        }
+        fprintf(stderr, "BITNET_FFN_SHADOW_COMPLETE path=%s bytes=%zu command=%p status=%lu saved=%d\n",
+                filename.fileSystemRepresentation, bytes, (void *) done, (unsigned long) done.status, saved);
+        [shadow release];
+        dispatch_group_leave(group);
+    }];
+    return true;
+}
+
 void ggml_metal_encoder_set_bytes(ggml_metal_encoder_t encoder, void * data, size_t size, int idx) {
+    if(encoder->abc_active) { ggml_metal_abc_event(encoder,"bytes");fprintf(stderr," index=%d size=%zu",idx,size);ggml_metal_abc_args(encoder,data,size); }
     [encoder->obj setBytes:data length:size atIndex:idx];
 }
 
+bool ggml_metal_buffer_contains(struct ggml_metal_buffer_id binding, size_t bytes) {
+    id<MTLBuffer> buffer = (id<MTLBuffer>) binding.metal;
+    return buffer && binding.offs <= buffer.length && bytes <= buffer.length - binding.offs;
+}
+
+static void ggml_metal_trace_bitnet_completion(id<MTLCommandBuffer> command, const char * route, int tokens) {
+    [command addCompletedHandler:^(id<MTLCommandBuffer> done) {
+        fprintf(stderr, "BITNET_GPU_COMPLETE route=%s n=%d command=%p status=%lu completed=%d\n",
+            route, tokens, (void *) done, (unsigned long) done.status, done.status == MTLCommandBufferStatusCompleted);
+    }];
+}
+
+void ggml_metal_encoder_trace_bitnet(ggml_metal_encoder_t encoder, struct ggml_metal_pipeline_with_params pipeline,
+        const char * route, int tokens, int grid_x, int grid_y, int grid_z, int threads_y) {
+    id<MTLCommandBuffer> command = encoder->command_buffer;
+    const char * label = pipeline.pipeline->trace_name;
+    fprintf(stderr,
+        "BITNET_ENCODE route=%s n=%d pipeline=%s grid=[%d,%d,%d] threads=[32,%d,1] command=%p\n",
+        route, tokens, label ? label : "(unlabelled)", grid_x, grid_y, grid_z, threads_y, (void *) command);
+    ggml_metal_trace_bitnet_completion(command, route, tokens);
+}
+
+void ggml_metal_encoder_trace_bitnet_stage(ggml_metal_encoder_t encoder, struct ggml_metal_pipeline_with_params pipeline,
+        const char * route, int tokens) {
+    id<MTLCommandBuffer> command = encoder->command_buffer;
+    const char * label = pipeline.pipeline->trace_name;
+    fprintf(stderr, "BITNET_FFN_STAGE route=%s n=%d pipeline=%s command=%p\n",
+            route, tokens, label ? label : "(unlabelled)", (void *) command);
+    ggml_metal_trace_bitnet_completion(command, route, tokens);
+}
+
+void ggml_metal_encoder_trace_bitnet_node(ggml_metal_encoder_t encoder, struct ggml_metal_pipeline_with_params pipeline,
+        const char * route, int layer, const struct ggml_tensor * node, const struct ggml_tensor * output,
+        int grid_x, int grid_y, int grid_z, int threads_x, int threads_y) {
+    id<MTLCommandBuffer> command = encoder->command_buffer;
+    NSString * node_name = [NSString stringWithUTF8String:node->name];
+    NSString * weight_name = [NSString stringWithUTF8String:node->src[0]->name];
+    NSString * output_name = [NSString stringWithUTF8String:output->name];
+    const int tokens = node->ne[1];
+    const char * label = pipeline.pipeline->trace_name;
+    fprintf(stderr, "BITNET_MULTILAYER_ENCODE route=%s layer=%d node=%s weight=%s output=%s n=%d pipeline=%s grid=[%d,%d,%d] threads=[%d,%d,1] command=%p\n",
+            route, layer, node_name.UTF8String, weight_name.UTF8String, output_name.UTF8String, tokens,
+            label ? label : "(unlabelled)", grid_x, grid_y, grid_z, threads_x, threads_y, (void *) command);
+    [command addCompletedHandler:^(id<MTLCommandBuffer> done) {
+        fprintf(stderr, "BITNET_MULTILAYER_COMPLETE route=%s layer=%d node=%s weight=%s output=%s n=%d command=%p status=%lu completed=%d\n",
+                route, layer, node_name.UTF8String, weight_name.UTF8String, output_name.UTF8String, tokens,
+                (void *) done, (unsigned long) done.status, done.status == MTLCommandBufferStatusCompleted);
+    }];
+}
+
 void ggml_metal_encoder_set_buffer(ggml_metal_encoder_t encoder, struct ggml_metal_buffer_id buffer, int idx) {
+    if(encoder->abc_active) { ggml_metal_abc_event(encoder,"buffer");fprintf(stderr," index=%d buffer=%p offset=%zu\n",idx,buffer.metal,buffer.offs);funlockfile(stderr); }
     [encoder->obj setBuffer:buffer.metal offset:buffer.offs atIndex:idx];
 }
 
 void ggml_metal_encoder_set_threadgroup_memory_size(ggml_metal_encoder_t encoder, size_t size, int idx) {
+    if(encoder->abc_active) { ggml_metal_abc_event(encoder,"threadgroup_memory");fprintf(stderr," index=%d size=%zu\n",idx,size);funlockfile(stderr); }
     // ref: https://developer.apple.com/documentation/metal/mtlcomputecommandencoder/setthreadgroupmemorylength(_:index:)
     GGML_ASSERT(size % 16 == 0);
 
@@ -901,14 +1162,18 @@ void ggml_metal_encoder_set_threadgroup_memory_size(ggml_metal_encoder_t encoder
 }
 
 void ggml_metal_encoder_dispatch_threadgroups(ggml_metal_encoder_t encoder, int tg0, int tg1, int tg2, int tptg0, int tptg1, int tptg2) {
+    if(encoder->abc_active) { ggml_metal_abc_event(encoder,"dispatch");fprintf(stderr," grid=[%d,%d,%d] threads=[%d,%d,%d]\n",tg0,tg1,tg2,tptg0,tptg1,tptg2);funlockfile(stderr); }
     [encoder->obj dispatchThreadgroups:MTLSizeMake(tg0, tg1, tg2) threadsPerThreadgroup:MTLSizeMake(tptg0, tptg1, tptg2)];
 }
 
 void ggml_metal_encoder_memory_barrier(ggml_metal_encoder_t encoder) {
+    if(encoder->abc_trace) { ++encoder->abc_barriers; }
+    if(encoder->abc_active) { ggml_metal_abc_event(encoder,"barrier");fprintf(stderr," scope=buffers\n");funlockfile(stderr); }
     [encoder->obj memoryBarrierWithScope:MTLBarrierScopeBuffers];
 }
 
 void ggml_metal_encoder_end_encoding(ggml_metal_encoder_t encoder) {
+    if(encoder->abc_trace) { ggml_metal_abc_event(encoder,"encoder_end");fprintf(stderr,"\n");funlockfile(stderr); }
     [encoder->obj endEncoding];
 }
 

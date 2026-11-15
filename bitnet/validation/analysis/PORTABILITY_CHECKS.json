@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "scope": "Relocated source syntax/help, bootstrap rejection paths and CPU evaluator controls only",
+  "GPU_executed": false,
+  "build_executed": false,
+  "native_harness_executed": false,
+  "python_executable": "/usr/bin/python3",
+  "checks": [
+    {
+      "name": "syntax_and_help:analyze.py",
+      "pass": true,
+      "exit_code": 0
+    },
+    {
+      "name": "syntax_and_help:bootstrap.py",
+      "pass": true,
+      "exit_code": 0
+    },
+    {
+      "name": "syntax_and_help:build.py",
+      "pass": true,
+      "exit_code": 0
+    },
+    {
+      "name": "syntax_and_help:cpu-checks.py",
+      "pass": true,
+      "exit_code": 0
+    },
+    {
+      "name": "syntax_and_help:prepare-real-inputs.py",
+      "pass": true,
+      "exit_code": 0
+    },
+    {
+      "name": "syntax_and_help:smoke.py",
+      "pass": true,
+      "exit_code": 0
+    },
+    {
+      "name": "reject_existing_work_root",
+      "pass": true,
+      "exit_code": 2
+    },
+    {
+      "name": "reject_checkout_work_root",
+      "pass": true,
+      "exit_code": 2
+    },
+    {
+      "name": "reject_nonpositive_jobs",
+      "pass": true,
+      "exit_code": 2
+    },
+    {
+      "name": "evaluator_controls_on_copies_of_historical_native_outputs",
+      "pass": true,
+      "exit_code": 0,
+      "passed_checks": 17,
+      "total_checks": 17,
+      "GPU_executed": false
+    }
+  ],
+  "pass": true,
+  "source_sha256": {
+    "analyze.py": "a5a483770e5c6556c33d5749f11e4c65eb917d78734af178810467142309884d",
+    "bootstrap.py": "493e40f6bea62034bd437c7633decd56b11aceaa023cb0f90abb6a245adb9116",
+    "build.py": "7406c5990845f179141ce9e9c8dbc4011d6ef88fb50449c726c18fffbbea6152",
+    "cpu-checks.py": "f9e9fd1b1de6b29c80a2ebe627f53a7b86b1fdd3e0e470b60e20045441088db8",
+    "prepare-real-inputs.py": "e2a3ab18e812f4c81812222ccfa8843aff64a39866d73a69d64540bf09f71e25",
+    "smoke.py": "40ebd7d706cb043cf99cf3e7e2518530b969f5d6f61390e58bb66e38eedd969f"
+  }
+}

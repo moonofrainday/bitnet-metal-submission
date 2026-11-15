@@ -343,7 +343,10 @@ class ModelBase:
                 data = data & 3
                 data = (data.float() - 1).reshape((orig_shape[0] * 4, *orig_shape[1:]))
 
-                # The scale is inverted
+                if quant_config.get("linear_class") == "autobitlinear":
+                    return data * scale.float()
+
+                # Legacy BitLinear stores the inverse scale.
                 return data / scale.float()
 
             def dequant_simple(weight: Tensor, scale: Tensor, block_size: Sequence[int] | None = None) -> Tensor:
