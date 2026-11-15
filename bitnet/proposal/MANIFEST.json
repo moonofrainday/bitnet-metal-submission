@@ -1,0 +1,68 @@
+{
+  "evidence_cutoff": "2026-11-15 Asia/Tokyo",
+  "reviewed_implementation_commit": "bbf70e9cc70302534ff87b4f34d4ce52a9670baa",
+  "QVAC_commit": "2db8b046d555316019ae75d1be90484adc8b9330",
+  "artifact_type": "English proposal draft for author review",
+  "pages": {
+    "PDF": 16,
+    "DOCX_render": 16
+  },
+  "all_11_brief_topics_covered": true,
+  "new_GPU_measurements": false,
+  "raw_experiment_data_included": false,
+  "timing_hardware_scope": "Physical iPhone only",
+  "native_compute_source_changed": false,
+  "numerical_threshold_changed": false,
+  "source": "PROPOSAL.md",
+  "outputs": [
+    {
+      "path": "PROPOSAL.md",
+      "bytes": 40922,
+      "sha256": "088cf4ad654241c02e2a0e5554fd78ec20b80b444c805a8ad7510291e40e3885"
+    },
+    {
+      "path": "OUTLINE.md",
+      "bytes": 1604,
+      "sha256": "c7d1ce78f2edd5466aa91b333f894cb61d98060f23cfc6a7a9ef7f8ab63f2773"
+    },
+    {
+      "path": "render_proposal.py",
+      "bytes": 15866,
+      "sha256": "f6aa6e562bc34e1dc349e851d2b07171ed5f7df4d5ef2cc7b9273987b1513fc1"
+    },
+    {
+      "path": "requirements-docs.txt",
+      "bytes": 119,
+      "sha256": "f8980429a9253080facb2a4555051602b8b4ee77d3251fc5e2af2ecb6b3aee78"
+    },
+    {
+      "path": "assets/execution-flow.png",
+      "bytes": 60869,
+      "sha256": "7f26209c39026c477b70b4fcd10b57778f0805791b2421c430656497c6088d6c"
+    },
+    {
+      "path": "assets/execution-flow.svg",
+      "bytes": 4125,
+      "sha256": "4a5e332bd79d11440a683126d733414fbd900397b32e4c423b2cc57223a64e9e"
+    },
+    {
+      "path": "BitNet_Mobile_GPU_Proposal.pdf",
+      "bytes": 211593,
+      "sha256": "8011b674a45c02e4ed95761391d46f3d17e6c8c6cccf0f3826ac5e220ba2caec"
+    },
+    {
+      "path": "BitNet_Mobile_GPU_Proposal.docx",
+      "bytes": 118555,
+      "sha256": "5da8f8f0bdea4eed8abaf72e46adc0d7f101d61c732da28db78eb0ee6575d6f1"
+    }
+  ],
+  "quality_review": {
+    "all_11_topics_covered": true,
+    "independent_content_review": "pass",
+    "PDF_pages_visually_inspected": 16,
+    "DOCX_pages_visually_inspected": 16,
+    "clipping_overlap_or_missing_glyphs_observed": false,
+    "title_paragraph_borders_remaining": 0,
+    "personal_host_device_or_signing_IDs_embedded": false
+  }
+}

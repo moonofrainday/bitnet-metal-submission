@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1760" height="460" viewBox="0 0 1760 460">
+<rect width="100%" height="100%" fill="white"/>
+<rect x="10" y="125" width="275" height="150" rx="10" fill="#F1F4F7" stroke="#7A8793" stroke-width="2"/>
+<text x="147.5" y="171" text-anchor="middle" font-family="Arial" font-size="29" font-weight="bold">GGUF and tokens</text>
+<text x="147.5" y="208" text-anchor="middle" font-family="Arial" font-size="28" font-weight="normal">Model contract</text>
+<text x="147.5" y="245" text-anchor="middle" font-family="Arial" font-size="28" font-weight="normal">Packed weights</text>
+<rect x="335" y="125" width="310" height="150" rx="10" fill="#F1F4F7" stroke="#7A8793" stroke-width="2"/>
+<text x="490.0" y="171" text-anchor="middle" font-family="Arial" font-size="29" font-weight="bold">llama.cpp graph</text>
+<text x="490.0" y="208" text-anchor="middle" font-family="Arial" font-size="28" font-weight="normal">Layer 0 and others</text>
+<text x="490.0" y="245" text-anchor="middle" font-family="Arial" font-size="28" font-weight="normal">Backend allocation</text>
+<rect x="700" y="125" width="315" height="150" rx="10" fill="#F1F4F7" stroke="#7A8793" stroke-width="2"/>
+<text x="857.5" y="171" text-anchor="middle" font-family="Arial" font-size="29" font-weight="bold">Runtime guard</text>
+<text x="857.5" y="208" text-anchor="middle" font-family="Arial" font-size="28" font-weight="normal">Qcur-0 and N = 1</text>
+<text x="857.5" y="245" text-anchor="middle" font-family="Arial" font-size="28" font-weight="normal">Live W X Y ranges</text>
+<rect x="1070" y="15" width="325" height="150" rx="10" fill="#F1F4F7" stroke="#7A8793" stroke-width="2"/>
+<text x="1232.5" y="61" text-anchor="middle" font-family="Arial" font-size="29" font-weight="bold">Stock Metal</text>
+<text x="1232.5" y="98" text-anchor="middle" font-family="Arial" font-size="28" font-weight="normal">Default and fallback</text>
+<text x="1232.5" y="135" text-anchor="middle" font-family="Arial" font-size="28" font-weight="normal">All other nodes</text>
+<rect x="1070" y="245" width="325" height="150" rx="10" fill="#E6EFF8" stroke="#7A8793" stroke-width="2"/>
+<text x="1232.5" y="291" text-anchor="middle" font-family="Arial" font-size="29" font-weight="bold">Opt in Q4</text>
+<text x="1232.5" y="328" text-anchor="middle" font-family="Arial" font-size="28" font-weight="normal">Four row helper</text>
+<text x="1232.5" y="365" text-anchor="middle" font-family="Arial" font-size="28" font-weight="normal">One SIMD group</text>
+<rect x="1450" y="125" width="300" height="150" rx="10" fill="#F1F4F7" stroke="#7A8793" stroke-width="2"/>
+<text x="1600.0" y="171" text-anchor="middle" font-family="Arial" font-size="29" font-weight="bold">GPU completion</text>
+<text x="1600.0" y="208" text-anchor="middle" font-family="Arial" font-size="28" font-weight="normal">Residual and logits</text>
+<text x="1600.0" y="245" text-anchor="middle" font-family="Arial" font-size="28" font-weight="normal">Framework continues</text>
+<polyline points="285,200 335,200" fill="none" stroke="#465461" stroke-width="4"/>
+<polygon points="335,200 321,192 321,208" fill="#465461"/>
+<polyline points="645,200 700,200" fill="none" stroke="#465461" stroke-width="4"/>
+<polygon points="700,200 686,192 686,208" fill="#465461"/>
+<polyline points="1015,175 1040,175 1040,90 1070,90" fill="none" stroke="#465461" stroke-width="4"/>
+<polygon points="1070,90 1056,82 1056,98" fill="#465461"/>
+<polyline points="1015,225 1040,225 1040,320 1070,320" fill="none" stroke="#465461" stroke-width="4"/>
+<polygon points="1070,320 1056,312 1056,328" fill="#465461"/>
+<polyline points="1395,90 1420,90 1420,175 1450,175" fill="none" stroke="#465461" stroke-width="4"/>
+<polygon points="1450,175 1436,167 1436,183" fill="#465461"/>
+<polyline points="1395,320 1420,320 1420,225 1450,225" fill="none" stroke="#465461" stroke-width="4"/>
+<polygon points="1450,225 1436,217 1436,233" fill="#465461"/>
+<text x="880" y="447" text-anchor="middle" font-family="Arial" font-size="28">One eligible projection is replaced; the surrounding Transformer operations remain stock.</text></svg>

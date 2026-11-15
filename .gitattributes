@@ -4,3 +4,7 @@ bitnet/ios/histories/*/prompt.txt -text -whitespace
 # Curated CSV checksums bind the original line endings.
 bitnet/validation/analysis/*.csv -text
 bitnet/analysis/**/*.csv -text
+
+# Treat final report artifacts as binary and preserve their audited bytes.
+bitnet/proposal/*.pdf binary
+bitnet/proposal/*.docx binary

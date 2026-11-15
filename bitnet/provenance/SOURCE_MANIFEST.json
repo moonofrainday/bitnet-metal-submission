@@ -4,8 +4,8 @@
   "files": [
     {
       "path": ".gitattributes",
-      "bytes": 297,
-      "sha256": "9c778a8104705b1044746e9a81c58477eae430f165494cf4397983d5e0810295"
+      "bytes": 432,
+      "sha256": "151f0e68f9941f65688391363c1153f230049a50964673f105c9dd54db0ac15a"
     },
     {
       "path": ".gitignore",
@@ -14,8 +14,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 5272,
-      "sha256": "30959d49b15929c1b92f6df647faf68e023990c6207449f81659c79cc4845470"
+      "bytes": 5400,
+      "sha256": "df903a0594d633b7761a056c0916f28ae62672071d9ada94b0233298ef1bf721"
     },
     {
       "path": "README.upstream.md",
@@ -276,6 +276,56 @@
       "path": "bitnet/patches/q4-readback-additive.patch",
       "bytes": 15924,
       "sha256": "5c44ac2e6f6c408dafc51b89d23cbbe9413ac68be556ce87fbd6bbec1816d2b2"
+    },
+    {
+      "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal.docx",
+      "bytes": 118555,
+      "sha256": "5da8f8f0bdea4eed8abaf72e46adc0d7f101d61c732da28db78eb0ee6575d6f1"
+    },
+    {
+      "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal.pdf",
+      "bytes": 211593,
+      "sha256": "8011b674a45c02e4ed95761391d46f3d17e6c8c6cccf0f3826ac5e220ba2caec"
+    },
+    {
+      "path": "bitnet/proposal/MANIFEST.json",
+      "bytes": 2202,
+      "sha256": "a924218375f85bdaaee625a26b8357406b68c64aeb07ceb27b667b5daa3ec2e8"
+    },
+    {
+      "path": "bitnet/proposal/OUTLINE.md",
+      "bytes": 1604,
+      "sha256": "c7d1ce78f2edd5466aa91b333f894cb61d98060f23cfc6a7a9ef7f8ab63f2773"
+    },
+    {
+      "path": "bitnet/proposal/PROPOSAL.md",
+      "bytes": 40922,
+      "sha256": "088cf4ad654241c02e2a0e5554fd78ec20b80b444c805a8ad7510291e40e3885"
+    },
+    {
+      "path": "bitnet/proposal/README.md",
+      "bytes": 2222,
+      "sha256": "5c81071f5d406fb39f079461e12f3eab922f045eb4f26d586b9b4d9efc268254"
+    },
+    {
+      "path": "bitnet/proposal/assets/execution-flow.png",
+      "bytes": 60869,
+      "sha256": "7f26209c39026c477b70b4fcd10b57778f0805791b2421c430656497c6088d6c"
+    },
+    {
+      "path": "bitnet/proposal/assets/execution-flow.svg",
+      "bytes": 4125,
+      "sha256": "4a5e332bd79d11440a683126d733414fbd900397b32e4c423b2cc57223a64e9e"
+    },
+    {
+      "path": "bitnet/proposal/render_proposal.py",
+      "bytes": 15866,
+      "sha256": "f6aa6e562bc34e1dc349e851d2b07171ed5f7df4d5ef2cc7b9273987b1513fc1"
+    },
+    {
+      "path": "bitnet/proposal/requirements-docs.txt",
+      "bytes": 119,
+      "sha256": "f8980429a9253080facb2a4555051602b8b4ee77d3251fc5e2af2ecb6b3aee78"
     },
     {
       "path": "bitnet/provenance/BASELINE.json",

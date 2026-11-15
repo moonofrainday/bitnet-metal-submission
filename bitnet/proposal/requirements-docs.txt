@@ -1,0 +1,4 @@
+# Tested artifact generation packages; use an isolated environment.
+python-docx==1.2.0
+reportlab==4.4.9
+Pillow==13.0.0
