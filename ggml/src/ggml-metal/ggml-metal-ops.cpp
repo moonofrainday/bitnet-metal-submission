@@ -530,6 +530,10 @@ static int ggml_metal_op_encode_impl(ggml_metal_op_t ctx, int idx) {
             {
                 n_fuse = ggml_metal_op_sum(ctx, idx);
             } break;
+        case GGML_OP_ACT_QUANT:
+            {
+                n_fuse = ggml_metal_op_act_quant(ctx, idx);
+            } break;
         case GGML_OP_SUM_ROWS:
         case GGML_OP_MEAN:
             {
@@ -1419,6 +1423,56 @@ int ggml_metal_op_sum(ggml_metal_op_t ctx, int idx) {
 
     ggml_metal_encoder_dispatch_threadgroups(enc, 1, 1, 1, nth, 1, 1);
 
+    return 1;
+}
+
+int ggml_metal_op_act_quant(ggml_metal_op_t ctx, int idx) {
+    ggml_tensor * op = ctx->node(idx);
+    const ggml_tensor * src = op->src[0];
+    GGML_ASSERT(src && src->type == GGML_TYPE_F32 && op->type == GGML_TYPE_F32);
+    GGML_ASSERT(ggml_is_contiguous(src) && ggml_is_contiguous(op));
+    GGML_ASSERT(ggml_are_same_shape(src, op) && src->ne[0] > 0);
+
+    const int64_t nrows = ggml_nrows(op);
+    GGML_ASSERT(nrows >= 0 && nrows <= INT32_MAX);
+    if (nrows == 0) {
+        return 1;
+    }
+    float eps;
+    memcpy(&eps, op->op_params, sizeof(eps));
+    GGML_ASSERT(std::isfinite(eps) && eps > 0.0f);
+    ggml_metal_kargs_act_quant args = { src->ne[0], nrows, eps };
+    const auto source = ggml_metal_get_buffer_id(src);
+    const auto output = ggml_metal_get_buffer_id(op);
+    const size_t bytes = ggml_nbytes(op);
+    GGML_ASSERT(source.metal && output.metal && source.offs % sizeof(float) == 0 && output.offs % sizeof(float) == 0);
+    GGML_ASSERT(ggml_metal_buffer_contains(source, bytes) && ggml_metal_buffer_contains(output, bytes));
+    if (source.metal == output.metal) {
+        GGML_ASSERT(source.offs <= output.offs ? output.offs - source.offs >= bytes : source.offs - output.offs >= bytes);
+    }
+
+    const auto pipeline = ggml_metal_library_get_pipeline_base(ctx->lib, GGML_OP_ACT_QUANT);
+    const int width = ggml_metal_pipeline_thread_execution_width(pipeline);
+    const int limit = ggml_metal_pipeline_max_theads_per_threadgroup(pipeline);
+    GGML_ASSERT(width > 0 && limit >= width);
+    const int nth = std::max(width, std::min(256, limit)/width*width);
+    const int groups = nth/width;
+    GGML_ASSERT(nth >= width && groups <= width);
+    ggml_metal_encoder_set_pipeline(ctx->enc, pipeline);
+    ggml_metal_encoder_set_bytes(ctx->enc, &args, sizeof(args), 0);
+    ggml_metal_encoder_set_buffer(ctx->enc, source, 1);
+    ggml_metal_encoder_set_buffer(ctx->enc, output, 2);
+    ggml_metal_encoder_set_threadgroup_memory_size(ctx->enc, GGML_PAD(width*sizeof(float), 16), 0);
+    ggml_metal_encoder_set_threadgroup_memory_size(ctx->enc, GGML_PAD(width*sizeof(uint32_t), 16), 1);
+    ggml_metal_encoder_dispatch_threadgroups(ctx->enc, (int) nrows, 1, 1, nth, 1, 1);
+    const char * trace = std::getenv("GGML_METAL_ACTQUANT_TRACE");
+    if (trace && std::strcmp(trace, "1") == 0) {
+        std::fprintf(stderr, "ACT_QUANT_ENCODE node=%s kernel=kernel_act_quant_f32 pipeline=%p ne=[%lld,%lld,%lld,%lld] src_nb=[%zu,%zu,%zu,%zu] dst_nb=[%zu,%zu,%zu,%zu] src_buffer=%p src_offset=%zu dst_buffer=%p dst_offset=%zu bytes=%zu eps=%.9g grid=[%lld,1,1] threads=[%d,1,1] precise=1 non_inplace=1\n",
+            op->name, (void *) pipeline.pipeline,
+            (long long) op->ne[0], (long long) op->ne[1], (long long) op->ne[2], (long long) op->ne[3],
+            src->nb[0], src->nb[1], src->nb[2], src->nb[3], op->nb[0], op->nb[1], op->nb[2], op->nb[3],
+            source.metal, source.offs, output.metal, output.offs, bytes, eps, (long long) nrows, nth);
+    }
     return 1;
 }
 

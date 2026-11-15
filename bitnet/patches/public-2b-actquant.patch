@@ -1,0 +1,741 @@
+diff --git a/docs/ops.md b/docs/ops.md
+index 26fc564..9f20ed3 100644
+--- a/docs/ops.md
++++ b/docs/ops.md
+@@ -2,6 +2,21 @@
+ 
+ List of GGML operations and backend support status.
+ 
++## Experimental BitNet extension
++
++This fork adds `ACT_QUANT` (`ggml_act_quant`) for finite, contiguous F32 inputs
++with one token per `ne[0]` row and a separate F32 output. CPU and Metal implement
++per-token absmax INT8 fake quantization with ties-to-even rounding. The scale
++evaluation follows the pinned Torch eager reference profile: F32 `1 / max(absmax,
++eps)` followed by F32 multiplication by `127`; output is the rounded/clamped
++integer code divided by that scale. Other backends have no implementation.
++The targeted `test-backend-ops -o ACT_QUANT` cases check cross-backend shapes,
++tail rows, contiguous views, zero rows and half ties; the independent
++source-derived Microsoft fixtures in `bitnet/actquant` provide the separate
++numerical oracle. Neither test establishes full-model semantic or quality parity.
++The generated historical support matrix below has not been regenerated for this
++experimental operation; no support CSV measurements are inferred from this note.
++
+ ## How to add a backend to this table:
+ 
+ 1. Run `test-backend-ops support --output csv` with your backend name and redirect output to a csv file in `docs/ops/` (e.g., `docs/ops/CUDA.csv`)
+diff --git a/ggml/include/ggml.h b/ggml/include/ggml.h
+index c9753ee..9b1351e 100644
+--- a/ggml/include/ggml.h
++++ b/ggml/include/ggml.h
+@@ -670,6 +670,8 @@ extern "C" {
+         GGML_OP_GATED_DELTA_NET_DEFERRED,
+         GGML_OP_GDN_CONV_DEFERRED,
+ 
++        GGML_OP_ACT_QUANT,
++
+         GGML_OP_COUNT,
+     };
+ 
+@@ -1947,6 +1949,14 @@ extern "C" {
+             struct ggml_tensor  * a,
+             int                   n_past);
+ 
++    // Per-token absmax INT8 quantize/dequantize along ne0, with ties-to-even.
++    // Contiguous F32 input and newly allocated F32 output. Finite inputs only.
++    // Inference-only: no backward implementation.
++    GGML_API struct ggml_tensor * ggml_act_quant(
++            struct ggml_context * ctx,
++            struct ggml_tensor  * a,
++            float                 eps);
++
+     GGML_API struct ggml_tensor * ggml_clamp(
+             struct ggml_context * ctx,
+             struct ggml_tensor  * a,
+diff --git a/ggml/src/ggml-cpu/ggml-cpu.c b/ggml/src/ggml-cpu/ggml-cpu.c
+index 735ea32..520819a 100644
+--- a/ggml/src/ggml-cpu/ggml-cpu.c
++++ b/ggml/src/ggml-cpu/ggml-cpu.c
+@@ -1897,6 +1897,10 @@ static void ggml_compute_forward(struct ggml_compute_params * params, struct ggm
+             {
+                 ggml_compute_forward_sum(params, tensor);
+             } break;
++        case GGML_OP_ACT_QUANT:
++            {
++                ggml_compute_forward_act_quant(params, tensor);
++            } break;
+         case GGML_OP_SUM_ROWS:
+             {
+                 ggml_compute_forward_sum_rows(params, tensor);
+@@ -2460,6 +2464,7 @@ static int ggml_get_n_tasks(struct ggml_tensor * node, int n_threads) {
+         case GGML_OP_CUMSUM:
+         case GGML_OP_TRI:
+         case GGML_OP_FILL:
++        case GGML_OP_ACT_QUANT:
+             {
+                 n_tasks = n_threads;
+             } break;
+diff --git a/ggml/src/ggml-cpu/ggml-cpu.cpp b/ggml/src/ggml-cpu/ggml-cpu.cpp
+index c5f271c..33c36b5 100644
+--- a/ggml/src/ggml-cpu/ggml-cpu.cpp
++++ b/ggml/src/ggml-cpu/ggml-cpu.cpp
+@@ -11,6 +11,7 @@
+ #include "amx/amx.h"
+ 
+ #include <cctype>
++#include <cmath>
+ #include <string>
+ #include <vector>
+ 
+@@ -513,6 +514,13 @@ static bool ggml_backend_cpu_device_supports_op(ggml_backend_dev_t dev, const st
+                    (src1->type == GGML_TYPE_BF16 && ggml_get_type_traits_cpu(src0->type)->vec_dot_type == GGML_TYPE_F32) ||
+                    (src0->type == GGML_TYPE_TQ2_0 &&
+                        (src1->type == GGML_TYPE_Q8_1 || src1->type == GGML_TYPE_Q8_0));
++        case GGML_OP_ACT_QUANT: {
++            float eps;
++            memcpy(&eps, op->op_params, sizeof(eps));
++            return src0 && src0->type == GGML_TYPE_F32 && op->type == GGML_TYPE_F32 &&
++                src0->ne[0] > 0 && ggml_is_contiguous(src0) && ggml_is_contiguous(op) &&
++                ggml_are_same_shape(src0, op) && std::isfinite(eps) && eps > 0.0f;
++        }
+         case GGML_OP_SOFT_MAX_BACK: {
+             if (op->src[0]->type != GGML_TYPE_F32 || op->src[1]->type != GGML_TYPE_F32) {
+                 return false;
+diff --git a/ggml/src/ggml-cpu/ops.cpp b/ggml/src/ggml-cpu/ops.cpp
+index cbef321..2df26fc 100644
+--- a/ggml/src/ggml-cpu/ops.cpp
++++ b/ggml/src/ggml-cpu/ops.cpp
+@@ -1517,6 +1517,65 @@ void ggml_compute_forward_cumsum(
+     }
+ }
+ 
++// ggml_compute_forward_act_quant
++
++static float ggml_act_quant_round_even(float x) {
++    if (!std::isfinite(x)) {
++        return x;
++    }
++    const float lower = std::floor(x);
++    const float fraction = x - lower;
++    float result = lower;
++    if (fraction > 0.5f || (fraction == 0.5f && std::fmod(lower, 2.0f) != 0.0f)) {
++        result = lower + 1.0f;
++    }
++    return std::copysign(result, x);
++}
++
++void ggml_compute_forward_act_quant(
++        const ggml_compute_params * params,
++        ggml_tensor * dst) {
++    const ggml_tensor * src = dst->src[0];
++    GGML_ASSERT(src->type == GGML_TYPE_F32 && dst->type == GGML_TYPE_F32);
++    GGML_ASSERT(ggml_is_contiguous(src) && ggml_is_contiguous(dst));
++    GGML_ASSERT(ggml_are_same_shape(src, dst));
++    GGML_ASSERT(src->ne[0] > 0 && src->data != dst->data);
++
++    float eps;
++    memcpy(&eps, dst->op_params, sizeof(eps));
++    GGML_ASSERT(std::isfinite(eps) && eps > 0.0f);
++    const int64_t ncols = src->ne[0];
++    const int64_t nrows = ggml_nrows(src);
++    const float * input = (const float *) src->data;
++    float * output = (float *) dst->data;
++
++    for (int64_t row = params->ith; row < nrows; row += params->nth) {
++        const float * x = input + row*ncols;
++        float * y = output + row*ncols;
++        float amax = 0.0f;
++        bool finite = true;
++        for (int64_t j = 0; j < ncols; ++j) {
++            finite = finite && std::isfinite(x[j]);
++            amax = std::max(amax, std::fabs(x[j]));
++        }
++        if (!finite) {
++            std::fill(y, y + ncols, NAN);
++            continue;
++        }
++        // Match the pinned Torch eager source profile: scalar / tensor is
++        // evaluated as F32 reciprocal followed by F32 multiplication. A single
++        // 127/amax division can move an activation across a half-integer boundary.
++        const float reciprocal = 1.0f/std::max(amax, eps);
++        const float scale = reciprocal*127.0f;
++        for (int64_t j = 0; j < ncols; ++j) {
++            const float scaled = x[j]*scale;
++            const float rounded = ggml_act_quant_round_even(scaled);
++            const float quantized = std::min(std::max(rounded, -128.0f), 127.0f);
++            y[j] = quantized/scale;
++        }
++    }
++}
++
+ // ggml_compute_forward_sum_rows
+ 
+ static void ggml_compute_forward_sum_rows_f32(
+diff --git a/ggml/src/ggml-cpu/ops.h b/ggml/src/ggml-cpu/ops.h
+index e76e3ce..5e4719c 100644
+--- a/ggml/src/ggml-cpu/ops.h
++++ b/ggml/src/ggml-cpu/ops.h
+@@ -33,6 +33,7 @@ void ggml_compute_forward_add1(const struct ggml_compute_params * params, struct
+ void ggml_compute_forward_acc(const struct ggml_compute_params * params, struct ggml_tensor * dst);
+ void ggml_compute_forward_sum(const struct ggml_compute_params * params, struct ggml_tensor * dst);
+ void ggml_compute_forward_sum_rows(const struct ggml_compute_params * params, struct ggml_tensor * dst);
++void ggml_compute_forward_act_quant(const struct ggml_compute_params * params, struct ggml_tensor * dst);
+ void ggml_compute_forward_cumsum(const struct ggml_compute_params * params, struct ggml_tensor * dst);
+ void ggml_compute_forward_mean(const struct ggml_compute_params * params, struct ggml_tensor * dst);
+ void ggml_compute_forward_argmax(const struct ggml_compute_params * params, struct ggml_tensor * dst);
+diff --git a/ggml/src/ggml-metal/CMakeLists.txt b/ggml/src/ggml-metal/CMakeLists.txt
+index 2165050..b8aeca3 100644
+--- a/ggml/src/ggml-metal/CMakeLists.txt
++++ b/ggml/src/ggml-metal/CMakeLists.txt
+@@ -74,6 +74,7 @@ set(METALLIB_KERNEL_SOURCES
+     kernels/pool.metal
+     kernels/misc.metal
+     kernels/out_prod.metal
++    kernels/act_quant.metal
+ )
+ 
+ if (GGML_METAL_EMBED_LIBRARY)
+@@ -211,9 +212,13 @@ else()
+         get_filename_component(name ${src} NAME_WE)
+         set(AIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${name}.air")
+         list(APPEND AIR_FILES ${AIR})
++        set(XC_FLAGS_SOURCE ${XC_FLAGS})
++        if(name STREQUAL "act_quant")
++            list(APPEND XC_FLAGS_SOURCE -fno-fast-math -ffp-contract=off)
++        endif()
+         add_custom_command(
+             OUTPUT ${AIR}
+-            COMMAND xcrun -sdk ${METAL_SDK} metal ${XC_FLAGS} -I ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} -c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${src} -o ${AIR}
++            COMMAND xcrun -sdk ${METAL_SDK} metal ${XC_FLAGS_SOURCE} -I ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} -c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${src} -o ${AIR}
+             DEPENDS ${src} ${METALLIB_KERNELS_FA_SHARED} kernels/common.h kernels/dequantize.h kernels/quantize.h ${METALLIB_COMMON} ggml-metal-impl.h
+             COMMENT "Compiling ${src}"
+             VERBATIM
+diff --git a/ggml/src/ggml-metal/ggml-metal-device.cpp b/ggml/src/ggml-metal/ggml-metal-device.cpp
+index 02b4d05..1e89b37 100644
+--- a/ggml/src/ggml-metal/ggml-metal-device.cpp
++++ b/ggml/src/ggml-metal/ggml-metal-device.cpp
+@@ -89,7 +89,8 @@ struct ggml_metal_pipeline_with_params ggml_metal_library_get_pipeline_base(ggml
+ 
+     const char * op_str = "undefined";
+     switch (op) {
+-        case GGML_OP_ADD_ID: op_str = "add_id"; break;
++        case GGML_OP_ADD_ID:    op_str = "add_id"; break;
++        case GGML_OP_ACT_QUANT: op_str = "act_quant_f32"; break;
+         default: GGML_ABORT("fatal error");
+     };
+ 
+diff --git a/ggml/src/ggml-metal/ggml-metal-device.m b/ggml/src/ggml-metal/ggml-metal-device.m
+index 59c03f7..9659d5c 100644
+--- a/ggml/src/ggml-metal/ggml-metal-device.m
++++ b/ggml/src/ggml-metal/ggml-metal-device.m
+@@ -156,7 +156,8 @@ int ggml_metal_pipeline_thread_execution_width(struct ggml_metal_pipeline_with_p
+     X(ARGSORT,         argsort)        \
+     X(POOL,            pool)           \
+     X(MISC,            misc)           \
+-    X(OUT_PROD,        out_prod)
++    X(OUT_PROD,        out_prod)       \
++    X(ACT_QUANT,       act_quant)
+ 
+ enum ggml_metal_lib_kind {
+ #define X(e, s) GGML_METAL_LIB_##e,
+@@ -360,6 +361,32 @@ static bool ggml_metal_library_compile_all(
+                 MTLCompileOptions * options = [MTLCompileOptions new];
+                 options.preprocessorMacros = prep;
+                 ggml_metal_compile_options_set_lang(options, ggml_metal_device_get_props(res->dev)->has_tensor);
++                if (kind == GGML_METAL_LIB_ACT_QUANT) {
++                    const char * trace = getenv("GGML_METAL_ACTQUANT_TRACE");
++                    const bool trace_enabled = trace != NULL && strcmp(trace, "1") == 0;
++#if (__MAC_OS_X_VERSION_MAX_ALLOWED >= 150000) || (__IPHONE_OS_VERSION_MAX_ALLOWED >= 180000) || (__TV_OS_VERSION_MAX_ALLOWED >= 180000) || (__VISION_OS_VERSION_MAX_ALLOWED >= 20000)
++                    if (@available(macOS 15.0, iOS 18.0, tvOS 18.0, visionOS 2.0, *)) {
++                        options.mathMode = MTLMathModeSafe;
++                        options.mathFloatingPointFunctions = MTLMathFloatingPointFunctionsPrecise;
++                        if (trace_enabled) {
++                            GGML_LOG_INFO("%s: ACT_QUANT_COMPILE_OPTIONS origin=%s languageVersion=%lu mathMode=%lu mathFloatingPointFunctions=%lu expectedSafe=%lu expectedPrecise=%lu\n",
++                                    __func__, origin, (unsigned long) options.languageVersion,
++                                    (unsigned long) options.mathMode, (unsigned long) options.mathFloatingPointFunctions,
++                                    (unsigned long) MTLMathModeSafe, (unsigned long) MTLMathFloatingPointFunctionsPrecise);
++                        }
++                    } else
++#endif
++                    {
++#pragma clang diagnostic push
++#pragma clang diagnostic ignored "-Wdeprecated-declarations"
++                        options.fastMathEnabled = NO;
++                        if (trace_enabled) {
++                            GGML_LOG_INFO("%s: ACT_QUANT_COMPILE_OPTIONS origin=%s languageVersion=%lu fastMathEnabled=%d\n",
++                                    __func__, origin, (unsigned long) options.languageVersion, (int) options.fastMathEnabled);
++                        }
++#pragma clang diagnostic pop
++                    }
++                }
+ 
+                 lib = [device newLibraryWithSource:src options:options error:&error];
+ 
+@@ -2111,6 +2138,16 @@ bool ggml_metal_device_supports_op(ggml_metal_device_t dev, const struct ggml_te
+             return has_simdgroup_reduction && ggml_is_contiguous(op->src[0]);
+         case GGML_OP_TRI:
+             return ggml_is_contiguous_rows(op->src[0]);
++        case GGML_OP_ACT_QUANT: {
++            float eps;
++            memcpy(&eps, op->op_params, sizeof(eps));
++            return has_simdgroup_reduction && op->src[0] &&
++                op->src[0]->type == GGML_TYPE_F32 && op->type == GGML_TYPE_F32 &&
++                op->src[0]->ne[0] > 0 && ggml_nrows(op) <= INT32_MAX &&
++                ggml_are_same_shape(op->src[0], op) &&
++                ggml_is_contiguous(op->src[0]) && ggml_is_contiguous(op) &&
++                isfinite(eps) && eps > 0.0f;
++        }
+         case GGML_OP_SUM_ROWS:
+         case GGML_OP_CUMSUM:
+         case GGML_OP_MEAN:
+diff --git a/ggml/src/ggml-metal/ggml-metal-impl.h b/ggml/src/ggml-metal/ggml-metal-impl.h
+index a434f4d..c7cfb91 100644
+--- a/ggml/src/ggml-metal/ggml-metal-impl.h
++++ b/ggml/src/ggml-metal/ggml-metal-impl.h
+@@ -1034,6 +1034,12 @@ typedef struct{
+     float    limit;
+ } ggml_metal_kargs_glu;
+ 
++typedef struct {
++    int64_t ncols;
++    int64_t nrows;
++    float eps;
++} ggml_metal_kargs_act_quant;
++
+ typedef struct {
+     uint64_t np;
+ } ggml_metal_kargs_sum;
+diff --git a/ggml/src/ggml-metal/ggml-metal-ops.cpp b/ggml/src/ggml-metal/ggml-metal-ops.cpp
+index ddc2489..529a0be 100644
+--- a/ggml/src/ggml-metal/ggml-metal-ops.cpp
++++ b/ggml/src/ggml-metal/ggml-metal-ops.cpp
+@@ -530,6 +530,10 @@ static int ggml_metal_op_encode_impl(ggml_metal_op_t ctx, int idx) {
+             {
+                 n_fuse = ggml_metal_op_sum(ctx, idx);
+             } break;
++        case GGML_OP_ACT_QUANT:
++            {
++                n_fuse = ggml_metal_op_act_quant(ctx, idx);
++            } break;
+         case GGML_OP_SUM_ROWS:
+         case GGML_OP_MEAN:
+             {
+@@ -1422,6 +1426,56 @@ int ggml_metal_op_sum(ggml_metal_op_t ctx, int idx) {
+     return 1;
+ }
+ 
++int ggml_metal_op_act_quant(ggml_metal_op_t ctx, int idx) {
++    ggml_tensor * op = ctx->node(idx);
++    const ggml_tensor * src = op->src[0];
++    GGML_ASSERT(src && src->type == GGML_TYPE_F32 && op->type == GGML_TYPE_F32);
++    GGML_ASSERT(ggml_is_contiguous(src) && ggml_is_contiguous(op));
++    GGML_ASSERT(ggml_are_same_shape(src, op) && src->ne[0] > 0);
++
++    const int64_t nrows = ggml_nrows(op);
++    GGML_ASSERT(nrows >= 0 && nrows <= INT32_MAX);
++    if (nrows == 0) {
++        return 1;
++    }
++    float eps;
++    memcpy(&eps, op->op_params, sizeof(eps));
++    GGML_ASSERT(std::isfinite(eps) && eps > 0.0f);
++    ggml_metal_kargs_act_quant args = { src->ne[0], nrows, eps };
++    const auto source = ggml_metal_get_buffer_id(src);
++    const auto output = ggml_metal_get_buffer_id(op);
++    const size_t bytes = ggml_nbytes(op);
++    GGML_ASSERT(source.metal && output.metal && source.offs % sizeof(float) == 0 && output.offs % sizeof(float) == 0);
++    GGML_ASSERT(ggml_metal_buffer_contains(source, bytes) && ggml_metal_buffer_contains(output, bytes));
++    if (source.metal == output.metal) {
++        GGML_ASSERT(source.offs <= output.offs ? output.offs - source.offs >= bytes : source.offs - output.offs >= bytes);
++    }
++
++    const auto pipeline = ggml_metal_library_get_pipeline_base(ctx->lib, GGML_OP_ACT_QUANT);
++    const int width = ggml_metal_pipeline_thread_execution_width(pipeline);
++    const int limit = ggml_metal_pipeline_max_theads_per_threadgroup(pipeline);
++    GGML_ASSERT(width > 0 && limit >= width);
++    const int nth = std::max(width, std::min(256, limit)/width*width);
++    const int groups = nth/width;
++    GGML_ASSERT(nth >= width && groups <= width);
++    ggml_metal_encoder_set_pipeline(ctx->enc, pipeline);
++    ggml_metal_encoder_set_bytes(ctx->enc, &args, sizeof(args), 0);
++    ggml_metal_encoder_set_buffer(ctx->enc, source, 1);
++    ggml_metal_encoder_set_buffer(ctx->enc, output, 2);
++    ggml_metal_encoder_set_threadgroup_memory_size(ctx->enc, GGML_PAD(width*sizeof(float), 16), 0);
++    ggml_metal_encoder_set_threadgroup_memory_size(ctx->enc, GGML_PAD(width*sizeof(uint32_t), 16), 1);
++    ggml_metal_encoder_dispatch_threadgroups(ctx->enc, (int) nrows, 1, 1, nth, 1, 1);
++    const char * trace = std::getenv("GGML_METAL_ACTQUANT_TRACE");
++    if (trace && std::strcmp(trace, "1") == 0) {
++        std::fprintf(stderr, "ACT_QUANT_ENCODE node=%s kernel=kernel_act_quant_f32 pipeline=%p ne=[%lld,%lld,%lld,%lld] src_nb=[%zu,%zu,%zu,%zu] dst_nb=[%zu,%zu,%zu,%zu] src_buffer=%p src_offset=%zu dst_buffer=%p dst_offset=%zu bytes=%zu eps=%.9g grid=[%lld,1,1] threads=[%d,1,1] precise=1 non_inplace=1\n",
++            op->name, (void *) pipeline.pipeline,
++            (long long) op->ne[0], (long long) op->ne[1], (long long) op->ne[2], (long long) op->ne[3],
++            src->nb[0], src->nb[1], src->nb[2], src->nb[3], op->nb[0], op->nb[1], op->nb[2], op->nb[3],
++            source.metal, source.offs, output.metal, output.offs, bytes, eps, (long long) nrows, nth);
++    }
++    return 1;
++}
++
+ int ggml_metal_op_sum_rows(ggml_metal_op_t ctx, int idx) {
+     ggml_tensor * op = ctx->node(idx);
+ 
+diff --git a/ggml/src/ggml-metal/ggml-metal-ops.h b/ggml/src/ggml-metal/ggml-metal-ops.h
+index ff48d08..7dab577 100644
+--- a/ggml/src/ggml-metal/ggml-metal-ops.h
++++ b/ggml/src/ggml-metal/ggml-metal-ops.h
+@@ -55,6 +55,7 @@ int ggml_metal_op_unary             (ggml_metal_op_t ctx, int idx);
+ int ggml_metal_op_glu               (ggml_metal_op_t ctx, int idx);
+ int ggml_metal_op_sum               (ggml_metal_op_t ctx, int idx);
+ int ggml_metal_op_sum_rows          (ggml_metal_op_t ctx, int idx);
++int ggml_metal_op_act_quant         (ggml_metal_op_t ctx, int idx);
+ int ggml_metal_op_cumsum            (ggml_metal_op_t ctx, int idx);
+ int ggml_metal_op_get_rows          (ggml_metal_op_t ctx, int idx);
+ int ggml_metal_op_set_rows          (ggml_metal_op_t ctx, int idx);
+diff --git a/ggml/src/ggml-metal/kernels/act_quant.metal b/ggml/src/ggml-metal/kernels/act_quant.metal
+new file mode 100644
+index 0000000..7c4eb8a
+--- /dev/null
++++ b/ggml/src/ggml-metal/kernels/act_quant.metal
+@@ -0,0 +1,57 @@
++#include "common.h"
++
++// Finite F32 input; one token row per threadgroup. No in-place output.
++kernel void kernel_act_quant_f32(
++        constant ggml_metal_kargs_act_quant & args [[buffer(0)]],
++        device const float * src [[buffer(1)]],
++        device float * dst [[buffer(2)]],
++        threadgroup float * maxima [[threadgroup(0)]],
++        threadgroup uint * invalid [[threadgroup(1)]],
++        uint3 group [[threadgroup_position_in_grid]],
++        uint tid [[thread_index_in_threadgroup]],
++        uint3 size [[threads_per_threadgroup]],
++        uint lane [[thread_index_in_simdgroup]],
++        uint simd [[simdgroup_index_in_threadgroup]],
++        uint width [[threads_per_simdgroup]]) {
++    const uint nth = size.x;
++    const int64_t row = group.x;
++    if (row >= args.nrows) {
++        return;
++    }
++    const int64_t base = row*args.ncols;
++    float amax = 0.0f;
++    uint bad = 0;
++    for (int64_t j = tid; j < args.ncols; j += nth) {
++        const float x = src[base + j];
++        bad |= !isfinite(x);
++        amax = max(amax, abs(x));
++    }
++    amax = simd_max(amax);
++    bad = simd_max(bad);
++    if (lane == 0) {
++        maxima[simd] = amax;
++        invalid[simd] = bad;
++    }
++    threadgroup_barrier(mem_flags::mem_threadgroup);
++    if (simd == 0) {
++        const uint groups = nth/width;
++        amax = lane < groups ? maxima[lane] : 0.0f;
++        bad = lane < groups ? invalid[lane] : 0;
++        amax = simd_max(amax);
++        bad = simd_max(bad);
++        if (lane == 0) {
++            // Preserve the pinned Torch eager reciprocal-then-multiply profile.
++            const float reciprocal = precise::divide(1.0f, max(amax, args.eps));
++            maxima[0] = reciprocal*127.0f;
++            invalid[0] = bad;
++        }
++    }
++    threadgroup_barrier(mem_flags::mem_threadgroup);
++    const float scale = maxima[0];
++    for (int64_t j = tid; j < args.ncols; j += nth) {
++        const float scaled = src[base + j]*scale;
++        const float rounded = rint(scaled);
++        const float q = clamp(rounded, -128.0f, 127.0f);
++        dst[base + j] = invalid[0] || isnan(rounded) ? NAN : precise::divide(q, scale);
++    }
++}
+diff --git a/ggml/src/ggml.c b/ggml/src/ggml.c
+index ffef696..4d223f4 100644
+--- a/ggml/src/ggml.c
++++ b/ggml/src/ggml.c
+@@ -1220,9 +1220,10 @@ static const char * GGML_OP_NAME[GGML_OP_COUNT] = {
+ 
+     "GATED_DELTA_NET_DEFERRED",
+     "GDN_CONV_DEFERRED",
++    "ACT_QUANT",
+ };
+ 
+-static_assert(GGML_OP_COUNT == 127, "GGML_OP_COUNT != 127");
++static_assert(GGML_OP_COUNT == 128, "GGML_OP_COUNT != 128");
+ 
+ static const char * GGML_OP_SYMBOL[GGML_OP_COUNT] = {
+     "none",
+@@ -1364,9 +1365,10 @@ static const char * GGML_OP_SYMBOL[GGML_OP_COUNT] = {
+ 
+     "gated_delta_net_deferred(q,k,v,g,beta,s,rec,idx)",
+     "gdn_conv_deferred(x,w,hist,idx)",
++    "act_quant(x)",
+ };
+ 
+-static_assert(GGML_OP_COUNT == 127, "GGML_OP_COUNT != 127");
++static_assert(GGML_OP_COUNT == 128, "GGML_OP_COUNT != 128");
+ 
+ static_assert(GGML_OP_POOL_COUNT == 2, "GGML_OP_POOL_COUNT != 2");
+ 
+@@ -5405,6 +5407,24 @@ static int64_t ggml_calc_pool_output_size(int64_t ins, int ks, int s, float p) {
+     return (ins + 2 * p - ks) / s + 1;
+ }
+ 
++// ggml_act_quant
++
++struct ggml_tensor * ggml_act_quant(
++        struct ggml_context * ctx,
++        struct ggml_tensor  * a,
++        float                 eps) {
++    GGML_ASSERT(a->type == GGML_TYPE_F32);
++    GGML_ASSERT(ggml_is_contiguous(a));
++    GGML_ASSERT(a->ne[0] > 0);
++    GGML_ASSERT(isfinite(eps) && eps > 0.0f);
++
++    struct ggml_tensor * result = ggml_dup_tensor(ctx, a);
++    ggml_set_op_params(result, &eps, sizeof(eps));
++    result->op     = GGML_OP_ACT_QUANT;
++    result->src[0] = a;
++    return result;
++}
++
+ // ggml_pool_1d
+ 
+ struct ggml_tensor * ggml_pool_1d(
+diff --git a/src/models/bitnet.cpp b/src/models/bitnet.cpp
+index 58ec70c..91b45cf 100644
+--- a/src/models/bitnet.cpp
++++ b/src/models/bitnet.cpp
+@@ -1,4 +1,10 @@
+ #include "models.h"
++#include "llama-impl.h"
++
++#include <cstdlib>
++#include <cstring>
++#include <mutex>
++#include <stdexcept>
+ 
+ void llama_model_bitnet::load_arch_hparams(llama_model_loader & ml) {
+     ml.get_key(LLM_KV_ATTENTION_LAYERNORM_RMS_EPS, hparams.f_norm_rms_eps);
+@@ -62,6 +68,63 @@ std::unique_ptr<llm_graph_context> llama_model_bitnet::build_arch_graph(const ll
+ }
+ 
+ llama_model_bitnet::graph::graph(const llama_model & model, const llm_graph_params & params) : llm_graph_context(params) {
++    const char * act_quant_env = std::getenv("LLAMA_BITNET_ACTQUANT");
++    if (act_quant_env && std::strcmp(act_quant_env, "0") != 0 && std::strcmp(act_quant_env, "1") != 0) {
++        throw std::runtime_error("LLAMA_BITNET_ACTQUANT must be 0 or 1");
++    }
++    const bool act_quant_enabled = act_quant_env && std::strcmp(act_quant_env, "1") == 0;
++    if (act_quant_enabled) {
++        if (n_layer != 30 || hparams.n_embd != 2560 || model.vocab.n_tokens() != 128256 ||
++                hparams.llm_ffn_op != LLM_FFN_RELU_SQR || cparams.training || !loras->empty()) {
++            throw std::runtime_error("experimental ActQuant requires the public 2B inference profile without LoRA");
++        }
++        for (int il = 0; il < n_layer; ++il) {
++            const auto & layer = model.layers[il];
++            if (hparams.n_ff(il) != 6912 || hparams.n_head(il) != 20 || hparams.n_head_kv(il) != 5) {
++                throw std::runtime_error("experimental ActQuant has an unsupported public 2B layer configuration");
++            }
++            const ggml_tensor * weights[] = {
++                layer.wq, layer.wk, layer.wv, layer.wo, layer.ffn_gate, layer.ffn_up, layer.ffn_down,
++            };
++            const int64_t columns[] = { 2560, 2560, 2560, 2560, 2560, 2560, 6912 };
++            const int64_t rows[] = { 2560, 640, 640, 2560, 6912, 6912, 2560 };
++            for (size_t i = 0; i < sizeof(weights)/sizeof(weights[0]); ++i) {
++                const auto * w = weights[i];
++                if (!w || w->type != GGML_TYPE_TQ2_0 || w->ne[0] != columns[i] || w->ne[1] != rows[i] ||
++                        w->ne[2] != 1 || w->ne[3] != 1) {
++                    throw std::runtime_error("experimental ActQuant requires the audited public 2B TQ2_0 weights");
++                }
++            }
++        }
++        for (const char * name : { "GGML_METAL_BITNET_POC", "GGML_METAL_BITNET_Q_GUARD_ONLY",
++                "GGML_METAL_BITNET_FFN", "GGML_METAL_BITNET_FFN_MECHANISM" }) {
++            const char * value = std::getenv(name);
++            if (value && value[0] != '\0' && std::strcmp(value, "0") != 0) {
++                throw std::runtime_error("experimental ActQuant cannot be combined with custom Q or FFN routes");
++            }
++        }
++        static std::once_flag log_once;
++        std::call_once(log_once, []() {
++            LLAMA_LOG_INFO("BitNet ActQuant: experimental public 2B F32 profile; per-token absmax INT8, "
++                    "eps=1e-5, round-to-even, 120 shared stages for 210 projections; lm_head unchanged. "
++                    "Caller must verify checkpoint identity.\n");
++        });
++    }
++    auto act_quant = [&](ggml_tensor * input, const char * output_name, int il) {
++        if (!act_quant_enabled) {
++            return input;
++        }
++        if (input->type != GGML_TYPE_F32) {
++            throw std::runtime_error("experimental ActQuant requires F32 activations");
++        }
++        if (!ggml_is_contiguous(input)) {
++            input = ggml_cont(ctx0, input);
++        }
++        ggml_tensor * output = ggml_act_quant(ctx0, input, 1e-5f);
++        cb(output, output_name, il);
++        return output;
++    };
++
+     const int64_t n_embd_head = hparams.n_embd_head_v();
+ 
+     GGML_ASSERT(n_embd_head == hparams.n_embd_head_k());
+@@ -85,6 +148,7 @@ llama_model_bitnet::graph::graph(const llama_model & model, const llm_graph_para
+                 model.layers[il].attn_norm, NULL,
+                 LLM_NORM_RMS, il);
+         cb(cur, "attn_norm", il);
++        cur = act_quant(cur, "actq_qkv_out", il);
+ 
+         // self-attention
+         {
+@@ -115,6 +179,7 @@ llama_model_bitnet::graph::graph(const llama_model & model, const llm_graph_para
+                     model.layers[il].attn_sub_norm, NULL,
+                     LLM_NORM_RMS, il);
+             cb(cur, "attn_sub_norm", il);
++            cur = act_quant(cur, "actq_attn_out_out", il);
+ 
+             cur = build_lora_mm(model.layers[il].wo, cur, model.layers[il].wo_s);
+             if (model.layers[il].wo_b) {
+@@ -136,6 +201,7 @@ llama_model_bitnet::graph::graph(const llama_model & model, const llm_graph_para
+                 model.layers[il].ffn_norm, NULL,
+                 LLM_NORM_RMS, il);
+         cb(cur, "ffn_norm", il);
++        cur = act_quant(cur, "actq_ffn_up_gate_out", il);
+ 
+         cur = build_ffn(cur,
+                 model.layers[il].ffn_up,   NULL, model.layers[il].ffn_up_s,
+@@ -149,6 +215,7 @@ llama_model_bitnet::graph::graph(const llama_model & model, const llm_graph_para
+                 model.layers[il].ffn_sub_norm, NULL,
+                 LLM_NORM_RMS, il);
+         cb(cur, "ffn_sub_norm", il);
++        cur = act_quant(cur, "actq_ffn_down_out", il);
+ 
+         cur = build_lora_mm(model.layers[il].ffn_down, cur, model.layers[il].ffn_down_s);
+         cb(cur, "ffn_down", il);
+diff --git a/tests/test-backend-ops.cpp b/tests/test-backend-ops.cpp
+index 5774730..0e0fdcb 100644
+--- a/tests/test-backend-ops.cpp
++++ b/tests/test-backend-ops.cpp
+@@ -3932,6 +3932,96 @@ struct test_sigmoid_back : public test_case {
+     }
+ };
+ 
++// GGML_OP_ACT_QUANT
++// These are backend/shape regressions, not an independent mathematical oracle.
++// The source-derived Microsoft fixtures are checked separately by bitnet/actquant.
++struct test_act_quant : public test_case {
++    const std::array<int64_t, 4> ne;
++    const int pattern; // 0: deterministic dense, 1: zero, 2: half ties, 3: tiny values
++    const bool view;
++    const float eps;
++
++    test_act_quant(std::array<int64_t, 4> ne, int pattern = 0, bool view = false, float eps = 1e-5f)
++        : ne(ne), pattern(pattern), view(view), eps(eps) {}
++
++    std::string vars() override {
++        return VARS_TO_STR4(ne, pattern, view, eps);
++    }
++
++    ggml_tensor * build_graph(ggml_context * ctx) override {
++        const int64_t n = ne[0]*ne[1]*ne[2]*ne[3];
++        ggml_tensor * a = view ? ggml_new_tensor_1d(ctx, GGML_TYPE_F32, n + 32)
++                              : ggml_new_tensor(ctx, GGML_TYPE_F32, 4, ne.data());
++        ggml_set_name(a, "a");
++        if (view) {
++            // A contiguous view with a nonzero buffer offset must remain supported.
++            a = ggml_view_4d(ctx, a, ne[0], ne[1], ne[2], ne[3],
++                    ne[0]*sizeof(float), ne[0]*ne[1]*sizeof(float),
++                    ne[0]*ne[1]*ne[2]*sizeof(float), 16*sizeof(float));
++            ggml_set_name(a, "view of a");
++        }
++        ggml_tensor * out = ggml_act_quant(ctx, a, eps);
++        ggml_set_name(out, "out");
++        return out;
++    }
++
++    void initialize_tensors(ggml_context * ctx) override {
++        test_case::initialize_tensors(ctx);
++        for (ggml_tensor * t = ggml_get_first_tensor(ctx); t != nullptr; t = ggml_get_next_tensor(ctx, t)) {
++            if (strcmp(t->name, "a") != 0) {
++                continue;
++            }
++            // No ActQuant arithmetic is repeated here. Different row amplitudes
++            // expose an erroneous tensor-wide rather than per-token reduction.
++            std::vector<float> data(ggml_nelements(t), 1234.0f);
++            const size_t offset = view ? 16 : 0;
++            const int64_t nrows = ne[1]*ne[2]*ne[3];
++            for (int64_t row = 0; row < nrows; ++row) {
++                const float amplitude = std::ldexp(1.0f, int(row % 7) - 3);
++                static const float ties[] = { -3.5f, -2.5f, -1.5f, -0.5f, 0.5f, 1.5f, 2.5f, 3.5f };
++                for (int64_t col = 0; col < ne[0]; ++col) {
++                    float x;
++                    if (pattern == 1) {
++                        x = 0.0f;
++                    } else if (pattern == 2) {
++                        // The exact +/-127 anchor makes the other entries half ties.
++                        x = amplitude*(col == 0 ? 127.0f : col == 1 ? -127.0f : ties[col % 8]);
++                    } else if (pattern == 3) {
++                        x = amplitude*float(int((col + 3*row) % 17) - 8)*1e-8f;
++                    } else {
++                        uint32_t hash = uint32_t(col + row*ne[0]) + 0x9e3779b9u;
++                        hash ^= hash >> 16;
++                        hash *= 0x7feb352du;
++                        hash ^= hash >> 15;
++                        x = amplitude*float(int(hash % 65521) - 32760)/8192.0f;
++                    }
++                    data[offset + row*ne[0] + col] = x;
++                }
++            }
++            ggml_backend_tensor_set(t, data.data(), 0, data.size()*sizeof(float));
++        }
++    }
++
++    // The per-value frozen bound also handles the all-zero case, for which
++    // normalized MSE has a zero denominator. It does not replace the independent
++    // integer-code/grid check in the source-derived fixture harness.
++    double err(const float * reference, const float * actual, size_t n) override {
++        double worst = 0.0;
++        for (size_t i = 0; i < n; ++i) {
++            if (!std::isfinite(reference[i]) || !std::isfinite(actual[i])) {
++                return INFINITY;
++            }
++            const double bound = 2e-4 + 2e-5*std::abs(double(reference[i]));
++            worst = std::max(worst, std::abs(double(actual[i]) - reference[i])/bound);
++        }
++        return worst;
++    }
++
++    double max_err() override { return 1.0; }
++    double max_err(ggml_backend_t backend) override { GGML_UNUSED(backend); return 1.0; }
++    int64_t grad_nmax() override { return 0; } // inference-only, discontinuous operator
++};
++
+ // GGML_OP_NORM
+ struct test_norm : public test_case {
+     const ggml_type type;
+@@ -15112,6 +15202,21 @@ static std::vector<std::unique_ptr<test_case>> make_test_cases_eval() {
+     test_cases.emplace_back(new test_gelu_back());
+     test_cases.emplace_back(new test_sigmoid_back());
+ 
++    // Tail rows, flattened higher dimensions, and the actual BitNet hidden/FFN
++    // widths cover the reduction/write geometry independently of model graphs.
++    test_cases.emplace_back(new test_act_quant({7, 3, 1, 1}));
++    test_cases.emplace_back(new test_act_quant({7, 3, 2, 2}));
++    test_cases.emplace_back(new test_act_quant({7, 3, 1, 1}, 0, true));
++    for (int64_t width : {2560, 6912}) {
++        for (int64_t rows : {1, 3, 27}) {
++            test_cases.emplace_back(new test_act_quant({width, rows, 1, 1}));
++        }
++        for (int pattern : {1, 2, 3}) {
++            test_cases.emplace_back(new test_act_quant({width, 3, 1, 1}, pattern));
++        }
++    }
++    test_cases.emplace_back(new test_act_quant({2560, 3, 1, 1}, 0, true));
++
+     for (float eps : { 0.0f, 1e-6f, 1e-4f, 1e-1f, 10.f }) {
+         for (uint32_t n : { 64, 1025 }) {
+             for (bool v : { false, true }) {

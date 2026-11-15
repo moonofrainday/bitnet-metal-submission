@@ -1,21 +1,21 @@
 {
   "language": "zh-CN",
-  "English_source_sha256": "7901465f99f90afc0a05554a207f86fddf52349d989d0e23a0de3567bea11b95",
-  "evidence_cutoff": "2026-11-15 Asia/Tokyo",
+  "English_source_sha256": "d8fe335b406b4ae7c9a1ac18b49575871f98f35d240b500867bc92fa08f94880",
+  "evidence_cutoff": "2026-11-16 Asia/Tokyo",
   "section_numbering_same_as_English": true,
   "sections": 16,
-  "tables": 23,
-  "PDF_pages": 21,
-  "DOCX_render_pages": 21,
+  "tables": 24,
+  "PDF_pages": 22,
+  "DOCX_render_pages": 22,
   "original_figure_bytes_preserved": true,
-  "new_inference_measurements": false,
+  "new_inference_measurements": true,
   "numerical_threshold_changed": false,
   "raw_experiment_data_included": false,
   "translation_literal_checks_pass": true,
   "independent_semantic_reviews_pass": true,
   "quality_review": {
-    "PDF_pages_inspected": 21,
-    "DOCX_pages_inspected": 21,
+    "PDF_pages_inspected": 22,
+    "DOCX_pages_inspected": 22,
     "Chinese_glyphs_present": true,
     "original_graph_fully_visible": true,
     "clipping_overlap_or_missing_content_observed": false,
@@ -24,8 +24,8 @@
   "files": [
     {
       "path": "PROPOSAL_ZH.md",
-      "bytes": 56617,
-      "sha256": "dc0251d702fd6964f29b4a59cf69adfebd1f6e5a09095f100c2623786dbaa15a"
+      "bytes": 59846,
+      "sha256": "901026c8ab056790b584ec5d0985618954c44bd1c6211d9280b9ec86442c970c"
     },
     {
       "path": "render_proposal_zh.py",
@@ -34,33 +34,37 @@
     },
     {
       "path": "check_translation.py",
-      "bytes": 4020,
-      "sha256": "b3f9676d93da8600a5c46ae6f9bab9d3ec41af1ae9062efebdc581eb2e92e05c"
+      "bytes": 4072,
+      "sha256": "7cdc34d47a961a2bdc4350536eeabf27f520aa495317f34ea28e07b17b15a966"
     },
     {
       "path": "README_ZH.md",
-      "bytes": 3196,
-      "sha256": "881d52460c548b700edea524daf6598fca43a8b239e8453e7ac8c9ffc791dfc3"
+      "bytes": 3410,
+      "sha256": "5977b86b3a87b44d853c6d2630636860acd5e8f0e38daab5f3404f32b06d5aaf"
     },
     {
       "path": "TRANSLATION_CHECK.json",
-      "bytes": 1175,
-      "sha256": "5b0db1efd532563471c499192e3be4b3dda86482bd95b97b5d0d2b0fd3c177af"
+      "bytes": 1203,
+      "sha256": "7bf4b983ee9cf7509443d7c8de47f5d37173bd6d016ba4fd5577a68b6dc3e7c3"
     },
     {
       "path": "BitNet_Mobile_GPU_Proposal_ZH.pdf",
-      "bytes": 584672,
-      "sha256": "c7bb910a23fe8610fa709a105d4dc2d51daff5e35b7969355c3353169a96fcb9"
+      "bytes": 592683,
+      "sha256": "4df846151a53e74b17d7600d12942454c8545462c9ccc9bca6ce8f2831d2374b"
     },
     {
       "path": "BitNet_Mobile_GPU_Proposal_ZH.docx",
-      "bytes": 134487,
-      "sha256": "ff55ae2dc77a093cb0c759724d9f37af9472905047454664d37fcc4b3dfa4c88"
+      "bytes": 136559,
+      "sha256": "a58371bacc037aa14eefbccbfa80f63376cc04e95fae94c9b8217221b1efce93"
     }
   ],
   "source_baseline_before_review": "eb7858492d0f39e7a4f97f58ef53239c17bcb594",
   "English_files_unchanged_by_Chinese_renderer": true,
   "old_revisions_preserved_in_Git": true,
   "historical_FFN_evidence_reorganized": true,
-  "ActQuant_experiment_resumed": false
+  "ActQuant_experiment_resumed": true,
+  "measurement_scope": "Mac numerical validation only; new iPhone execution unverified",
+  "ActQuant_same_input_F32_pass": true,
+  "full_model_source_F32_pass": false,
+  "new_ActQuant_phone_pass": null
 }

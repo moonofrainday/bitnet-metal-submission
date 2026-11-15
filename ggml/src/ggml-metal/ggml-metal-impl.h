@@ -1035,6 +1035,12 @@ typedef struct{
 } ggml_metal_kargs_glu;
 
 typedef struct {
+    int64_t ncols;
+    int64_t nrows;
+    float eps;
+} ggml_metal_kargs_act_quant;
+
+typedef struct {
     uint64_t np;
 } ggml_metal_kargs_sum;
 

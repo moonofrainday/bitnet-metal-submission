@@ -2,7 +2,7 @@
 
 **Metal proof of concept and Vulkan portability plan**
 
-Prepared for the Tether technical assessment. Draft for author review. Evidence cutoff 15 November 2026, Asia/Tokyo.
+Prepared for the Tether technical assessment. Draft for author review. Evidence cutoff 16 November 2026, Asia/Tokyo.
 
 ## 1 Executive proposal
 
@@ -13,7 +13,7 @@ The practical deliverable is a reproducible source package, an independent sampl
 | Evidence at the cutoff | Result and decision |
 |---|---|
 | Public 2B stock inference on iPhone 14 Pro | Loads and generates 32 tokens with A16 Metal and 31/31 layers offloaded. Functional execution passes; fidelity to Microsoft ActQuant does not. |
-| Public model semantics | Source and same-input reference tests confirm the graph omits the prescribed per-token INT8 activation quantize/dequantize. Resolve before claiming faithful W1.58A8 inference. |
+| Public model semantics | The default baseline omits ActQuant. A new opt-in implements the source-derived F32 quantizer and passes captured same-input checks; full-model frozen-reference acceptance still fails. |
 | Q4 specialization in the real layer 0 graph | Both fixed histories pass all 32 Q checks, sampled residuals and full-logit parity. Keep opt-in. |
 | Mobile performance | Q4 saves about 6-7 us per isolated Q dispatch; no whole-decode benefit was observed. Do not claim model acceleration. |
 | FFN research | G retains observed stock outputs; F8 has performance evidence and preserved numerical/model-output failures. Neither repairs complete-chain FP64. |
@@ -84,7 +84,7 @@ xq[j] = clamp(round(x[j] * s), -128, 127) / s
 y = linear(xq, ternary_weight) * weight_scale
 ```
 
-Preserve source rounding, clipping, epsilon and intermediate dtype; BF16 and F32 controls are separate experiments. An F32 tensor could contain dequantized INT8 values, so dtype alone cannot prove omission. Here both source tracing and captured-input checks confirm the current graph sends unquantized X into TQ2_0 MUL_MAT. Original scaled Q weights equal decoded TQ2_0 weights exactly in the local control. [E8]
+Preserve source rounding, clipping, epsilon and intermediate dtype; BF16 and F32 controls are separate experiments. An F32 tensor could contain dequantized INT8 values, so dtype alone cannot prove omission. Here both source tracing and captured-input checks confirm the default baseline graph sends unquantized X into TQ2_0 MUL_MAT. Original scaled Q weights equal decoded TQ2_0 weights exactly in the local control. [E8]
 
 | Same captured Q input | Step 1 | Step 16 | Step 32 |
 |---|---:|---:|---:|
@@ -92,7 +92,25 @@ Preserve source rounding, clipping, epsilon and intermediate dtype; BF16 and F32
 | X values changed by official F32 ActQuant | 2559/2560 | 2560/2560 | 2559/2560 |
 | Stock versus ActQuant FP64 failing rows | 2498/2560 | 2491/2560 | 2502/2560 |
 
-This is a known semantic deviation, larger than ordinary summation drift in this control. The kernel remains valid for the supplied F32 X; the graph lacks required preprocessing for this public checkpoint. The team's quantizer, scale granularity, rounding and metadata must be obtained separately. No team-checkpoint qualification is inferred.
+This is a known semantic deviation, larger than ordinary summation drift in this control. The kernel remains valid for the supplied F32 X; the preserved default graph lacks required preprocessing for this public checkpoint; the new opt-in is evaluated separately below. The team's quantizer, scale granularity, rounding and metadata must be obtained separately. No team-checkpoint qualification is inferred.
+
+<!-- page -->
+### ActQuant implementation and remaining reference gap
+
+A separate experimental branch now adds default-off `LLAMA_BITNET_ACTQUANT=1`. It inserts four shared quantizers per block, after the appropriate weighted normalizations: Q/K/V input, attention-output input, gate/up input and down input. This gives 120 nodes for 210 projections; the tied lm_head remains unchanged. Dedicated CPU and Metal `GGML_OP_ACT_QUANT` implementations preserve the existing stock shader math settings. Only the new Metal library uses observed Safe/Precise compile options. [E10]
+
+The pinned source-derived Torch F32 eager profile evaluates scale as `(1.0f / absmax) * 127.0f`. Although mathematically equivalent, direct `127.0f / absmax` differed by 1 ULP on some rows and produced two wrong integer codes in the first real-graph capture. Those failures and a seven-value counterexample are retained. The repaired evaluation order passes both the expanded fixtures and every captured quantizer on its own actual input; this is not a claim about every Torch compiler or dtype profile.
+
+| New numerical evidence on M2 Pro | Result and scope |
+|---|---|
+| Independent CPU and Metal operator fixtures | 20 cases, 386,567 values per backend; frozen bound and exact recovered-code checks pass. Includes hand ties, epsilon, dense inputs, real steps 1/16/32 and boundary regressions. |
+| Repaired teacher-forced graph | 3,960 actual ActQuant captures, 25,581,568 values; all outputs bitwise equal to official F32 ActQuant on the same captured inputs. 31/31 layers offloaded. |
+| Backend regression | ACT_QUANT 16/16 and original TQ2_0 MUL_MAT 59/59 pass on MTL0. |
+| Full-model reference | Complete teacher logits and layer outputs still exceed the frozen bound; strict exit 1 remains. Local ActQuant correctness does not establish full-model numerical equivalence. |
+| Small 128-target corpus | Metal ON PPL 19.127702, OFF 19.088221; source-derived F32 ON PPL 19.129530. This is a small quality smoke, with no acceptance or improvement claim. |
+| Physical iPhone for this new build | TODO: sample-I/O, actual graph execution, intermediate/logit comparison and corpus scoring. Previous phone results used the baseline without this repair. |
+
+The switch-off logits remain bitwise identical to the saved baseline, and diagnostic capture versus plain execution produces identical logits. No original CPU/Metal or complete-FFN failure is overwritten. F32/BF16, per-token ActQuant, CPU's additional blockwise Q8_K packing, prefill/decode arithmetic and KV precision remain distinct controls. The immediate next step is to localize the remaining stock-model reference drift before promoting a faithful-inference claim. No Mac performance result is added.
 
 <!-- page -->
 ## 4 Kernel design and sample validation
@@ -140,7 +158,7 @@ The existing loader, graph and backend remain responsible for allocation and sch
 | `ggml-metal-device.h` and `.m` | External pipeline declaration, load/cache and capability checks |
 | `ggml-metal-ops.cpp` | Graph/shape guards, live bindings, dispatch, readback and stock fallback |
 
-The last four rows live under the GGML include or Metal backend directories. Together these are eight changed upstream files. New kernels, harnesses, iOS staging and analyzers are under `bitnet/`. QVAC already supplied TQ2_0 kernels and the SwiftUI example; those are credited as existing infrastructure.
+The last four rows live under the GGML include or Metal backend directories. Together these are eight changed upstream files at that historical snapshot. The new ActQuant branch adds the GGML operation API/core, CPU and Metal backend files, `act_quant.metal`, graph placements and backend tests. New kernels, harnesses, iOS staging and analyzers are under `bitnet/`. QVAC already supplied TQ2_0 kernels and the SwiftUI example; those are credited as existing infrastructure.
 
 The Q guard requires the exact MUL_MAT node and layer-0 Q weight, N=1, TQ2_0/F32/F32, audited ne/nb, no view, add=0, norm=0, compatible pipeline and launch, aligned live offsets and complete byte-range bounds. X and Y may share a Metal buffer only when their byte intervals are disjoint. W/Y overlap is rejected. Other layers, prefill, incompatible contracts and failed library/geometry selection return to stock before custom writes.
 
@@ -386,7 +404,7 @@ The numerical threshold is frozen; performance targets below are proposed engine
 |---|---|---|
 | Functional inference | Load and generate with verified mobile GPU offload; no unexpected fallback/crash | Public 2B A16 pass; team and Android pending |
 | Operator correctness | All required outputs finite, covered and within frozen FP64 bound; stock differences reported | Original host/physical-phone samples and fresh phone Q4 pass |
-| Model semantics | Align conversion, ActQuant, selected intermediates and teacher-forced logits to trusted source | Public per-token quantizer omission confirmed; repair pending |
+| Model semantics | Align conversion, ActQuant, selected intermediates and teacher-forced logits to trusted source | Opt-in same-input quantizer passes; full-model reference and phone qualification remain pending |
 | Language quality | Predeclared held-out NLL/PPL and task budgets, matched tokenizer and document uncertainty | 128-token test-split smoke measured; product acceptance unverified |
 | Layer compatibility | Required Q/residual/logit gates pass on two histories; preserve strict failures | Q4 declared layer-0 scope pass; broader quality unmeasured |
 | Operator optimization | Seek at least 5% median paired reduction versus actual stock in 3 rounds with order checks | Q4's measured 2.68%-3.11% is below this future target |
@@ -422,14 +440,14 @@ Optional FFN/fusion exploration follows the primary kernel qualification and mus
 
 If a candidate fails, retain the failure and continue independent work such as reference checks, build portability or documentation. Do not spend the remaining schedule generating similar variants without a distinguishing hypothesis. Signing or physical-device access problems should produce a minimal reproducer while CPU/source tasks continue.
 
-The first semantic milestone now takes priority: add checkpoint-specific ActQuant before every required BitLinear, preserve exact per-token reduction/round/clamp/dtype, then rerun trusted-source intermediates and teacher-forced logits. Count quantizer preparation in future performance. The same-stock guard control in [E9] supports framework attribution; operator-family critical-path measurements are still needed before selecting the next performance target.
+The experimental ActQuant now passes same-input checks. The priority is to align remaining stock-model precision and propagation with trusted-source intermediates and teacher-forced logits, then qualify the new phone build. Small upstream differences can cross INT8 rounding boundaries despite a correct quantizer. Count quantizer preparation in future performance. The same-stock guard control in [E9] supports framework attribution; operator-family critical-path measurements are still needed before selecting the next performance target.
 
 <!-- page -->
 ## 14 Risks assumptions and contingencies
 
 | Risk or dependency | Observable consequence | Mitigation and contingency |
 |---|---|---|
-| Public ActQuant is absent in current graph | Faithful W1.58A8 execution is not established | Add explicit checkpoint-specific quantize/dequantize graph operations; align trusted reference before promotion |
+| Default baseline lacks ActQuant; opt-in model alignment remains incomplete | Faithful W1.58A8 execution is not established | Preserve the local quantizer checks; resolve reference precision/propagation and qualify the phone before promotion |
 | Team checkpoint differs from public model | Wrong scale, activation, tokenizer or graph | Freeze metadata/tensor contract first; audit conversion; keep public and team acceptance separate |
 | Literal binary interpretation of the brief | Ternary implementation judged out of scope | Explicitly agree that 1.58-bit means ternary BitNet; design a binary specialization only if required |
 | FP32 arithmetic propagation | Local dots pass while layer/logits fail | Independent FP64 plus stock-relative gates; retain stock arithmetic and all failed outcomes |
@@ -491,7 +509,7 @@ All output directories must be new; set absolute artifact/model paths locally. R
 <!-- page -->
 ## 16 Evidence index and references
 
-Paths below are relative to the workspace or source package as stated. IDs distinguish local measured evidence from public design sources. The evidence cutoff is 15 November 2026; mutable vendor documentation was reviewed at that cutoff.
+Paths below are relative to the workspace or source package as stated. IDs distinguish local measured evidence from public design sources. The evidence cutoff is 16 November 2026; mutable vendor documentation was reviewed at that cutoff.
 
 ### Local evidence
 
@@ -504,6 +522,8 @@ Paths below are relative to the workspace or source package as stated. IDs disti
 - [E7] Workspace `outputs/experiments/2026-11-15-review-221448/`; original phone `runs/original-poc/` and `runs/original-poc-actquant-derived/`, independent reanalysis and source/binary digests. Authored-PoC commit `7d680ad`; signed build metadata binds actual binaries.
 - [E8] Workspace `outputs/review-response-2026-11-15/semantics/`; exact-source CPU scripts, `SEMANTICS.md`, `reference-full/`, `reference-full-f32/`, authoritative `SCORING-FP64.json` and `reference-ggml-f32-comparison-v2/`. Phone smoke and raw logits remain in [E7]. Curated source/analysis is in `bitnet/analysis/review-2026-11-15/`.
 - [E9] Workspace [E7] guard experiment; package `bitnet/docs/PHONE_GUARD_CONTROL_2026-11-15.md`; source and derived `PROFILE_NUMERICS.md` identify limits of attribution and preserve the invalid first diagnostic run.
+
+- [E10] Workspace `outputs/experiments/actquant-2026-11-15_231612+0900/`; preserved direct-scale failures, repaired CPU/Metal fixtures, teacher/corpus runs and sequential-prefill controls. Package `bitnet/actquant/` and `bitnet/analysis/actquant-2026-11-16/` contain code and derived analysis; raw evidence remains local. New iPhone results are TODO.
 
 <!-- page -->
 ### Public primary sources

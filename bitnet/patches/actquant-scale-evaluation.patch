@@ -1,0 +1,28 @@
+--- a/ggml/src/ggml-cpu/ops.cpp
++++ b/ggml/src/ggml-cpu/ops.cpp
+@@ -1562,7 +1562,11 @@
+             std::fill(y, y + ncols, NAN);
+             continue;
+         }
+-        const float scale = 127.0f/std::max(amax, eps);
++        // Match the pinned Torch eager source profile: scalar / tensor is
++        // evaluated as F32 reciprocal followed by F32 multiplication. A single
++        // 127/amax division can move an activation across a half-integer boundary.
++        const float reciprocal = 1.0f/std::max(amax, eps);
++        const float scale = reciprocal*127.0f;
+         for (int64_t j = 0; j < ncols; ++j) {
+             const float scaled = x[j]*scale;
+             const float rounded = ggml_act_quant_round_even(scaled);
+--- a/ggml/src/ggml-metal/kernels/act_quant.metal
++++ b/ggml/src/ggml-metal/kernels/act_quant.metal
+@@ -40,7 +40,9 @@
+         amax = simd_max(amax);
+         bad = simd_max(bad);
+         if (lane == 0) {
+-            maxima[0] = precise::divide(127.0f, max(amax, args.eps));
++            // Preserve the pinned Torch eager reciprocal-then-multiply profile.
++            const float reciprocal = precise::divide(1.0f, max(amax, args.eps));
++            maxima[0] = reciprocal*127.0f;
+             invalid[0] = bad;
+         }
+     }

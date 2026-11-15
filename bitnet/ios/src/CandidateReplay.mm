@@ -24,6 +24,7 @@ extern "C" int bitnet_run_iphone_q(const char*,const char*,const char*,const cha
 extern "C" int bitnet_run_iphone_down(const char*,const char*,const char*,const char*);
 extern "C" int bitnet_run_iphone_original_poc(const char*,const char*,const char*,const char*);
 extern "C" int bitnet_run_iphone_ppl(const char*,const char*,const char*);
+extern "C" int bitnet_actquant_run_config(const char*,const char*);
 extern "C" void ggml_metal_bitnet_shadow_wait(void);
 namespace bitnet_candidate {
 namespace fs=std::filesystem;
@@ -86,11 +87,68 @@ static NSDictionary* qReadbackManifest(const fs::path&directory,const std::strin
  json(directory/"manifest.json",manifest);return manifest;
 }
 static bool flag(NSDictionary*c,NSString*k){return [c[k] boolValue];}
+static fs::path actquantDocumentPath(const fs::path&docs,id value,bool directory){
+ const std::string name=str(value);
+ require(!name.empty()&&name.size()<=160&&name.front()!='.'&&std::all_of(name.begin(),name.end(),[](unsigned char ch){return (ch>='a'&&ch<='z')||(ch>='A'&&ch<='Z')||(ch>='0'&&ch<='9')||ch=='.'||ch=='-'||ch=='_';}),"invalid ActQuant document basename");
+ const auto path=fs::canonical(docs/name);
+ require(path.parent_path()==fs::canonical(docs),"ActQuant document escapes app Documents");
+ require(directory?fs::is_directory(path):fs::is_regular_file(path),"ActQuant document has wrong kind");return path;
+}
+static NSDictionary* actquantReadJSON(const fs::path&path,size_t limit=4*1024*1024){
+ require(fs::file_size(path)<=limit,"ActQuant manifest too large");
+ NSData*bytes=[NSData dataWithContentsOfFile:@(path.c_str())];NSError*error=nil;
+ NSDictionary*result=bytes?[NSJSONSerialization JSONObjectWithData:bytes options:0 error:&error]:nil;
+ require([result isKindOfClass:NSDictionary.class],"invalid ActQuant JSON");return result;
+}
+static void actquantVerifyFixture(const fs::path&fixture,NSDictionary*manifest){
+ NSArray*cases=manifest[@"cases"];require([cases isKindOfClass:NSArray.class]&&cases.count>0&&cases.count<=128,"invalid ActQuant case count");
+ std::set<std::string>names;
+ for(NSDictionary*item in cases){
+  require([item isKindOfClass:NSDictionary.class]&&names.insert(str(item[@"name"])).second,"duplicate/invalid ActQuant case");
+  for(NSString*role in @[@"input",@"expected",@"scale",@"int8_codes"]){
+   const std::string relative=str(item[role]);const fs::path part(relative);
+   require(!relative.empty()&&!part.is_absolute()&&relative.find('\\')==std::string::npos,"invalid ActQuant fixture path");
+   for(const auto&component:part)require(component!="."&&component!="..","invalid ActQuant fixture traversal");
+   const auto file=fs::canonical(fixture/part);const auto rel=file.lexically_relative(fixture);
+   require(!rel.empty()&&*rel.begin()!=".."&&fs::is_regular_file(file),"ActQuant fixture escapes directory");
+   require([hashFile(file)isEqual:item[[role stringByAppendingString:@"_sha256"]]],"ActQuant fixture file checksum mismatch");
+  }
+ }
+}
 static int run(){
  const char* raw=std::getenv("BITNET_CANDIDATE_CONFIG");require(raw,"missing candidate config");NSError*error=nil;NSData*data=[@(raw) dataUsingEncoding:NSUTF8StringEncoding];NSDictionary*c=[NSJSONSerialization JSONObjectWithData:data options:0 error:&error];require([c isKindOfClass:NSDictionary.class],"invalid JSON config");
  const fs::path docs=[[[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject path].UTF8String;
  const std::string prefix=str(c[@"output"]);require(prefix.rfind("candidate-",0)==0&&prefix.find('/')==std::string::npos,"invalid output prefix");Options o;o.out=docs/prefix;require(!fs::exists(o.out),"refuse existing output");fs::create_directories(o.out);json(o.out/"request.json",c);
  const std::string model=str(c[@"model"]);require(model.find('/')==std::string::npos,"invalid model basename");o.model=docs/model;NSString*modelSHA=hashFile(o.model);require([modelSHA isEqual:c[@"model_sha256"]],"GGUF checksum mismatch");std::fprintf(stderr,"BITNET_PHONE_MODEL_SHA256 %s\n",modelSHA.UTF8String);fflush(stderr);
+
+ if([c[@"operation"]isEqual:@"actquant"]){
+  o.model=actquantDocumentPath(docs,c[@"model"],false);
+  const std::string kind=str(c[@"actquant_operation"]);require(kind=="operator"||kind=="model","invalid ActQuant operation");
+  require([c[@"backend"]isEqual:@"MTL0"]&&[c[@"kv"]isEqual:@"F16"]&&[c[@"prefill"]isEqual:@"batched"],"ActQuant phone requires MTL0/F16/batched");
+  require([c[@"workload"]isEqual:@"teacher"]||[c[@"workload"]isEqual:@"corpus"],"invalid ActQuant workload");
+  NSMutableDictionary*native=[@{@"operation":@(kind.c_str()),@"backend":@"MTL0",@"model":@(o.model.c_str()),@"kv":@"F16",@"prefill":@"batched",@"workload":c[@"workload"],@"actquant":@(flag(c,@"actquant")),@"capture":@(flag(c,@"capture")),@"trace":@(flag(c,@"trace"))}mutableCopy];
+  NSMutableDictionary*identity=[NSMutableDictionary dictionary];
+  if(kind=="operator"){
+   const auto fixture=actquantDocumentPath(docs,c[@"fixture"],true);const auto manifest=fixture/"FIXTURES.json";
+   NSString*digest=hashFile(manifest);require([digest isEqual:c[@"fixture_sha256"]],"ActQuant fixture manifest checksum mismatch");
+   actquantVerifyFixture(fixture,actquantReadJSON(manifest));native[@"fixture"]=@(fixture.c_str());identity[@"fixture_sha256"]=digest;
+  }else{
+   const auto tokens=actquantDocumentPath(docs,c[@"tokens"],false);NSString*digest=hashFile(tokens);
+   require([digest isEqual:c[@"tokens_sha256"]],"ActQuant token checksum mismatch");
+   native[@"tokens"]=@(tokens.c_str());identity[@"tokens_sha256"]=digest;
+  }
+  json(o.out/"native-config.json",native);
+  NSData*encoded=[NSJSONSerialization dataWithJSONObject:native options:NSJSONWritingSortedKeys error:nil];require(encoded!=nil,"ActQuant config serialization failed");
+  const int code=bitnet_actquant_run_config([[[NSString alloc]initWithData:encoded encoding:NSUTF8StringEncoding]UTF8String],(o.out/"native").c_str());
+  NSMutableDictionary*record=[@{@"schema":@1,@"operation":@"actquant",@"actquant_operation":@(kind.c_str()),@"native_process_exit_code":@(code),@"process_exit_code":@(code),@"execution_pass":@NO,@"model_sha256":modelSHA,@"backend":@"MTL0",@"actquant":@(flag(c,@"actquant")),@"capture":@(flag(c,@"capture")),@"workload":c[@"workload"],@"parity_pass":[NSNull null],@"fp64_pass":[NSNull null],@"model_output_pass":[NSNull null],@"semantic_acceptance_pass":[NSNull null],@"strict_model_exit_code":@2,@"performance_measurement":@NO,@"iOS":UIDevice.currentDevice.systemVersion,@"thermal_after":@(thermal().c_str())}mutableCopy];
+  [record addEntriesFromDictionary:identity];
+  if(fs::is_regular_file(o.out/"native/RUN.json")){
+   NSDictionary*runtime=actquantReadJSON(o.out/"native/RUN.json",64*1024*1024);record[@"native_run_sha256"]=hashFile(o.out/"native/RUN.json");record[@"device"]=runtime[@"device"]?:[NSNull null];
+   record[@"execution_pass"]=@(code==0&&[runtime[@"execution_pass"]boolValue]);
+  }
+  json(o.out/"result.json",record);NSData*completion=[NSJSONSerialization dataWithJSONObject:record options:NSJSONWritingSortedKeys error:nil];
+  std::printf("BITNET_PHONE_COMPLETE %s\n",[[[NSString alloc]initWithData:completion encoding:NSUTF8StringEncoding]UTF8String]);fflush(stdout);return code;
+ }
 
  if([c[@"operation"] isEqual:@"quality"]){
   const std::string fixture=str(c[@"quality_fixture"]);require(fixture.rfind("candidate-",0)==0&&fixture.find('/')==std::string::npos,"invalid quality fixture basename");

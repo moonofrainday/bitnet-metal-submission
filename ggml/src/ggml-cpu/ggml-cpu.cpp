@@ -11,6 +11,7 @@
 #include "amx/amx.h"
 
 #include <cctype>
+#include <cmath>
 #include <string>
 #include <vector>
 
@@ -513,6 +514,13 @@ static bool ggml_backend_cpu_device_supports_op(ggml_backend_dev_t dev, const st
                    (src1->type == GGML_TYPE_BF16 && ggml_get_type_traits_cpu(src0->type)->vec_dot_type == GGML_TYPE_F32) ||
                    (src0->type == GGML_TYPE_TQ2_0 &&
                        (src1->type == GGML_TYPE_Q8_1 || src1->type == GGML_TYPE_Q8_0));
+        case GGML_OP_ACT_QUANT: {
+            float eps;
+            memcpy(&eps, op->op_params, sizeof(eps));
+            return src0 && src0->type == GGML_TYPE_F32 && op->type == GGML_TYPE_F32 &&
+                src0->ne[0] > 0 && ggml_is_contiguous(src0) && ggml_is_contiguous(op) &&
+                ggml_are_same_shape(src0, op) && std::isfinite(eps) && eps > 0.0f;
+        }
         case GGML_OP_SOFT_MAX_BACK: {
             if (op->src[0]->type != GGML_TYPE_F32 || op->src[1]->type != GGML_TYPE_F32) {
                 return false;

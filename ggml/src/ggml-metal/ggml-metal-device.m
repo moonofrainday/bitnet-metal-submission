@@ -156,7 +156,8 @@ int ggml_metal_pipeline_thread_execution_width(struct ggml_metal_pipeline_with_p
     X(ARGSORT,         argsort)        \
     X(POOL,            pool)           \
     X(MISC,            misc)           \
-    X(OUT_PROD,        out_prod)
+    X(OUT_PROD,        out_prod)       \
+    X(ACT_QUANT,       act_quant)
 
 enum ggml_metal_lib_kind {
 #define X(e, s) GGML_METAL_LIB_##e,
@@ -360,6 +361,32 @@ static bool ggml_metal_library_compile_all(
                 MTLCompileOptions * options = [MTLCompileOptions new];
                 options.preprocessorMacros = prep;
                 ggml_metal_compile_options_set_lang(options, ggml_metal_device_get_props(res->dev)->has_tensor);
+                if (kind == GGML_METAL_LIB_ACT_QUANT) {
+                    const char * trace = getenv("GGML_METAL_ACTQUANT_TRACE");
+                    const bool trace_enabled = trace != NULL && strcmp(trace, "1") == 0;
+#if (__MAC_OS_X_VERSION_MAX_ALLOWED >= 150000) || (__IPHONE_OS_VERSION_MAX_ALLOWED >= 180000) || (__TV_OS_VERSION_MAX_ALLOWED >= 180000) || (__VISION_OS_VERSION_MAX_ALLOWED >= 20000)
+                    if (@available(macOS 15.0, iOS 18.0, tvOS 18.0, visionOS 2.0, *)) {
+                        options.mathMode = MTLMathModeSafe;
+                        options.mathFloatingPointFunctions = MTLMathFloatingPointFunctionsPrecise;
+                        if (trace_enabled) {
+                            GGML_LOG_INFO("%s: ACT_QUANT_COMPILE_OPTIONS origin=%s languageVersion=%lu mathMode=%lu mathFloatingPointFunctions=%lu expectedSafe=%lu expectedPrecise=%lu\n",
+                                    __func__, origin, (unsigned long) options.languageVersion,
+                                    (unsigned long) options.mathMode, (unsigned long) options.mathFloatingPointFunctions,
+                                    (unsigned long) MTLMathModeSafe, (unsigned long) MTLMathFloatingPointFunctionsPrecise);
+                        }
+                    } else
+#endif
+                    {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+                        options.fastMathEnabled = NO;
+                        if (trace_enabled) {
+                            GGML_LOG_INFO("%s: ACT_QUANT_COMPILE_OPTIONS origin=%s languageVersion=%lu fastMathEnabled=%d\n",
+                                    __func__, origin, (unsigned long) options.languageVersion, (int) options.fastMathEnabled);
+                        }
+#pragma clang diagnostic pop
+                    }
+                }
 
                 lib = [device newLibraryWithSource:src options:options error:&error];
 
@@ -2111,6 +2138,16 @@ bool ggml_metal_device_supports_op(ggml_metal_device_t dev, const struct ggml_te
             return has_simdgroup_reduction && ggml_is_contiguous(op->src[0]);
         case GGML_OP_TRI:
             return ggml_is_contiguous_rows(op->src[0]);
+        case GGML_OP_ACT_QUANT: {
+            float eps;
+            memcpy(&eps, op->op_params, sizeof(eps));
+            return has_simdgroup_reduction && op->src[0] &&
+                op->src[0]->type == GGML_TYPE_F32 && op->type == GGML_TYPE_F32 &&
+                op->src[0]->ne[0] > 0 && ggml_nrows(op) <= INT32_MAX &&
+                ggml_are_same_shape(op->src[0], op) &&
+                ggml_is_contiguous(op->src[0]) && ggml_is_contiguous(op) &&
+                isfinite(eps) && eps > 0.0f;
+        }
         case GGML_OP_SUM_ROWS:
         case GGML_OP_CUMSUM:
         case GGML_OP_MEAN:

@@ -27,7 +27,7 @@ def main():
     parser.add_argument('--output',type=Path,help='Optional new JSON file outside raw experimental data')
     args=parser.parse_args()
     en=(HERE/'PROPOSAL.md').read_text();zh=(HERE/'PROPOSAL_ZH.md').read_text()
-    localized_date=re.sub(r'2026\s*年\s*11\s*月\s*15\s*日','15 November 2026',zh)
+    localized_date=re.sub(r'2026\s*年\s*11\s*月\s*(15|16)\s*日',lambda m: m.group(1)+' November 2026',zh)
     blocks=lambda s:re.findall(r'```[^\n]*\n(.*?)```',s,re.S)
     inline=lambda s:re.findall(r'(?<!`)`([^`\n]+)`(?!`)',re.sub(r'```.*?```','',s,flags=re.S))
     urls=lambda s:re.findall(r'\]\((https?://[^)]+)\)',s)
@@ -62,7 +62,7 @@ def main():
             'references':len(refs(en)),'URL_count':len(urls(en)),
             'English_file_checks':preserved,'English_source_sha256':sha(HERE/'PROPOSAL.md'),
             'Chinese_source_sha256':sha(HERE/'PROPOSAL_ZH.md'),
-            'date_normalization':'2026 年 11 月 15 日 is equivalent to 15 November 2026',
+            'date_normalization':'Chinese and English evidence-cutoff dates normalize to the same day in November 2026',
             'scope':'Document translation literal/structure checks, not new numerical or model validation'}
     if args.output:
         args.output.parent.mkdir(parents=True,exist_ok=True)

@@ -1,24 +1,24 @@
 {
-  "evidence_cutoff": "2026-11-15 Asia/Tokyo",
+  "evidence_cutoff": "2026-11-16 Asia/Tokyo",
   "reviewed_implementation_commit": "bbf70e9cc70302534ff87b4f34d4ce52a9670baa",
   "QVAC_commit": "2db8b046d555316019ae75d1be90484adc8b9330",
   "artifact_type": "English proposal draft for author review",
   "pages": {
-    "PDF": 21,
-    "DOCX_render": 21
+    "PDF": 22,
+    "DOCX_render": 22
   },
   "all_11_brief_topics_covered": true,
-  "new_GPU_measurements": false,
+  "new_GPU_measurements": true,
   "raw_experiment_data_included": false,
-  "timing_hardware_scope": "Physical iPhone only",
-  "native_compute_source_changed": false,
+  "timing_hardware_scope": "Historical physical iPhone only; new Mac runs are numerical validation, not timing",
+  "native_compute_source_changed": true,
   "numerical_threshold_changed": false,
   "source": "PROPOSAL.md",
   "outputs": [
     {
       "path": "PROPOSAL.md",
-      "bytes": 57273,
-      "sha256": "7901465f99f90afc0a05554a207f86fddf52349d989d0e23a0de3567bea11b95"
+      "bytes": 60763,
+      "sha256": "d8fe335b406b4ae7c9a1ac18b49575871f98f35d240b500867bc92fa08f94880"
     },
     {
       "path": "OUTLINE.md",
@@ -47,23 +47,24 @@
     },
     {
       "path": "BitNet_Mobile_GPU_Proposal.pdf",
-      "bytes": 228871,
-      "sha256": "639035ff78bc899434fc07c85f7f74f828ff2256d5c58c90b7c0c6ca30d0679e"
+      "bytes": 232274,
+      "sha256": "260a65fdc4741b29f26bd0702941ccee7be7bb6ded39ad32b3787333ffffcc6f"
     },
     {
       "path": "BitNet_Mobile_GPU_Proposal.docx",
-      "bytes": 126935,
-      "sha256": "b1cc5b37fde157bc0f98080ae2779ed0beedd54a78bf613bc3658d2efe4de024"
+      "bytes": 128674,
+      "sha256": "bd6e9533d61f3704dd05b9b22570f07101b78b221565ef639460aa0fb72e829f"
     }
   ],
   "quality_review": {
     "all_11_topics_covered": true,
     "independent_content_review": "pass",
-    "PDF_pages_visually_inspected": 21,
-    "DOCX_pages_visually_inspected": 21,
+    "PDF_pages_visually_inspected": 22,
+    "DOCX_pages_visually_inspected": 22,
     "clipping_overlap_or_missing_glyphs_observed": false,
     "title_paragraph_borders_remaining": 0,
-    "personal_host_device_or_signing_IDs_embedded": false
+    "personal_host_device_or_signing_IDs_embedded": false,
+    "new_ActQuant_revision_QA": "all initial22 pages plus finalchanged17/18/19; unchangedWordbodycomparison"
   },
   "Metal_shader_arithmetic_changed_in_this_review": false,
   "source_baseline_before_review": "eb7858492d0f39e7a4f97f58ef53239c17bcb594",
@@ -80,5 +81,11 @@
   "representative_model_quality_acceptance": null,
   "report_revision_base_commit": "816c0c4f7a8f7337d26289033ee13ed7ff0f0b53",
   "historical_FFN_evidence_reorganized": true,
-  "ActQuant_experiment_resumed": false
+  "ActQuant_experiment_resumed": true,
+  "GPU_measurement_scope": "Mac numerical validation only; no Mac performance or new phone run",
+  "ActQuant_same_input_F32_pass": true,
+  "full_model_source_F32_pass": false,
+  "new_ActQuant_phone_pass": null,
+  "ActQuant_revision_base_commit": "b7efadd3b0e4d8ae1000798eb1e869c285dcca07",
+  "ActQuant_backend_patch_sha256": "4f67351cf9a00bfe107c03593c318f950b7fd98b6c19c8d8123e2e9f5fce3fa3"
 }

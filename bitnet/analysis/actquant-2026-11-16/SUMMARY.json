@@ -1,0 +1,653 @@
+{
+  "schema": 1,
+  "date": "2026-11-16",
+  "scope": "Public checkpoint Mac correctness experiment; derived aggregates only",
+  "source_anchor": {
+    "worktree_base_commit": "b7efadd3b0e4d8ae1000798eb1e869c285dcca07",
+    "pinned_QVAC_commit": "2db8b046d555316019ae75d1be90484adc8b9330",
+    "official_source_revision": "096f25ae1f501a084d8ff2dcaf25fbc2bd60eba4",
+    "official_source_sha256": "a8b3170f1824f010701f4e033fbc33d199bc2ea344ddbf2554594b66fada8b1c",
+    "public_GGUF_sha256": "52257df879ab4366d97228e7bda94a9a3c6a9065ec44e7879a8b87d54e568cd2",
+    "fixture_manifest_sha256": "6261015aae073d25695161cd20570a3ec0bb2c0ebd8785263853069a422a41f4",
+    "uncommitted_backend_changes_recorded_by_manifest": true,
+    "implementation_patch_sha256": "4f67351cf9a00bfe107c03593c318f950b7fd98b6c19c8d8123e2e9f5fce3fa3"
+  },
+  "frozen_tolerance": {
+    "absolute": 0.0002,
+    "relative": 2e-05
+  },
+  "reference_profile": "Pinned official function, torch.compile decorator removed, Torch eager F32; not BF16 or all compiler profiles",
+  "scale_evaluation": {
+    "V1": "F32(127/denominator)",
+    "V2": "F32(F32(1/denominator)*127)",
+    "other_quantizer_arithmetic_changed": false
+  },
+  "operator_expanded_suite": {
+    "V1": {
+      "CPU": {
+        "cases": 20,
+        "values": 386567,
+        "execution_pass": true,
+        "numerical_pass": false,
+        "strict_operator_exit_code": 1,
+        "frozen_tolerance_failures": 4,
+        "recovered_integer_code_mismatches": 4,
+        "output_bitwise_differences": 65505,
+        "max_value_ULP_distance": 8388607,
+        "max_abs_error": 0.8503494262695312,
+        "nonfinite": 0
+      },
+      "MTL0": {
+        "cases": 20,
+        "values": 386567,
+        "execution_pass": true,
+        "numerical_pass": false,
+        "strict_operator_exit_code": 1,
+        "frozen_tolerance_failures": 4,
+        "recovered_integer_code_mismatches": 4,
+        "output_bitwise_differences": 65505,
+        "max_value_ULP_distance": 8388607,
+        "max_abs_error": 0.8503494262695312,
+        "nonfinite": 0
+      }
+    },
+    "V2": {
+      "CPU": {
+        "cases": 20,
+        "values": 386567,
+        "execution_pass": true,
+        "numerical_pass": true,
+        "strict_operator_exit_code": 0,
+        "frozen_tolerance_failures": 0,
+        "recovered_integer_code_mismatches": 0,
+        "output_bitwise_differences": 0,
+        "max_value_ULP_distance": 0,
+        "max_abs_error": 0.0,
+        "nonfinite": 0
+      },
+      "MTL0": {
+        "cases": 20,
+        "values": 386567,
+        "execution_pass": true,
+        "numerical_pass": true,
+        "strict_operator_exit_code": 0,
+        "frozen_tolerance_failures": 0,
+        "recovered_integer_code_mismatches": 0,
+        "output_bitwise_differences": 0,
+        "max_value_ULP_distance": 0,
+        "max_abs_error": 0.0,
+        "nonfinite": 0
+      }
+    }
+  },
+  "initial17_scope": {
+    "cases_per_backend": 17,
+    "values_per_backend": 377088,
+    "CPU_MTL0_raw_outputs_bitwise_equal": true,
+    "official_output_bit_differences_per_backend": 61964,
+    "max_ULP": 2,
+    "frozen_failures_per_backend": 0,
+    "code_mismatches_per_backend": 0
+  },
+  "backend_regressions_v2": {
+    "MTL0_ACT_QUANT_passed": 16,
+    "MTL0_ACT_QUANT_executed": 16,
+    "MTL0_TQ2_0_MUL_MAT_passed": 59,
+    "MTL0_TQ2_0_MUL_MAT_executed": 59
+  },
+  "V1_fullgraph_local_failure": {
+    "captured_values": 25581568,
+    "recovered_integer_code_mismatches": 2,
+    "frozen_tolerance_failures": 2,
+    "same_input_quantizer_pass": false
+  },
+  "V2_fullgraph": {
+    "quantizer_captures": 3960,
+    "quantizer_values": 25581568,
+    "same_input_quantizer_bitwise_pass": true,
+    "recovered_integer_code_mismatches": 0,
+    "quantizer_frozen_tolerance_failures": 0,
+    "model_output_pass": false,
+    "strict_scoped_model_exit_code": 1,
+    "fp64_pass": null,
+    "model_quality_pass": null,
+    "profiles": {
+      "teacher_batched": {
+        "workload": "teacher",
+        "exact_token_ID_alignment_pass": true,
+        "quantizer_captures": 3960,
+        "quantizer_capture_coverage_pass": true,
+        "same_input_official_F32_ActQuant_pass": true,
+        "quantizer_summary": {
+          "vectors_or_captures": 3960,
+          "values": 25581568,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 0,
+          "bitwise_differences": 0,
+          "max_abs_error": 0.0,
+          "max_error_over_tolerance": 0.0,
+          "RMSE": 0.0,
+          "relative_L2": 0.0
+        },
+        "recovered_integer_code_mismatches": 0,
+        "full_layer_capture_coverage_pass": true,
+        "F32_ON_layer_output_summary": {
+          "vectors_or_captures": 990,
+          "values": 4464640,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 4462437,
+          "bitwise_differences": 4464634,
+          "max_abs_error": 5622.05078125,
+          "max_error_over_tolerance": 5296745.017358024,
+          "RMSE": 94.96595625289751,
+          "relative_L2": 0.031193583643916712
+        },
+        "scores": {
+          "targets": 32,
+          "expected_targets": 32,
+          "all_target_scores_available": true,
+          "scope": "Fixed-continuation teacher-forced NLL/PPL, not held-out quality",
+          "actual_mean_NLL": 0.6021427633468135,
+          "actual_PPL": 1.826027355828702,
+          "references": {
+            "F32_quant_on": {
+              "mean_NLL": 0.5949242252726774,
+              "PPL": 1.8128935682395824
+            },
+            "F32_quant_off": {
+              "mean_NLL": 0.5899708432229227,
+              "PPL": 1.803935817676573
+            },
+            "BF16_quant_on": {
+              "mean_NLL": 0.5953380181805694,
+              "PPL": 1.8136438859682542
+            },
+            "BF16_quant_off": {
+              "mean_NLL": 0.5900326692505187,
+              "PPL": 1.8040473513100233
+            }
+          }
+        },
+        "full_logits_F32_ON_frozen_pass": false,
+        "model_output_pass": false,
+        "fp64_pass": null,
+        "model_quality_pass": null,
+        "strict_scoped_model_exit_code": 1,
+        "F32_ON_logits": {
+          "vectors_or_captures": 33,
+          "values": 4232448,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 4227009,
+          "bitwise_differences": 4232444,
+          "max_abs_error": 1.2037646770477295,
+          "max_error_over_tolerance": 4141.225666083822,
+          "RMSE": 0.17433940509286713,
+          "relative_L2": 0.026028319820262626,
+          "greedy_equal_positions": 31
+        },
+        "prefill": "batched",
+        "KV": "F16"
+      },
+      "teacher_sequential": {
+        "workload": "teacher",
+        "exact_token_ID_alignment_pass": true,
+        "quantizer_captures": 7080,
+        "quantizer_capture_coverage_pass": true,
+        "same_input_official_F32_ActQuant_pass": true,
+        "quantizer_summary": {
+          "vectors_or_captures": 7080,
+          "values": 25827840,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 0,
+          "bitwise_differences": 0,
+          "max_abs_error": 0.0,
+          "max_error_over_tolerance": 0.0,
+          "RMSE": 0.0,
+          "relative_L2": 0.0
+        },
+        "recovered_integer_code_mismatches": 0,
+        "full_layer_capture_coverage_pass": true,
+        "F32_ON_layer_output_summary": {
+          "vectors_or_captures": 1770,
+          "values": 4531200,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 4529005,
+          "bitwise_differences": 4531196,
+          "max_abs_error": 4602.2265625,
+          "max_error_over_tolerance": 5454446.242638271,
+          "RMSE": 102.91875891763188,
+          "relative_L2": 0.03265801780521132
+        },
+        "scores": {
+          "targets": 32,
+          "expected_targets": 32,
+          "all_target_scores_available": true,
+          "scope": "Fixed-continuation teacher-forced NLL/PPL, not held-out quality",
+          "actual_mean_NLL": 0.6002349427488671,
+          "actual_PPL": 1.8225469442829172,
+          "references": {
+            "F32_quant_on": {
+              "mean_NLL": 0.5949242252726774,
+              "PPL": 1.8128935682395824
+            },
+            "F32_quant_off": {
+              "mean_NLL": 0.5899708432229227,
+              "PPL": 1.803935817676573
+            },
+            "BF16_quant_on": {
+              "mean_NLL": 0.5953380181805694,
+              "PPL": 1.8136438859682542
+            },
+            "BF16_quant_off": {
+              "mean_NLL": 0.5900326692505187,
+              "PPL": 1.8040473513100233
+            }
+          }
+        },
+        "full_logits_F32_ON_frozen_pass": false,
+        "model_output_pass": false,
+        "fp64_pass": null,
+        "model_quality_pass": null,
+        "strict_scoped_model_exit_code": 1,
+        "F32_ON_logits": {
+          "vectors_or_captures": 33,
+          "values": 4232448,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 4225157,
+          "bitwise_differences": 4232434,
+          "max_abs_error": 1.3592621088027954,
+          "max_error_over_tolerance": 5769.609181784561,
+          "RMSE": 0.1750273008263737,
+          "relative_L2": 0.026131020469867143,
+          "greedy_equal_positions": 30
+        },
+        "prefill": "sequential",
+        "KV": "F16"
+      },
+      "corpus": {
+        "workload": "corpus",
+        "exact_token_ID_alignment_pass": true,
+        "quantizer_captures": 0,
+        "quantizer_capture_coverage_pass": false,
+        "same_input_official_F32_ActQuant_pass": null,
+        "quantizer_summary": null,
+        "recovered_integer_code_mismatches": 0,
+        "full_layer_capture_coverage_pass": false,
+        "F32_ON_layer_output_summary": null,
+        "scores": {
+          "targets": 128,
+          "expected_targets": 128,
+          "all_target_scores_available": true,
+          "scope": "Whole 128-token test-split PPL smoke",
+          "actual_mean_NLL": 2.9511376465157344,
+          "actual_PPL": 19.12770191845115,
+          "references": {
+            "F32_quant_on": {
+              "mean_NLL": 2.9512331898098103,
+              "PPL": 19.129529529407137
+            },
+            "F32_quant_off": {
+              "mean_NLL": 2.949089522721009,
+              "PPL": 19.08856610818628
+            },
+            "BF16_quant_on": {
+              "mean_NLL": 2.9543281006455024,
+              "PPL": 19.188825428058678
+            },
+            "BF16_quant_off": {
+              "mean_NLL": 2.949598624042477,
+              "PPL": 19.098286596563682
+            }
+          }
+        },
+        "full_logits_F32_ON_frozen_pass": false,
+        "model_output_pass": false,
+        "fp64_pass": null,
+        "model_quality_pass": null,
+        "strict_scoped_model_exit_code": 1,
+        "F32_ON_logits": {
+          "vectors_or_captures": 128,
+          "values": 16416768,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 16384271,
+          "bitwise_differences": 16416742,
+          "max_abs_error": 1.1365957595407963,
+          "max_error_over_tolerance": 5655.102519267382,
+          "RMSE": 0.12421682494616508,
+          "relative_L2": 0.025848290873735365,
+          "greedy_equal_positions": 126
+        },
+        "prefill": "sequential",
+        "KV": "F16"
+      },
+      "teacher_sequential_F32KV_control": {
+        "workload": "teacher",
+        "exact_token_ID_alignment_pass": true,
+        "quantizer_captures": 7080,
+        "quantizer_capture_coverage_pass": true,
+        "same_input_official_F32_ActQuant_pass": true,
+        "quantizer_summary": {
+          "vectors_or_captures": 7080,
+          "values": 25827840,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 0,
+          "bitwise_differences": 0,
+          "max_abs_error": 0.0,
+          "max_error_over_tolerance": 0.0,
+          "RMSE": 0.0,
+          "relative_L2": 0.0
+        },
+        "recovered_integer_code_mismatches": 0,
+        "full_layer_capture_coverage_pass": true,
+        "F32_ON_layer_output_summary": {
+          "vectors_or_captures": 1770,
+          "values": 4531200,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 4423593,
+          "bitwise_differences": 4530226,
+          "max_abs_error": 6879.9609375,
+          "max_error_over_tolerance": 5451185.893253295,
+          "RMSE": 101.60609911730837,
+          "relative_L2": 0.03224148667345273
+        },
+        "scores": {
+          "targets": 32,
+          "expected_targets": 32,
+          "all_target_scores_available": true,
+          "scope": "Fixed-continuation teacher-forced NLL/PPL, not held-out quality",
+          "actual_mean_NLL": 0.5966287124033012,
+          "actual_PPL": 1.8159862569711487,
+          "references": {
+            "F32_quant_on": {
+              "mean_NLL": 0.5949242252726774,
+              "PPL": 1.8128935682395824
+            },
+            "F32_quant_off": {
+              "mean_NLL": 0.5899708432229227,
+              "PPL": 1.803935817676573
+            },
+            "BF16_quant_on": {
+              "mean_NLL": 0.5953380181805694,
+              "PPL": 1.8136438859682542
+            },
+            "BF16_quant_off": {
+              "mean_NLL": 0.5900326692505187,
+              "PPL": 1.8040473513100233
+            }
+          }
+        },
+        "full_logits_F32_ON_frozen_pass": false,
+        "model_output_pass": false,
+        "fp64_pass": null,
+        "model_quality_pass": null,
+        "strict_scoped_model_exit_code": 1,
+        "F32_ON_logits": {
+          "vectors_or_captures": 33,
+          "values": 4232448,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 4223875,
+          "bitwise_differences": 4232446,
+          "max_abs_error": 1.0746383666992188,
+          "max_error_over_tolerance": 4258.569345203973,
+          "RMSE": 0.1466219676808685,
+          "relative_L2": 0.021890194390883553,
+          "greedy_equal_positions": 31
+        },
+        "prefill": "sequential",
+        "KV": "F32",
+        "role": "Separate precision control; original F16-KV gate unchanged"
+      }
+    },
+    "captured_quantizers_are_exact_on_their_own_actual_input": true,
+    "teacher_capture_plain_full_logits_bitwise_equal_all_33_positions": true,
+    "legacy_OFF_and_V2_OFF_full_logits_bitwise_equal_all_33_positions": true,
+    "batched_quantizer_actual_encode_records": 3960,
+    "sequential_quantizer_actual_encode_records": 7080,
+    "actual_layer_offload": {
+      "offloaded": 31,
+      "total": 31
+    },
+    "reference_profiles_not_interchangeable": true
+  },
+  "runtime_precision_evidence": {
+    "library": "act_quant only",
+    "actual_mathMode": 0,
+    "expected_MTLMathModeSafe": 0,
+    "actual_mathFloatingPointFunctions": 1,
+    "expected_Precise": 1,
+    "actual_languageVersion": 262145,
+    "stock_library_math_changed": false,
+    "other_ROUND_semantics_changed": false
+  },
+  "baseline_preserved": true,
+  "historical_strict_comparison_exit_code": 1,
+  "historical_complete_FFN_failures_overwritten": false,
+  "performance_measurement": false,
+  "phone_verified": null,
+  "evidence_index": [
+    {
+      "local_artifact_name": "boundary-v1-CPU-analysis/SUMMARY.json",
+      "sha256": "160c2f67c6368da34722608a51816620bfa56f3797e8bc14f5f8525681b0d68b"
+    },
+    {
+      "local_artifact_name": "boundary-v1-MTL0-analysis/SUMMARY.json",
+      "sha256": "160c2f67c6368da34722608a51816620bfa56f3797e8bc14f5f8525681b0d68b"
+    },
+    {
+      "local_artifact_name": "operator-v2-CPU-analysis/SUMMARY.json",
+      "sha256": "4ca7cabf16b79accc9aa081c1d8d1b2773aa9f54ff7f593cff5c14bffe299182"
+    },
+    {
+      "local_artifact_name": "operator-v2-MTL0-analysis/SUMMARY.json",
+      "sha256": "4ca7cabf16b79accc9aa081c1d8d1b2773aa9f54ff7f593cff5c14bffe299182"
+    },
+    {
+      "local_artifact_name": "ACTQUANT_FIRST_LOCAL_FAILURES.json",
+      "sha256": "937adde577bd3a618d12b988453d28dc4c8ed38bf4b98f834c86f30ca4bf50cb"
+    },
+    {
+      "local_artifact_name": "backend-actquant-v2.log",
+      "sha256": "11b52ca1dc02418e34264f75607d00dfc1b37d377f41370d8259856cba99c310"
+    },
+    {
+      "local_artifact_name": "backend-tq2-v2.log",
+      "sha256": "5824c5752f38cc58be7608a98bcee59917caa8bc0c560c36780569f0a823048e"
+    },
+    {
+      "local_artifact_name": "operator3-MTL0.log",
+      "sha256": "148b87df3a2d44432a8e7a115de671a95fbad9e1cff40d60f38805bebfaeb642"
+    },
+    {
+      "local_artifact_name": "backend-audit/F32_EVALUATION_AUDIT.json",
+      "sha256": "252a58669e8abae367a93b637448b735f2260e3721931ea4760020d1de5691ff"
+    },
+    {
+      "local_artifact_name": "backend-audit/V1_SOURCE_MANIFEST.json",
+      "sha256": "b8c85965eb5ea3b59b478d7defac5c84148f332597b244a7f99b6caf71c7a41b"
+    },
+    {
+      "local_artifact_name": "backend-audit/V2_SOURCE_MANIFEST.json",
+      "sha256": "02f7dcb9a1ca0cbea676b4b3e3460631dfe3f3abe950ebf6a2496cbce3ea7280"
+    },
+    {
+      "local_artifact_name": "model-analysis-2/teacher-v2-ON-capture/SUMMARY.json",
+      "sha256": "1c2e97fa326dc255f2c5c19ada02a376f009566fd6b0f7b2060fdf8e56b8b231"
+    },
+    {
+      "local_artifact_name": "model-analysis-2/teacher-v2-sequential-ON-capture/SUMMARY.json",
+      "sha256": "85a210a10238afe4d98600c19505ac5faf7be922b6e087c989070fe4dcb7ee88"
+    },
+    {
+      "local_artifact_name": "model-analysis-2/corpus-v2-ON-plain/SUMMARY.json",
+      "sha256": "43e9b15689c87f2c1217511649db6f4028a2c8bace84def2657f196f68954e57"
+    },
+    {
+      "local_artifact_name": "teacher-v2-OFF-plain/RUN.json",
+      "sha256": "ee13cba449d3d74dc6ad6ea82122ab328e21dc33833969fc365558cf74fcd114"
+    },
+    {
+      "local_artifact_name": "teacher-v2-ON-plain/RUN.json",
+      "sha256": "a308c18448e5a7a3f3dcd2e09042ee90f650b260edfccc9ab40c76935d4c28b5"
+    },
+    {
+      "local_artifact_name": "teacher-v2-ON-capture/RUN.json",
+      "sha256": "ea20f9c90ae33cf1662dbf3a0e7cb32cf48d462e66ba5e488e3ae929340bbad7"
+    },
+    {
+      "local_artifact_name": "teacher-v2-ON-capture.log",
+      "sha256": "7f886722791e9915f9429beb1e362a5717b8b9cd44058aad68595c74df48cb9f"
+    },
+    {
+      "local_artifact_name": "teacher-v2-sequential-ON-capture.log",
+      "sha256": "1e2aacfde87c61adf996ab5de691203c00acecf4c1e9d767cdac0d0c99be0c05"
+    },
+    {
+      "local_artifact_name": "one-layer0-source-probe/SUMMARY.json",
+      "sha256": "1682ce07ac4734ea71ccefbeb422b90e7f6d6857f183ec9ca8dc1f6a04436054"
+    },
+    {
+      "local_artifact_name": "PREFILL_HALF_CAST_CAUSAL_CONTROL.json",
+      "sha256": "6e8f0adbac625302d60340eaff3f8c95585ec9c40bc24b77e0fb6862d110401c"
+    },
+    {
+      "local_artifact_name": "V2_Q0_FP64_BOUNDARY.json",
+      "sha256": "d3241570cb72f3b9715a2c9f2020f3adb32877ad28cd29c52c37da2305771ae2"
+    },
+    {
+      "local_artifact_name": "ios-build-v2/BUILD.json",
+      "sha256": "fc4bfb6623dce0ab0bef59070f4cbb9861a91bffabce0625a591f14f2fb86b02"
+    },
+    {
+      "local_artifact_name": "model-analysis-2/teacher-v2-sequential-F32KV-ON-capture/SUMMARY.json",
+      "sha256": "ff5d070ae6f6ac896172aeb629417c3089b2571da9f37bf62a795add2e59af7a"
+    },
+    {
+      "local_artifact_name": "QUANTIZATION_DISCONTINUITY_INPUT_CONTROL.json",
+      "sha256": "713877aa96c4dc065090b35b2e0ebb2aa5adb2f13ca146339f461ec9c0fbf990"
+    },
+    {
+      "local_artifact_name": "fresh-entry-operator/RESULT.json",
+      "sha256": "4dda7853fcc357751146ef7a20ba5e04c816895f7244419f55259f9bf0d82a7e"
+    }
+  ],
+  "raw_artifacts_included": false,
+  "limitations": [
+    "Local exact quantizer outputs do not establish full-model output equivalence.",
+    "Recovered grid codes are not observed internal integer registers.",
+    "No general extreme/subnormal F32 qualification.",
+    "No representative quality budget or product acceptance.",
+    "Team checkpoint semantics remain a separate dependency."
+  ],
+  "layer0_drift_controls": {
+    "reference_probe_cache_bitwise_pass": true,
+    "reference_probe_values": 151040,
+    "reference_probe_positions": 59,
+    "prefill_Q_reference_X_half_roundtrip": {
+      "values": 69120,
+      "F32_X_failures": 11168,
+      "F16_roundtrip_X_failures": 0,
+      "scope": "Captured W/Y fixed; only reference X is narrowed; not a model repair"
+    },
+    "sequential_attention_output_boundary": {
+      "F16_KV": {
+        "pre_quantizer_X": {
+          "vectors_or_captures": 59,
+          "values": 151040,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 0,
+          "bitwise_differences": 151027,
+          "max_abs_error": 3.380700945854187e-05,
+          "max_error_over_tolerance": 0.1681108072893221,
+          "RMSE": 2.077766605758509e-06,
+          "relative_L2": 0.0003192415822054525
+        },
+        "post_quantizer_effective_X": {
+          "vectors_or_captures": 59,
+          "values": 151040,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 676,
+          "bitwise_differences": 123724,
+          "max_abs_error": 0.0007552530150860548,
+          "max_error_over_tolerance": 3.775409573325231,
+          "RMSE": 2.156905200878561e-05,
+          "relative_L2": 0.0033136913656995975
+        },
+        "first_frozen_failure_node": "actq_attn_out_out-0",
+        "first_frozen_failure_phase": "effective",
+        "first_failure_values": 2560,
+        "first_failure_count": 7,
+        "first_failure_max_abs_error": 0.0003214878961443901
+      },
+      "F32_KV": {
+        "pre_quantizer_X": {
+          "vectors_or_captures": 59,
+          "values": 151040,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 0,
+          "bitwise_differences": 149049,
+          "max_abs_error": 4.202593117952347e-07,
+          "max_error_over_tolerance": 0.0021005877821509947,
+          "RMSE": 2.581448553290685e-08,
+          "relative_L2": 3.9663055429348716e-06
+        },
+        "post_quantizer_effective_X": {
+          "vectors_or_captures": 59,
+          "values": 151040,
+          "nonfinite_actual": 0,
+          "nonfinite_reference": 0,
+          "frozen_tolerance_failures": 10,
+          "bitwise_differences": 121633,
+          "max_abs_error": 0.000714876689016819,
+          "max_error_over_tolerance": 3.5700447482186695,
+          "RMSE": 2.971022329293958e-06,
+          "relative_L2": 0.00045644338174306235
+        },
+        "first_frozen_failure_node": "actq_ffn_down_out-0",
+        "first_frozen_failure_phase": "effective",
+        "first_failure_values": 6912,
+        "first_failure_count": 1,
+        "first_failure_max_abs_error": 0.07019765675067902
+      }
+    },
+    "full_F32KV_model_acceptance": false,
+    "F32KV_threshold_example": {
+      "node": "actq_ffn_down_out-0",
+      "input_position": 0,
+      "column": 1808,
+      "absolute_input_delta_at_column": 4.76837158203125e-07,
+      "actual_quantizer_equals_official_on_actual_input_bitwise": true,
+      "native_integer_code": 1,
+      "source_integer_code": 2
+    }
+  },
+  "phone_build_preparation": {
+    "build_completed": true,
+    "exit_code": 0,
+    "unsigned": true,
+    "installed": false,
+    "GPU_executed": false,
+    "framework_sha256": "4219a1c6accb48792ddf2eef393036e55ec40c4ae1dc058a1bddb38d776f5d40"
+  },
+  "reusable_source_patch": "bitnet/patches/public-2b-actquant.patch",
+  "fresh_clean_operator_entry": {
+    "processing_completed": true,
+    "scope": "operator",
+    "numerical_acceptance_pass": true,
+    "performance_measurement": false,
+    "legacy_V1_verdict_overwritten": false,
+    "strict_exit_code": 0
+  }
+}

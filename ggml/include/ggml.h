@@ -670,6 +670,8 @@ extern "C" {
         GGML_OP_GATED_DELTA_NET_DEFERRED,
         GGML_OP_GDN_CONV_DEFERRED,
 
+        GGML_OP_ACT_QUANT,
+
         GGML_OP_COUNT,
     };
 
@@ -1946,6 +1948,14 @@ extern "C" {
             struct ggml_context * ctx,
             struct ggml_tensor  * a,
             int                   n_past);
+
+    // Per-token absmax INT8 quantize/dequantize along ne0, with ties-to-even.
+    // Contiguous F32 input and newly allocated F32 output. Finite inputs only.
+    // Inference-only: no backward implementation.
+    GGML_API struct ggml_tensor * ggml_act_quant(
+            struct ggml_context * ctx,
+            struct ggml_tensor  * a,
+            float                 eps);
 
     GGML_API struct ggml_tensor * ggml_clamp(
             struct ggml_context * ctx,

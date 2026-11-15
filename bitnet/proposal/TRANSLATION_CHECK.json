@@ -12,11 +12,11 @@
   "overall_pass": true,
   "table_errors": [],
   "section_count": 16,
-  "table_count": 23,
-  "table_cells_checked": 499,
+  "table_count": 24,
+  "table_cells_checked": 515,
   "code_blocks": 5,
-  "inline_code_entries": 75,
-  "references": 76,
+  "inline_code_entries": 83,
+  "references": 78,
   "URL_count": 18,
   "English_file_checks": {
     "PROPOSAL.md": true,
@@ -25,8 +25,8 @@
     "assets/execution-flow.png": true,
     "assets/execution-flow.svg": true
   },
-  "English_source_sha256": "7901465f99f90afc0a05554a207f86fddf52349d989d0e23a0de3567bea11b95",
-  "Chinese_source_sha256": "dc0251d702fd6964f29b4a59cf69adfebd1f6e5a09095f100c2623786dbaa15a",
-  "date_normalization": "2026 年 11 月 15 日 is equivalent to 15 November 2026",
+  "English_source_sha256": "d8fe335b406b4ae7c9a1ac18b49575871f98f35d240b500867bc92fa08f94880",
+  "Chinese_source_sha256": "901026c8ab056790b584ec5d0985618954c44bd1c6211d9280b9ec86442c970c",
+  "date_normalization": "Chinese and English evidence-cutoff dates normalize to the same day in November 2026",
   "scope": "Document translation literal/structure checks, not new numerical or model validation"
 }

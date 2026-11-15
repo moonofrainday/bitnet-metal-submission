@@ -1,4 +1,10 @@
 #include "models.h"
+#include "llama-impl.h"
+
+#include <cstdlib>
+#include <cstring>
+#include <mutex>
+#include <stdexcept>
 
 void llama_model_bitnet::load_arch_hparams(llama_model_loader & ml) {
     ml.get_key(LLM_KV_ATTENTION_LAYERNORM_RMS_EPS, hparams.f_norm_rms_eps);
@@ -62,6 +68,63 @@ std::unique_ptr<llm_graph_context> llama_model_bitnet::build_arch_graph(const ll
 }
 
 llama_model_bitnet::graph::graph(const llama_model & model, const llm_graph_params & params) : llm_graph_context(params) {
+    const char * act_quant_env = std::getenv("LLAMA_BITNET_ACTQUANT");
+    if (act_quant_env && std::strcmp(act_quant_env, "0") != 0 && std::strcmp(act_quant_env, "1") != 0) {
+        throw std::runtime_error("LLAMA_BITNET_ACTQUANT must be 0 or 1");
+    }
+    const bool act_quant_enabled = act_quant_env && std::strcmp(act_quant_env, "1") == 0;
+    if (act_quant_enabled) {
+        if (n_layer != 30 || hparams.n_embd != 2560 || model.vocab.n_tokens() != 128256 ||
+                hparams.llm_ffn_op != LLM_FFN_RELU_SQR || cparams.training || !loras->empty()) {
+            throw std::runtime_error("experimental ActQuant requires the public 2B inference profile without LoRA");
+        }
+        for (int il = 0; il < n_layer; ++il) {
+            const auto & layer = model.layers[il];
+            if (hparams.n_ff(il) != 6912 || hparams.n_head(il) != 20 || hparams.n_head_kv(il) != 5) {
+                throw std::runtime_error("experimental ActQuant has an unsupported public 2B layer configuration");
+            }
+            const ggml_tensor * weights[] = {
+                layer.wq, layer.wk, layer.wv, layer.wo, layer.ffn_gate, layer.ffn_up, layer.ffn_down,
+            };
+            const int64_t columns[] = { 2560, 2560, 2560, 2560, 2560, 2560, 6912 };
+            const int64_t rows[] = { 2560, 640, 640, 2560, 6912, 6912, 2560 };
+            for (size_t i = 0; i < sizeof(weights)/sizeof(weights[0]); ++i) {
+                const auto * w = weights[i];
+                if (!w || w->type != GGML_TYPE_TQ2_0 || w->ne[0] != columns[i] || w->ne[1] != rows[i] ||
+                        w->ne[2] != 1 || w->ne[3] != 1) {
+                    throw std::runtime_error("experimental ActQuant requires the audited public 2B TQ2_0 weights");
+                }
+            }
+        }
+        for (const char * name : { "GGML_METAL_BITNET_POC", "GGML_METAL_BITNET_Q_GUARD_ONLY",
+                "GGML_METAL_BITNET_FFN", "GGML_METAL_BITNET_FFN_MECHANISM" }) {
+            const char * value = std::getenv(name);
+            if (value && value[0] != '\0' && std::strcmp(value, "0") != 0) {
+                throw std::runtime_error("experimental ActQuant cannot be combined with custom Q or FFN routes");
+            }
+        }
+        static std::once_flag log_once;
+        std::call_once(log_once, []() {
+            LLAMA_LOG_INFO("BitNet ActQuant: experimental public 2B F32 profile; per-token absmax INT8, "
+                    "eps=1e-5, round-to-even, 120 shared stages for 210 projections; lm_head unchanged. "
+                    "Caller must verify checkpoint identity.\n");
+        });
+    }
+    auto act_quant = [&](ggml_tensor * input, const char * output_name, int il) {
+        if (!act_quant_enabled) {
+            return input;
+        }
+        if (input->type != GGML_TYPE_F32) {
+            throw std::runtime_error("experimental ActQuant requires F32 activations");
+        }
+        if (!ggml_is_contiguous(input)) {
+            input = ggml_cont(ctx0, input);
+        }
+        ggml_tensor * output = ggml_act_quant(ctx0, input, 1e-5f);
+        cb(output, output_name, il);
+        return output;
+    };
+
     const int64_t n_embd_head = hparams.n_embd_head_v();
 
     GGML_ASSERT(n_embd_head == hparams.n_embd_head_k());
@@ -85,6 +148,7 @@ llama_model_bitnet::graph::graph(const llama_model & model, const llm_graph_para
                 model.layers[il].attn_norm, NULL,
                 LLM_NORM_RMS, il);
         cb(cur, "attn_norm", il);
+        cur = act_quant(cur, "actq_qkv_out", il);
 
         // self-attention
         {
@@ -115,6 +179,7 @@ llama_model_bitnet::graph::graph(const llama_model & model, const llm_graph_para
                     model.layers[il].attn_sub_norm, NULL,
                     LLM_NORM_RMS, il);
             cb(cur, "attn_sub_norm", il);
+            cur = act_quant(cur, "actq_attn_out_out", il);
 
             cur = build_lora_mm(model.layers[il].wo, cur, model.layers[il].wo_s);
             if (model.layers[il].wo_b) {
@@ -136,6 +201,7 @@ llama_model_bitnet::graph::graph(const llama_model & model, const llm_graph_para
                 model.layers[il].ffn_norm, NULL,
                 LLM_NORM_RMS, il);
         cb(cur, "ffn_norm", il);
+        cur = act_quant(cur, "actq_ffn_up_gate_out", il);
 
         cur = build_ffn(cur,
                 model.layers[il].ffn_up,   NULL, model.layers[il].ffn_up_s,
@@ -149,6 +215,7 @@ llama_model_bitnet::graph::graph(const llama_model & model, const llm_graph_para
                 model.layers[il].ffn_sub_norm, NULL,
                 LLM_NORM_RMS, il);
         cb(cur, "ffn_sub_norm", il);
+        cur = act_quant(cur, "actq_ffn_down_out", il);
 
         cur = build_lora_mm(model.layers[il].ffn_down, cur, model.layers[il].ffn_down_s);
         cb(cur, "ffn_down", il);

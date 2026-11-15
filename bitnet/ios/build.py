@@ -26,6 +26,14 @@ def source_identity():
     return {str(path.relative_to(ROOT)): sha256(path) for path in sorted(files)}
 
 
+def package_identity():
+    files = {p for p in HERE.rglob("*") if p.is_file() and p.suffix in {".py", ".mm", ".h", ".swift"}}
+    files.update(ROOT / "bitnet/validation" / name for name in ("reference.cpp", "reference.h", "contract.h", "stock-runtime.h"))
+    files.update(p for p in (ROOT / "bitnet/actquant").glob("*") if p.is_file() and p.suffix in {".cpp", ".h"})
+    files.add(ROOT / "vendor/nlohmann/json.hpp")
+    return {str(p.relative_to(ROOT)): sha256(p) for p in sorted(files)}
+
+
 def build_framework(output, commands, minimum, jobs, identity):
     cmake = output / "cmake-iphoneos"
     flags = ["-DBUILD_SHARED_LIBS=OFF", "-DGGML_METAL=ON", "-DGGML_METAL_EMBED_LIBRARY=ON",
@@ -133,10 +141,7 @@ def main():
     try:
         identity = source_identity()
         record["source_files_sha256"] = identity
-        record["package_sources_sha256"] = {str(p.relative_to(ROOT)): sha256(p)
-                                               for p in sorted(HERE.rglob("*")) if p.is_file()
-                                               and p.suffix in {".py", ".mm", ".h", ".swift"}}
-        record["package_sources_sha256"].update({"bitnet/validation/" + name: sha256(ROOT / "bitnet/validation" / name) for name in ("reference.cpp", "reference.h", "contract.h", "stock-runtime.h")})
+        record["package_sources_sha256"] = package_identity()
         for name, argv in (("host", ["sw_vers"]), ("xcode", ["xcodebuild", "-version"]),
                            ("sdk", ["xcrun", "--sdk", "iphoneos", "--show-sdk-version"]),
                            ("git-commit", ["git", "rev-parse", "HEAD"]),
@@ -157,7 +162,7 @@ def main():
         for original, alias in (("qcur0-c8x2.metallib", "q-c8x2.metallib"), ("stock4x1.metallib", "q-stock4x1.metallib")):
             shutil.copy2(shaders / original, shaders / alias)
         objects = []
-        for source in ("iphone-q.mm", "iphone-operator.mm", "iphone-down-controls.mm", "iphone-original-poc.mm", "iphone-ppl.mm"):
+        for source in ("iphone-q.mm", "iphone-operator.mm", "iphone-down-controls.mm", "iphone-original-poc.mm", "iphone-ppl.mm", "iphone-actquant.mm"):
             obj = output / "objects" / (Path(source).stem + ".o")
             obj.parent.mkdir(exist_ok=True)
             command = ["xcrun", "--sdk", "iphoneos", "clang++", "-arch", "arm64", "-mios-version-min=" + args.minimum_ios,
@@ -189,6 +194,7 @@ def main():
         if not args.unsigned:
             commands.run("codesign-verify", ["codesign", "--verify", "--deep", "--strict", app])
         require(source_identity() == identity, "Source changed during build; use a frozen checkout")
+        require(package_identity() == record["package_sources_sha256"], "Package source changed during build; use a frozen checkout")
         record.update({"build_completed": True, "exit_code": 0, "app": str(app), "shaders": str(shaders),
                        "app_files_sha256": {str(p): sha256(p) for p in paths},
                        "framework": str(xcframework), "framework_sha256": sha256(xcframework / "ios-arm64/llama.framework/llama"),

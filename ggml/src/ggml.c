@@ -1220,9 +1220,10 @@ static const char * GGML_OP_NAME[GGML_OP_COUNT] = {
 
     "GATED_DELTA_NET_DEFERRED",
     "GDN_CONV_DEFERRED",
+    "ACT_QUANT",
 };
 
-static_assert(GGML_OP_COUNT == 127, "GGML_OP_COUNT != 127");
+static_assert(GGML_OP_COUNT == 128, "GGML_OP_COUNT != 128");
 
 static const char * GGML_OP_SYMBOL[GGML_OP_COUNT] = {
     "none",
@@ -1364,9 +1365,10 @@ static const char * GGML_OP_SYMBOL[GGML_OP_COUNT] = {
 
     "gated_delta_net_deferred(q,k,v,g,beta,s,rec,idx)",
     "gdn_conv_deferred(x,w,hist,idx)",
+    "act_quant(x)",
 };
 
-static_assert(GGML_OP_COUNT == 127, "GGML_OP_COUNT != 127");
+static_assert(GGML_OP_COUNT == 128, "GGML_OP_COUNT != 128");
 
 static_assert(GGML_OP_POOL_COUNT == 2, "GGML_OP_POOL_COUNT != 2");
 
@@ -5403,6 +5405,24 @@ struct ggml_tensor * ggml_conv_transpose_2d_p0(
 
 static int64_t ggml_calc_pool_output_size(int64_t ins, int ks, int s, float p) {
     return (ins + 2 * p - ks) / s + 1;
+}
+
+// ggml_act_quant
+
+struct ggml_tensor * ggml_act_quant(
+        struct ggml_context * ctx,
+        struct ggml_tensor  * a,
+        float                 eps) {
+    GGML_ASSERT(a->type == GGML_TYPE_F32);
+    GGML_ASSERT(ggml_is_contiguous(a));
+    GGML_ASSERT(a->ne[0] > 0);
+    GGML_ASSERT(isfinite(eps) && eps > 0.0f);
+
+    struct ggml_tensor * result = ggml_dup_tensor(ctx, a);
+    ggml_set_op_params(result, &eps, sizeof(eps));
+    result->op     = GGML_OP_ACT_QUANT;
+    result->src[0] = a;
+    return result;
 }
 
 // ggml_pool_1d

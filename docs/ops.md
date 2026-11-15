@@ -2,6 +2,21 @@
 
 List of GGML operations and backend support status.
 
+## Experimental BitNet extension
+
+This fork adds `ACT_QUANT` (`ggml_act_quant`) for finite, contiguous F32 inputs
+with one token per `ne[0]` row and a separate F32 output. CPU and Metal implement
+per-token absmax INT8 fake quantization with ties-to-even rounding. The scale
+evaluation follows the pinned Torch eager reference profile: F32 `1 / max(absmax,
+eps)` followed by F32 multiplication by `127`; output is the rounded/clamped
+integer code divided by that scale. Other backends have no implementation.
+The targeted `test-backend-ops -o ACT_QUANT` cases check cross-backend shapes,
+tail rows, contiguous views, zero rows and half ties; the independent
+source-derived Microsoft fixtures in `bitnet/actquant` provide the separate
+numerical oracle. Neither test establishes full-model semantic or quality parity.
+The generated historical support matrix below has not been regenerated for this
+experimental operation; no support CSV measurements are inferred from this note.
+
 ## How to add a backend to this table:
 
 1. Run `test-backend-ops support --output csv` with your backend name and redirect output to a csv file in `docs/ops/` (e.g., `docs/ops/CUDA.csv`)

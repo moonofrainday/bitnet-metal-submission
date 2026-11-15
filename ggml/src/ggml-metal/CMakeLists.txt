@@ -74,6 +74,7 @@ set(METALLIB_KERNEL_SOURCES
     kernels/pool.metal
     kernels/misc.metal
     kernels/out_prod.metal
+    kernels/act_quant.metal
 )
 
 if (GGML_METAL_EMBED_LIBRARY)
@@ -211,9 +212,13 @@ else()
         get_filename_component(name ${src} NAME_WE)
         set(AIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${name}.air")
         list(APPEND AIR_FILES ${AIR})
+        set(XC_FLAGS_SOURCE ${XC_FLAGS})
+        if(name STREQUAL "act_quant")
+            list(APPEND XC_FLAGS_SOURCE -fno-fast-math -ffp-contract=off)
+        endif()
         add_custom_command(
             OUTPUT ${AIR}
-            COMMAND xcrun -sdk ${METAL_SDK} metal ${XC_FLAGS} -I ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} -c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${src} -o ${AIR}
+            COMMAND xcrun -sdk ${METAL_SDK} metal ${XC_FLAGS_SOURCE} -I ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} -c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${src} -o ${AIR}
             DEPENDS ${src} ${METALLIB_KERNELS_FA_SHARED} kernels/common.h kernels/dequantize.h kernels/quantize.h ${METALLIB_COMMON} ggml-metal-impl.h
             COMMENT "Compiling ${src}"
             VERBATIM

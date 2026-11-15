@@ -1517,6 +1517,65 @@ void ggml_compute_forward_cumsum(
     }
 }
 
+// ggml_compute_forward_act_quant
+
+static float ggml_act_quant_round_even(float x) {
+    if (!std::isfinite(x)) {
+        return x;
+    }
+    const float lower = std::floor(x);
+    const float fraction = x - lower;
+    float result = lower;
+    if (fraction > 0.5f || (fraction == 0.5f && std::fmod(lower, 2.0f) != 0.0f)) {
+        result = lower + 1.0f;
+    }
+    return std::copysign(result, x);
+}
+
+void ggml_compute_forward_act_quant(
+        const ggml_compute_params * params,
+        ggml_tensor * dst) {
+    const ggml_tensor * src = dst->src[0];
+    GGML_ASSERT(src->type == GGML_TYPE_F32 && dst->type == GGML_TYPE_F32);
+    GGML_ASSERT(ggml_is_contiguous(src) && ggml_is_contiguous(dst));
+    GGML_ASSERT(ggml_are_same_shape(src, dst));
+    GGML_ASSERT(src->ne[0] > 0 && src->data != dst->data);
+
+    float eps;
+    memcpy(&eps, dst->op_params, sizeof(eps));
+    GGML_ASSERT(std::isfinite(eps) && eps > 0.0f);
+    const int64_t ncols = src->ne[0];
+    const int64_t nrows = ggml_nrows(src);
+    const float * input = (const float *) src->data;
+    float * output = (float *) dst->data;
+
+    for (int64_t row = params->ith; row < nrows; row += params->nth) {
+        const float * x = input + row*ncols;
+        float * y = output + row*ncols;
+        float amax = 0.0f;
+        bool finite = true;
+        for (int64_t j = 0; j < ncols; ++j) {
+            finite = finite && std::isfinite(x[j]);
+            amax = std::max(amax, std::fabs(x[j]));
+        }
+        if (!finite) {
+            std::fill(y, y + ncols, NAN);
+            continue;
+        }
+        // Match the pinned Torch eager source profile: scalar / tensor is
+        // evaluated as F32 reciprocal followed by F32 multiplication. A single
+        // 127/amax division can move an activation across a half-integer boundary.
+        const float reciprocal = 1.0f/std::max(amax, eps);
+        const float scale = reciprocal*127.0f;
+        for (int64_t j = 0; j < ncols; ++j) {
+            const float scaled = x[j]*scale;
+            const float rounded = ggml_act_quant_round_even(scaled);
+            const float quantized = std::min(std::max(rounded, -128.0f), 127.0f);
+            y[j] = quantized/scale;
+        }
+    }
+}
+
 // ggml_compute_forward_sum_rows
 
 static void ggml_compute_forward_sum_rows_f32(

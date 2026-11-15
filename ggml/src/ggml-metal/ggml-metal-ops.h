@@ -55,6 +55,7 @@ int ggml_metal_op_unary             (ggml_metal_op_t ctx, int idx);
 int ggml_metal_op_glu               (ggml_metal_op_t ctx, int idx);
 int ggml_metal_op_sum               (ggml_metal_op_t ctx, int idx);
 int ggml_metal_op_sum_rows          (ggml_metal_op_t ctx, int idx);
+int ggml_metal_op_act_quant         (ggml_metal_op_t ctx, int idx);
 int ggml_metal_op_cumsum            (ggml_metal_op_t ctx, int idx);
 int ggml_metal_op_get_rows          (ggml_metal_op_t ctx, int idx);
 int ggml_metal_op_set_rows          (ggml_metal_op_t ctx, int idx);

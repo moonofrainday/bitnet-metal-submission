@@ -3932,6 +3932,96 @@ struct test_sigmoid_back : public test_case {
     }
 };
 
+// GGML_OP_ACT_QUANT
+// These are backend/shape regressions, not an independent mathematical oracle.
+// The source-derived Microsoft fixtures are checked separately by bitnet/actquant.
+struct test_act_quant : public test_case {
+    const std::array<int64_t, 4> ne;
+    const int pattern; // 0: deterministic dense, 1: zero, 2: half ties, 3: tiny values
+    const bool view;
+    const float eps;
+
+    test_act_quant(std::array<int64_t, 4> ne, int pattern = 0, bool view = false, float eps = 1e-5f)
+        : ne(ne), pattern(pattern), view(view), eps(eps) {}
+
+    std::string vars() override {
+        return VARS_TO_STR4(ne, pattern, view, eps);
+    }
+
+    ggml_tensor * build_graph(ggml_context * ctx) override {
+        const int64_t n = ne[0]*ne[1]*ne[2]*ne[3];
+        ggml_tensor * a = view ? ggml_new_tensor_1d(ctx, GGML_TYPE_F32, n + 32)
+                              : ggml_new_tensor(ctx, GGML_TYPE_F32, 4, ne.data());
+        ggml_set_name(a, "a");
+        if (view) {
+            // A contiguous view with a nonzero buffer offset must remain supported.
+            a = ggml_view_4d(ctx, a, ne[0], ne[1], ne[2], ne[3],
+                    ne[0]*sizeof(float), ne[0]*ne[1]*sizeof(float),
+                    ne[0]*ne[1]*ne[2]*sizeof(float), 16*sizeof(float));
+            ggml_set_name(a, "view of a");
+        }
+        ggml_tensor * out = ggml_act_quant(ctx, a, eps);
+        ggml_set_name(out, "out");
+        return out;
+    }
+
+    void initialize_tensors(ggml_context * ctx) override {
+        test_case::initialize_tensors(ctx);
+        for (ggml_tensor * t = ggml_get_first_tensor(ctx); t != nullptr; t = ggml_get_next_tensor(ctx, t)) {
+            if (strcmp(t->name, "a") != 0) {
+                continue;
+            }
+            // No ActQuant arithmetic is repeated here. Different row amplitudes
+            // expose an erroneous tensor-wide rather than per-token reduction.
+            std::vector<float> data(ggml_nelements(t), 1234.0f);
+            const size_t offset = view ? 16 : 0;
+            const int64_t nrows = ne[1]*ne[2]*ne[3];
+            for (int64_t row = 0; row < nrows; ++row) {
+                const float amplitude = std::ldexp(1.0f, int(row % 7) - 3);
+                static const float ties[] = { -3.5f, -2.5f, -1.5f, -0.5f, 0.5f, 1.5f, 2.5f, 3.5f };
+                for (int64_t col = 0; col < ne[0]; ++col) {
+                    float x;
+                    if (pattern == 1) {
+                        x = 0.0f;
+                    } else if (pattern == 2) {
+                        // The exact +/-127 anchor makes the other entries half ties.
+                        x = amplitude*(col == 0 ? 127.0f : col == 1 ? -127.0f : ties[col % 8]);
+                    } else if (pattern == 3) {
+                        x = amplitude*float(int((col + 3*row) % 17) - 8)*1e-8f;
+                    } else {
+                        uint32_t hash = uint32_t(col + row*ne[0]) + 0x9e3779b9u;
+                        hash ^= hash >> 16;
+                        hash *= 0x7feb352du;
+                        hash ^= hash >> 15;
+                        x = amplitude*float(int(hash % 65521) - 32760)/8192.0f;
+                    }
+                    data[offset + row*ne[0] + col] = x;
+                }
+            }
+            ggml_backend_tensor_set(t, data.data(), 0, data.size()*sizeof(float));
+        }
+    }
+
+    // The per-value frozen bound also handles the all-zero case, for which
+    // normalized MSE has a zero denominator. It does not replace the independent
+    // integer-code/grid check in the source-derived fixture harness.
+    double err(const float * reference, const float * actual, size_t n) override {
+        double worst = 0.0;
+        for (size_t i = 0; i < n; ++i) {
+            if (!std::isfinite(reference[i]) || !std::isfinite(actual[i])) {
+                return INFINITY;
+            }
+            const double bound = 2e-4 + 2e-5*std::abs(double(reference[i]));
+            worst = std::max(worst, std::abs(double(actual[i]) - reference[i])/bound);
+        }
+        return worst;
+    }
+
+    double max_err() override { return 1.0; }
+    double max_err(ggml_backend_t backend) override { GGML_UNUSED(backend); return 1.0; }
+    int64_t grad_nmax() override { return 0; } // inference-only, discontinuous operator
+};
+
 // GGML_OP_NORM
 struct test_norm : public test_case {
     const ggml_type type;
@@ -15111,6 +15201,21 @@ static std::vector<std::unique_ptr<test_case>> make_test_cases_eval() {
     test_cases.emplace_back(new test_silu_back());
     test_cases.emplace_back(new test_gelu_back());
     test_cases.emplace_back(new test_sigmoid_back());
+
+    // Tail rows, flattened higher dimensions, and the actual BitNet hidden/FFN
+    // widths cover the reduction/write geometry independently of model graphs.
+    test_cases.emplace_back(new test_act_quant({7, 3, 1, 1}));
+    test_cases.emplace_back(new test_act_quant({7, 3, 2, 2}));
+    test_cases.emplace_back(new test_act_quant({7, 3, 1, 1}, 0, true));
+    for (int64_t width : {2560, 6912}) {
+        for (int64_t rows : {1, 3, 27}) {
+            test_cases.emplace_back(new test_act_quant({width, rows, 1, 1}));
+        }
+        for (int pattern : {1, 2, 3}) {
+            test_cases.emplace_back(new test_act_quant({width, 3, 1, 1}, pattern));
+        }
+    }
+    test_cases.emplace_back(new test_act_quant({2560, 3, 1, 1}, 0, true));
 
     for (float eps : { 0.0f, 1e-6f, 1e-4f, 1e-1f, 10.f }) {
         for (uint32_t n : { 64, 1025 }) {
