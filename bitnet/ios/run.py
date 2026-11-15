@@ -175,7 +175,7 @@ def main():
     parser.add_argument("--model", type=Path, required=True)
     parser.add_argument("--model-sha256", default=PUBLIC_MODEL_SHA256)
     parser.add_argument("--mode", choices=("graph-verify", "decode-benchmark", "q-verify", "q-benchmark",
-                                        "ffn-reference", "ffn-verify", "ffn-benchmark", "down-verify"), required=True)
+                                        "ffn-reference", "ffn-verify", "ffn-benchmark", "down-verify", "poc-verify"), required=True)
     parser.add_argument("--output", type=Path, required=True, help="Fresh local host artifact directory")
     parser.add_argument("--developer-dir", type=Path)
     parser.add_argument("--install", action="store_true", help="Required: install the selected signed app before every launch")
@@ -274,7 +274,7 @@ def main():
                     require(sha256(name) == digest, "Research evidence changed")
                 summary["research_gate_sha256"] = sha256(args.research_gate)
         else:
-            kind = "DOWN" if args.mode == "down-verify" else "Q" if args.mode.startswith("q-") else "FFN"
+            kind = "POC" if args.mode == "poc-verify" else "DOWN" if args.mode == "down-verify" else "Q" if args.mode.startswith("q-") else "FFN"
             op_mode = args.mode.split("-", 1)[1]
             require(kind != "Q" or op_mode in ("verify", "benchmark"), "Q mode invalid")
             cfg.update({"operator_kind": kind, "operator_mode": op_mode,
@@ -295,7 +295,10 @@ def main():
             else:
                 require(not timing or (args.operator_fixture and args.operator_output),
                         "Operator timing must reuse explicit qualified --operator-fixture and --operator-output")
-            if kind == "Q":
+            if kind == "POC":
+                require(args.fixture is not None, "poc-verify requires a five-case fixture")
+                libraries = {"PoC": "original-poc.metallib", "Q4": "q-stock4x1.metallib"}
+            elif kind == "Q":
                 libraries = {"C8": "q-c8x2.metallib", "Q4": "q-stock4x1.metallib"}
             elif kind == "DOWN":
                 require(args.down_libraries is not None and args.fixture is not None,
@@ -336,7 +339,19 @@ def main():
             require(args.fixture is not None, "Operator correctness requires --fixture")
             fixture = output / "staged-fixture"
             shutil.copytree(args.fixture.expanduser().resolve(), fixture)
-            if cfg["operator_kind"] == "Q":
+            if cfg["operator_kind"] == "POC":
+                manifest_path = fixture / "MANIFEST.json"
+                manifest = json.loads(manifest_path.read_text())
+                require(manifest.get("model_sha256") == args.model_sha256, "Original PoC fixture model mismatch")
+                require(len(manifest.get("cases", [])) == 3 and {x.get("step") for x in manifest["cases"]} == {1, 16, 32},
+                        "Original PoC fixture must contain real steps 1/16/32")
+                manifest["libraries"] = cfg["libraries"]
+                framework_inputs = {name: digest for name, digest in build["app_files_sha256"].items()
+                                    if Path(name).name == "llama" and Path(name).parent.name == "llama.framework"}
+                require(len(framework_inputs) == 1, "Selected signed embedded framework hash missing")
+                manifest["embedded_framework_sha256"] = next(iter(framework_inputs.values()))
+                write_json(manifest_path, manifest)
+            elif cfg["operator_kind"] == "Q":
                 manifest_path = fixture / "MANIFEST.json"
                 manifest = json.loads(manifest_path.read_text())
                 require(manifest.get("model_sha256") == args.model_sha256, "Fixture belongs to a different model")
@@ -418,7 +433,7 @@ def main():
         if not graph:
             operator_fetch_code, _ = copy("fetch-operator", "from", "Documents/" + cfg["operator_output"], output / "operator", check=False)
         errors = summary["errors"]
-        if args.mode != "down-verify":
+        if args.mode not in ("down-verify", "poc-verify"):
             if launch_code != 0:
                 errors.append("devicectl launch failed with exit " + str(launch_code))
             if "The app terminated with the exit code 0." not in log:
@@ -497,7 +512,67 @@ def main():
             if timing and result.get("timing_clean") is not True:
                 errors.append("Clean timing completion missing")
         else:
-            if cfg["operator_kind"] == "DOWN":
+            if cfg["operator_kind"] == "POC":
+                native_path = output / "operator/summary.json"
+                require(native_path.is_file(), "Missing original PoC native summary")
+                native = json.loads(native_path.read_text())
+                require(native.get("execution_pass") is True and native.get("analysis_completed") is True,
+                        "Original PoC execution did not complete")
+                expected_exit = native.get("strict_exit_code")
+                require(expected_exit in (0, 1) and native.get("overall_pass") is (expected_exit == 0),
+                        "Original PoC native strict status inconsistent")
+                actual_exits = re.findall(r"The app terminated with the exit code (\d+)\.", log)
+                require(len(actual_exits) == 1 and int(actual_exits[0]) == expected_exit
+                        and launch_code in (0, expected_exit), "Original PoC actual app exit missing/mismatched")
+                require(result.get("operator_kind") == "POC" and result.get("process_exit_code") == expected_exit
+                        and result.get("execution_pass") is True, "Original PoC app/native status mismatch")
+                cases = native.get("cases", [])
+                require(len(cases) == 5 and {x.get("id") for x in cases} ==
+                        {"known-answer", "dense-seed42", "real-step-1", "real-step-16", "real-step-32"},
+                        "Original PoC case coverage mismatch")
+                require(native.get("GPU_command_buffers_completed") == 15 and native.get("rows_per_route") == 12800,
+                        "Original PoC dispatch/row coverage mismatch")
+                wanted = {(case["id"], route) for case in cases for route in ("S", "PoC", "Q4")}
+                actual = set()
+                for case in cases:
+                    require(case.get("rows") == 2560 and case.get("reference_finite") is True,
+                            "Original PoC reference extent/finite failed")
+                    for dispatch in case.get("dispatches", []):
+                        actual.add((case["id"], dispatch.get("route")))
+                        require(dispatch.get("command_status") == 4 and dispatch.get("completed") is True
+                                and dispatch.get("canary_pass") is True and dispatch.get("input_immutable_pass") is True
+                                and dispatch.get("finite_rows") == 2560 and dispatch.get("expected_index_ownership_once") is True,
+                                "Original PoC GPU/canary/input/coverage failed")
+                        route = dispatch["route"]
+                        require(dispatch.get("kernel_symbol") == ("kernel_mul_mv_tq2_0_f32" if route == "S" else
+                                "tq2_0_matvec_poc" if route == "PoC" else "tq2_0_matvec_poc_c8x2"),
+                                "Original PoC actual shader symbol differs")
+                        require(dispatch.get("grid") == ([640, 1, 1] if route == "Q4" else [320, 1, 1])
+                                and dispatch.get("threads") == ([32, 1, 1] if route == "Q4" else [32, 2, 1]),
+                                "Original PoC launch differs")
+                require(actual == wanted, "Original PoC path coverage differs")
+                completed = []
+                for line in log.splitlines():
+                    if "ORIGINAL_POC_GPU_COMPLETE " in line:
+                        record = dict(re.findall(r"(\w+)=([^\s]+)", line.split("ORIGINAL_POC_GPU_COMPLETE ", 1)[1]))
+                        require(record.get("status") == "4" and record.get("rows") == "2560"
+                                and record.get("canary") == "0", "Original PoC actual completion log failed")
+                        completed.append((record.get("case"), record.get("route")))
+                require(len(completed) == 15 and set(completed) == wanted,
+                        "Original PoC actual GPU-completion log coverage differs")
+                require(native.get("tolerance") == {"abs": 2e-4, "relative": 2e-5}, "Original PoC tolerance changed")
+                summary["fp64_pass"] = native.get("fp64_pass")
+                summary["parity_pass"] = native.get("parity_pass")
+                summary["coverage_pass"] = native.get("coverage_pass")
+                summary["knownanswer_pass"] = native.get("knownanswer_pass")
+                summary["model_output_pass"] = None
+                summary["model_semantics_pass"] = None
+                summary["local_numerical_exit_code"] = expected_exit
+                summary["completed_numeric_failure"] = expected_exit == 1
+                summary["fp64_scope"] = native.get("scope")
+                summary["native_summary_sha256"] = sha256(native_path)
+                summary["overall_pass"] = not errors and native.get("overall_pass") is True
+            elif cfg["operator_kind"] == "DOWN":
                 native_path = output / "operator/summary.json"
                 require(native_path.is_file(), "Missing completed native down summary")
                 native = json.loads(native_path.read_text())
@@ -562,7 +637,7 @@ def main():
             summary["strict_v1_exit_code"] = 1
         if args.strict_v1:
             return summary["strict_v1_exit_code"] if not errors else 1
-        if args.mode == "down-verify":
+        if args.mode in ("down-verify", "poc-verify"):
             return 0 if summary.get("overall_pass") is True else 1
         return 0 if not errors else 1
     except (RuntimeError, OSError, ValueError, KeyError) as error:

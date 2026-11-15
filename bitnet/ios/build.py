@@ -136,6 +136,7 @@ def main():
         record["package_sources_sha256"] = {str(p.relative_to(ROOT)): sha256(p)
                                                for p in sorted(HERE.rglob("*")) if p.is_file()
                                                and p.suffix in {".py", ".mm", ".h", ".swift"}}
+        record["package_sources_sha256"].update({"bitnet/validation/" + name: sha256(ROOT / "bitnet/validation" / name) for name in ("reference.cpp", "reference.h", "contract.h", "stock-runtime.h")})
         for name, argv in (("host", ["sw_vers"]), ("xcode", ["xcodebuild", "-version"]),
                            ("sdk", ["xcrun", "--sdk", "iphoneos", "--show-sdk-version"]),
                            ("git-commit", ["git", "rev-parse", "HEAD"]),
@@ -156,7 +157,7 @@ def main():
         for original, alias in (("qcur0-c8x2.metallib", "q-c8x2.metallib"), ("stock4x1.metallib", "q-stock4x1.metallib")):
             shutil.copy2(shaders / original, shaders / alias)
         objects = []
-        for source in ("iphone-q.mm", "iphone-operator.mm", "iphone-down-controls.mm"):
+        for source in ("iphone-q.mm", "iphone-operator.mm", "iphone-down-controls.mm", "iphone-original-poc.mm"):
             obj = output / "objects" / (Path(source).stem + ".o")
             obj.parent.mkdir(exist_ok=True)
             command = ["xcrun", "--sdk", "iphoneos", "clang++", "-arch", "arm64", "-mios-version-min=" + args.minimum_ios,
