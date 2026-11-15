@@ -1,5 +1,7 @@
 # Physical iPhone results
 
+For the fresh iOS 27.2.1 build, all-32-call Q4 acceptance, nominal-endpoint and sustained operator timing, two primary-history decode campaigns and the negative Down control, see [2026-11-15 Q4 completion](IPHONE_Q4_COMPLETE_2026-11-15.md). Q4 has a small repeatable isolated-operator gain there; no synchronized whole-decode benefit was observed. The tables below remain historical and are not pooled with that campaign.
+
 These are **historical measurements from the preserved experiments**, not fresh performance tests of the repackaged checkout. Device: iPhone 14 Pro, Apple A16 GPU, iOS 27.2 (24B119); host Xcode 27.2 / iPhoneOS SDK 27.2. Public 2B GGUF SHA-256: `52257df879ab4366d97228e7bda94a9a3c6a9065ec44e7879a8b87d54e568cd2`. Raw samples stay local. Digest-indexed source notes are listed in `../provenance/EVIDENCE_INDEX.json`.
 
 ## Q stock4x1: operator scope

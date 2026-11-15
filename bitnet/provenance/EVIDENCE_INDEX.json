@@ -58,5 +58,12 @@
       "bytes": 6002,
       "raw_evidence_included": false
     }
-  ]
+  ],
+  "fresh_phone_campaign": {
+    "experiment": "2026-11-15_182149+0900-iphone-q4-complete",
+    "report": "bitnet/docs/IPHONE_Q4_COMPLETE_2026-11-15.md",
+    "derived_analysis": "bitnet/analysis/2026-11-15-iphone-q4",
+    "raw_evidence_included": false,
+    "scope": "Fresh physical iPhone Q4 layer0 acceptance/timing and selected Down negative control; historical G/F8 entries remain separate."
+  }
 }

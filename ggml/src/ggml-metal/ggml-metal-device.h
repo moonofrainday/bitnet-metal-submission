@@ -91,6 +91,7 @@ void * ggml_metal_encoder_get_obj(ggml_metal_encoder_t encoder);
 void ggml_metal_encoder_ffn_ablation_configure(ggml_metal_encoder_t encoder, bool enabled, uint64_t task, char mode, int step, int slice_start, int slice_end, const void * graph, bool gpu);
 void ggml_metal_encoder_ffn_ablation_node(ggml_metal_encoder_t encoder, const struct ggml_tensor * node, int layer, int node_index);
 
+// Diagnostic copies support the two F32 vector extents and one packed Q weight extent.
 bool ggml_metal_encoder_bitnet_shadow(ggml_metal_encoder_t encoder, struct ggml_metal_pipeline_with_params pipeline,
         struct ggml_metal_buffer_id source, size_t bytes, const char * path);
 void ggml_metal_bitnet_shadow_wait(void);

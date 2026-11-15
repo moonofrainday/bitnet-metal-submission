@@ -158,6 +158,7 @@ static ggml_metal_buffer_id ggml_metal_get_buffer_id(const ggml_tensor * t) {
 }
 
 static bool ggml_metal_bitnet_numerics_active();
+static bool ggml_metal_bitnet_q_readback_active();
 
 struct ggml_metal_op {
     ggml_metal_op(
@@ -181,6 +182,7 @@ struct ggml_metal_op {
         this->use_capture     = use_capture;
         this->debug_graph     = debug_graph;
         this->numerics_capture = ggml_metal_bitnet_numerics_active();
+        this->q_readback = ggml_metal_bitnet_q_readback_active();
         this->gf              = gf;
         const char * abc = std::getenv("GGML_METAL_BITNET_FFN_ABLATION");
         if (abc) {
@@ -291,6 +293,7 @@ struct ggml_metal_op {
     bool use_concurrency;
     bool use_capture;
     bool numerics_capture = false;
+    bool q_readback = false;
 
     int debug_graph;
 
@@ -820,6 +823,8 @@ static int ggml_metal_op_encode_impl(ggml_metal_op_t ctx, int idx) {
 
 static void ggml_metal_bitnet_numerics_before(ggml_metal_op_t ctx, int idx);
 static void ggml_metal_bitnet_numerics_after(ggml_metal_op_t ctx, int idx, int consumed);
+static void ggml_metal_bitnet_q_readback_before(ggml_metal_op_t ctx, int idx);
+static void ggml_metal_bitnet_q_readback_after(ggml_metal_op_t ctx, int idx, int consumed);
 
 int ggml_metal_op_encode(ggml_metal_op_t ctx, int idx) {
     const auto * abc_node = ctx->node(idx);
@@ -832,6 +837,7 @@ int ggml_metal_op_encode(ggml_metal_op_t ctx, int idx) {
     }
 
     if (ctx->numerics_capture) {ggml_metal_bitnet_numerics_before(ctx, idx);}
+    if (ctx->q_readback) {ggml_metal_bitnet_q_readback_before(ctx, idx);}
     int res = ggml_metal_op_encode_impl(ctx, idx);
     if (idx + res > ctx->n_nodes()) {
         GGML_ABORT("fusion error: nodes spanning multiple encoders have been fused. this indicates a bug in the fusion logic %s",
@@ -839,6 +845,7 @@ int ggml_metal_op_encode(ggml_metal_op_t ctx, int idx) {
     }
 
     if (ctx->numerics_capture) {ggml_metal_bitnet_numerics_after(ctx, idx, res);}
+    if (ctx->q_readback) {ggml_metal_bitnet_q_readback_after(ctx, idx, res);}
 
     if (ctx->use_capture) {
         ggml_metal_encoder_debug_group_pop(ctx->enc);
@@ -3438,6 +3445,155 @@ static bool ggml_metal_bitnet_ffn_expand_layout(const ggml_tensor * op) {
     return ggml_metal_bitnet_poc_layout(op->src[0], GGML_TYPE_TQ2_0, ne, nb) &&
            ggml_metal_bitnet_ffn_vector(op->src[1], 2560) && ggml_metal_bitnet_ffn_vector(op, 6912) &&
            ggml_metal_bitnet_layer_name(op->src[1], "ffn_norm-", ggml_metal_bitnet_ffn_layer(op));
+}
+
+static bool ggml_metal_bitnet_q_readback_active() {
+    const char * directory = std::getenv("GGML_METAL_BITNET_QREADBACK_DIR");
+    const char * step_text = std::getenv("GGML_METAL_BITNET_QREADBACK_STEP");
+    if (!directory || !directory[0] || !step_text ||
+            !ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_FFN_DECODE")) {
+        return false;
+    }
+    char * end = nullptr;
+    const long step = std::strtol(step_text, &end, 10);
+    if (end == step_text || *end || step < 0 || step > 32) {GGML_ABORT("Q readback step must be 0 through 32");}
+    if (step == 0) {return false;}
+    const char * route = std::getenv("GGML_METAL_BITNET_QREADBACK_ROUTE");
+    if (!route || (std::strcmp(route, "S") && std::strcmp(route, "Q4"))) {
+        GGML_ABORT("Q readback route must be S or Q4");
+    }
+    if (std::getenv("GGML_METAL_BITNET_FFN") || std::getenv("GGML_METAL_BITNET_FFN_MECHANISM")) {
+        GGML_ABORT("Q readback is restricted to Q-only runs");
+    }
+    const bool custom = ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_POC");
+    if ((std::strcmp(route, "S") == 0 && custom) || (std::strcmp(route, "Q4") == 0 && !custom)) {
+        GGML_ABORT("Q readback route and actual custom switch differ");
+    }
+    if (custom) {
+        const char * rows = std::getenv("GGML_METAL_BITNET_POC_ROWS_PER_SIMD");
+        const char * groups = std::getenv("GGML_METAL_BITNET_POC_SIMD_PER_GROUP");
+        if (!rows || std::strcmp(rows, "4") || !groups || std::strcmp(groups, "1")) {
+            GGML_ABORT("Q4 readback requires the four-row one-SIMD configuration");
+        }
+    }
+    return true;
+}
+
+static void ggml_metal_bitnet_q_readback_copy(ggml_metal_op_t ctx, const ggml_tensor * tensor,
+        const char * role, const char * phase, int consumed, const std::filesystem::path & path) {
+    const bool weight = std::strcmp(role, "w") == 0;
+    const size_t bytes = weight ? 1689600 : 2560*sizeof(float);
+    if (!tensor || ggml_nbytes(tensor) != bytes ||
+            (weight ? tensor->type != GGML_TYPE_TQ2_0 : !ggml_metal_bitnet_ffn_vector(tensor, 2560))) {
+        GGML_ABORT("Q readback tensor contract failed for %s", role);
+    }
+    const auto binding = ggml_metal_get_buffer_id(tensor);
+    if (binding.offs % 4 || !ggml_metal_buffer_contains(binding, bytes)) {
+        GGML_ABORT("Q readback bounds/alignment failed for %s", role);
+    }
+    const auto pipeline = ggml_metal_library_get_bitnet_ffn_mechanism_pipeline(ctx->lib, 3);
+    if (!pipeline.pipeline) {GGML_ABORT("Q readback copy pipeline is unavailable");}
+    const size_t copy_chunk_bytes = 6912*sizeof(float);
+    const size_t copy_dispatches = (bytes + copy_chunk_bytes - 1)/copy_chunk_bytes;
+    const size_t copy_last_bytes = bytes - (copy_dispatches - 1)*copy_chunk_bytes;
+    std::fprintf(stderr,
+            "BITNET_Q_READBACK_SHADOW route=%s step=%s role=%s phase=%s node=%s op=%s type=%s ne=[%lld,%lld,%lld,%lld] nb=[%zu,%zu,%zu,%zu] buffer=%p offset=%zu bytes=%zu bounds=1 consumed=%d copy_pipeline=%s copy_dispatches=%zu copy_grid=[%zu,1,1] copy_last_grid=[%zu,1,1] copy_threads=[256,1,1] path=%s\n",
+            std::getenv("GGML_METAL_BITNET_QREADBACK_ROUTE"), std::getenv("GGML_METAL_BITNET_QREADBACK_STEP"), role, phase,
+            tensor->name, ggml_op_name(tensor->op), ggml_type_name(tensor->type),
+            (long long)tensor->ne[0], (long long)tensor->ne[1], (long long)tensor->ne[2], (long long)tensor->ne[3],
+            tensor->nb[0], tensor->nb[1], tensor->nb[2], tensor->nb[3], binding.metal, binding.offs, bytes, consumed,
+            ggml_metal_pipeline_name(pipeline), copy_dispatches,
+            std::min(bytes, copy_chunk_bytes)/(256*sizeof(float)), copy_last_bytes/(256*sizeof(float)), path.c_str());
+    // Copies remain in the original encoder/command buffer. Barriers protect values
+    // before later in-place operations; diagnostic scheduling is not timing evidence.
+    ggml_metal_op_concurrency_reset(ctx);
+    if (!ctx->mem_ranges) {ggml_metal_encoder_memory_barrier(ctx->enc);}
+    if (!ggml_metal_encoder_bitnet_shadow(ctx->enc, pipeline, binding, bytes, path.c_str())) {
+        GGML_ABORT("Q readback GPU copy failed for %s", role);
+    }
+    ggml_metal_op_concurrency_reset(ctx);
+    if (!ctx->mem_ranges) {ggml_metal_encoder_memory_barrier(ctx->enc);}
+}
+
+static void ggml_metal_bitnet_q_readback_before(ggml_metal_op_t ctx, int idx) {
+    const auto * node = ctx->node(idx);
+    if (!ggml_metal_bitnet_layer_name(node, "Qcur-", 0)) {return;}
+    // Later graph transforms can retain the name; identify the actual producer by op.
+    if (node->op != GGML_OP_MUL_MAT) {
+        std::fprintf(stderr, "BITNET_Q_READBACK_SKIP route=%s step=%s node=%s op=%s ne=[%lld,%lld,%lld,%lld]\n",
+                std::getenv("GGML_METAL_BITNET_QREADBACK_ROUTE"), std::getenv("GGML_METAL_BITNET_QREADBACK_STEP"),
+                node->name, ggml_op_name(node->op), (long long)node->ne[0], (long long)node->ne[1],
+                (long long)node->ne[2], (long long)node->ne[3]);
+        return;
+    }
+    const int64_t weight_ne[] = {2560, 2560, 1, 1};
+    const size_t weight_nb[] = {66, 660, 1689600, 1689600};
+    const int64_t vector_ne[] = {2560, 1, 1, 1};
+    const size_t vector_nb[] = {4, 10240, 10240, 10240};
+    if (!ggml_metal_bitnet_weight_name(node->src[0], 0, "attn_q") ||
+            !ggml_metal_bitnet_poc_layout(node->src[0], GGML_TYPE_TQ2_0, weight_ne, weight_nb) ||
+            !ggml_metal_bitnet_poc_layout(node->src[1], GGML_TYPE_F32, vector_ne, vector_nb) ||
+            !ggml_metal_bitnet_poc_layout(node, GGML_TYPE_F32, vector_ne, vector_nb)) {
+        GGML_ABORT("Q readback target is not the audited Qcur-0 contract");
+    }
+    const auto root = std::filesystem::path(std::getenv("GGML_METAL_BITNET_QREADBACK_DIR"));
+    const auto file = root/"weights"/"w.tq2";
+    static std::mutex mutex;
+    static std::set<std::string> queued;
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        const bool fresh = queued.count(file.string()) == 0;
+        if (fresh) {
+            if (std::filesystem::exists(file)) {GGML_ABORT("Q readback refuses an existing weight file");}
+            ggml_metal_bitnet_q_readback_copy(ctx, node->src[0], "w", "before-Q", 0, file);
+            queued.insert(file.string());
+        }
+        const auto binding = ggml_metal_get_buffer_id(node->src[0]);
+        std::fprintf(stderr, "BITNET_Q_READBACK_WEIGHT route=%s step=%s node=%s buffer=%p offset=%zu bytes=1689600 copied=%d cached=%d path=%s\n",
+                std::getenv("GGML_METAL_BITNET_QREADBACK_ROUTE"), std::getenv("GGML_METAL_BITNET_QREADBACK_STEP"),
+                node->src[0]->name, binding.metal, binding.offs, fresh, !fresh, file.c_str());
+    }
+    const auto folder = root/(std::string("step-")+std::getenv("GGML_METAL_BITNET_QREADBACK_STEP"));
+    ggml_metal_bitnet_q_readback_copy(ctx, node->src[1], "x", "before-Q", 0, folder/"x.f32");
+}
+
+static void ggml_metal_bitnet_q_readback_after(ggml_metal_op_t ctx, int idx, int consumed) {
+    const auto * node = ctx->node(idx);
+    const auto * last = ctx->node(idx+consumed-1);
+    const auto root = std::filesystem::path(std::getenv("GGML_METAL_BITNET_QREADBACK_DIR"));
+    const char * step = std::getenv("GGML_METAL_BITNET_QREADBACK_STEP");
+    const auto folder = root/(std::string("step-")+step);
+    if (node->op == GGML_OP_MUL_MAT && ggml_metal_bitnet_layer_name(node, "Qcur-", 0)) {
+        if (consumed != 1 || last != node) {GGML_ABORT("Q output is not independently materialized before RoPE");}
+        ggml_metal_bitnet_q_readback_copy(ctx, node, "y", "after-Q-before-RoPE", consumed, folder/"y.f32");
+    }
+    if (last->op == GGML_OP_ADD && (node->op == GGML_OP_MUL_MAT || node->op == GGML_OP_ADD) &&
+            ggml_metal_bitnet_layer_name(last, "l_out-", 0) &&
+            (std::strcmp(step, "1") == 0 || std::strcmp(step, "16") == 0 || std::strcmp(step, "32") == 0)) {
+        const auto path = folder/"l_out.f32";
+        const auto binding = ggml_metal_get_buffer_id(last);
+        struct captured_output {
+            std::string path;
+            const ggml_tensor * tensor;
+            ggml_metal_buffer_id binding;
+        };
+        static std::mutex mutex;
+        static std::vector<captured_output> captured;
+        std::lock_guard<std::mutex> lock(mutex);
+        const auto found = std::find_if(captured.begin(), captured.end(), [&](const captured_output & value) {
+            return value.path == path.string();
+        });
+        if (found != captured.end()) {
+            if (found->tensor != last || found->binding.metal != binding.metal || found->binding.offs != binding.offs) {
+                GGML_ABORT("Q readback found different l_out-0 producers for one step");
+            }
+            std::fprintf(stderr, "BITNET_Q_READBACK_ALIAS_SKIP route=%s step=%s role=l_out node=%s duplicate=1 path=%s\n",
+                    std::getenv("GGML_METAL_BITNET_QREADBACK_ROUTE"), step, last->name, path.c_str());
+            return;
+        }
+        ggml_metal_bitnet_q_readback_copy(ctx, last, "l_out", "after-layer", consumed, path);
+        captured.push_back({path.string(), last, binding});
+    }
 }
 
 static bool ggml_metal_bitnet_numerics_active() {

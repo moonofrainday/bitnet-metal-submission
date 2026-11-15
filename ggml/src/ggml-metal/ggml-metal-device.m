@@ -1061,7 +1061,8 @@ void ggml_metal_bitnet_shadow_wait(void) {
 
 bool ggml_metal_encoder_bitnet_shadow(ggml_metal_encoder_t encoder, struct ggml_metal_pipeline_with_params pipeline,
         struct ggml_metal_buffer_id source, size_t bytes, const char * path) {
-    if (!pipeline.pipeline || (bytes != 6912*sizeof(float) && bytes != 2560*sizeof(float)) ||
+    // The Q diagnostic also snapshots one complete packed 2560 x 2560 weight.
+    if (!pipeline.pipeline || (bytes != 6912*sizeof(float) && bytes != 2560*sizeof(float) && bytes != 1689600) ||
             !path || !ggml_metal_buffer_contains(source, bytes)) {
         return false;
     }
@@ -1072,10 +1073,20 @@ bool ggml_metal_encoder_bitnet_shadow(ggml_metal_encoder_t encoder, struct ggml_
     if (![[NSFileManager defaultManager] createDirectoryAtPath:filename.stringByDeletingLastPathComponent
             withIntermediateDirectories:YES attributes:nil error:&error]) { [shadow release]; return false; }
     [encoder->obj setComputePipelineState:pipeline.pipeline->obj];
-    [encoder->obj setBuffer:source.metal offset:source.offs atIndex:0];
-    [encoder->obj setBuffer:shadow offset:0 atIndex:1];
-    [encoder->obj dispatchThreadgroups:MTLSizeMake(bytes/(256*sizeof(float)),1,1) threadsPerThreadgroup:MTLSizeMake(256,1,1)];
     id<MTLCommandBuffer> command = encoder->command_buffer;
+    // The existing shader guards index < 6912. Keep it unchanged and rebase each
+    // disjoint chunk so every launched uint is copied, including packed weights.
+    const size_t max_chunk = 6912*sizeof(float);
+    const size_t chunks = (bytes + max_chunk - 1)/max_chunk;
+    for (size_t copied = 0, chunk = 0; copied < bytes; ++chunk) {
+        const size_t chunk_bytes = MIN(max_chunk, bytes - copied);
+        [encoder->obj setBuffer:source.metal offset:source.offs + copied atIndex:0];
+        [encoder->obj setBuffer:shadow offset:copied atIndex:1];
+        [encoder->obj dispatchThreadgroups:MTLSizeMake(chunk_bytes/(256*sizeof(float)),1,1) threadsPerThreadgroup:MTLSizeMake(256,1,1)];
+        fprintf(stderr, "BITNET_FFN_SHADOW_DISPATCH path=%s chunk=%zu chunks=%zu source_offset=%zu shadow_offset=%zu bytes=%zu grid=[%zu,1,1] threads=[256,1,1] command=%p diagnostic_only=1\n",
+                path, chunk, chunks, source.offs + copied, copied, chunk_bytes, chunk_bytes/(256*sizeof(float)), (void *) command);
+        copied += chunk_bytes;
+    }
     dispatch_group_t group = ggml_metal_bitnet_shadow_group();
     dispatch_group_enter(group);
     fprintf(stderr, "BITNET_FFN_SHADOW_ENCODE path=%s bytes=%zu command=%p diagnostic_only=1\n", path, bytes, (void *) command);

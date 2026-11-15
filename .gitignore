@@ -180,9 +180,17 @@ AGENTS.local.md
 *.gputrace/
 *.f32
 *.f64
+*.tq2
 *.npz
 *.npy
 *.safetensors
 *.mobileprovision
 *.p12
 *.p8
+**/rows.csv
+**/samples.csv
+**/token-times.csv
+**/token-pairs.csv
+**/q-rows.csv
+**/failed-q-rows.csv
+**/reference-audit.csv

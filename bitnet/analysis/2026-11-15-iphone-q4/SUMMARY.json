@@ -1,0 +1,738 @@
+{
+  "schema_version": 1,
+  "experiment_id": "2026-11-15_182149+0900-iphone-q4-complete",
+  "publication_scope": "Derived aggregates and digest-only evidence index. No raw tensors, logits, per-pair timings, launch logs, signing or device identity payloads are included.",
+  "environment": {
+    "physical_device_model": "iPhone 14 Pro",
+    "hardware_model": "iPhone15,2",
+    "GPU": "Apple A16 GPU",
+    "iOS": "27.2.1",
+    "Xcode": "Xcode 27.2\nBuild version 27B52",
+    "iPhoneOS_SDK": "27.2",
+    "performance_execution_device": "physical iPhone only; Mac performed CPU analysis/builds"
+  },
+  "checkpoint": {
+    "checkpoint": "microsoft/bitnet-b1.58-2B-4T",
+    "source_revision": "04c3b9ad9361b824064a1f25ea60a8be9599b127",
+    "converted_filename": "microsoft-bitnet-b1.58-2B-4T-tq2_0.gguf",
+    "converted_sha256": "52257df879ab4366d97228e7bda94a9a3c6a9065ec44e7879a8b87d54e568cd2",
+    "converted_bytes": 1203563808,
+    "architecture": "bitnet",
+    "blocks": 30,
+    "hidden": 2560,
+    "ffn": 6912,
+    "unique_parameters": 2412820480
+  },
+  "code_identity": {
+    "upstream_QVAC_commit": "2db8b046d555316019ae75d1be90484adc8b9330",
+    "base_submission_commit": "b6441351acb21418959a52b3864c11d55defa189",
+    "compiled_working_tree_input_manifest_sha256": "49bf629b3e1f81b715e985e62079e09f0c274dd3d3a4ae0f0fd5d215133edaae",
+    "framework_sha256": "744838b77b38596807787d062c1c9441763e05be0ffcfc35f2be67a3d2c9f15e",
+    "app_binary_content_sha256": {
+      "llama": "8dcd7c25584af8d64a7d367f3f78d468676af73ee5eed6113b8aa2aed58ae6d7",
+      "llama.swiftui": "34dcc002f3eb70185b313e48ba04b638b72cf9ff694ce39353a12c476fda5ce9",
+      "llama.swiftui.debug.dylib": "ae47ab690c2dedf70addf29237b58a31ef7fda5961f983e6716af303d9f2d94d"
+    },
+    "selected_build_record_sha256": "8a823a2313db013b2d293a019ccbb42fd469c36c1c1d1580b1eb231b5233c46f",
+    "note": "The validated build contains the recorded local working-tree patches; the base submission commit alone is not the tested source identity."
+  },
+  "contract": {
+    "target_node": "Qcur-0",
+    "weight_tensor": "blk.0.attn_q.weight",
+    "layer": 0,
+    "operation": "GGML_OP_MUL_MAT",
+    "weight_logical_shape_rows_columns": [
+      2560,
+      2560
+    ],
+    "GGML_weight_ne": [
+      2560,
+      2560,
+      1,
+      1
+    ],
+    "GGML_weight_nb": [
+      66,
+      660,
+      1689600,
+      1689600
+    ],
+    "weight_type": "TQ2_0",
+    "activation_shape": [
+      2560,
+      1
+    ],
+    "activation_dtype": "F32",
+    "output_shape": [
+      2560,
+      1
+    ],
+    "output_dtype": "F32",
+    "output_phase": "before RoPE",
+    "stock_pipeline": "kernel_mul_mv_tq2_0_f32",
+    "Q4_pipeline_historical_symbol": "tq2_0_matvec_poc_c8x2",
+    "stock_grid": [
+      320,
+      1,
+      1
+    ],
+    "stock_threads": [
+      32,
+      2,
+      1
+    ],
+    "Q4_grid": [
+      640,
+      1,
+      1
+    ],
+    "Q4_threads": [
+      32,
+      1,
+      1
+    ],
+    "weight_sha256": "b2dea7f42cacfd08ed780df979f6f28240026795b1f5c87ca8c16fc7da23dc58",
+    "step16_primary_activation_sha256": "8314cd7fe2f5deaa64ef8a7c9cbb1d9254bc430eed863ea4792c46a3c99c887e"
+  },
+  "acceptance": {
+    "abs_tolerance": 0.0002,
+    "relative_tolerance": 2e-05,
+    "required_failed_rows": 0,
+    "scope": "Declared complete layer-0 Q-only capture mode, not complete FFN/Transformer FP64 or language-model quality."
+  },
+  "correctness": [
+    {
+      "history": "primary",
+      "declared_scope": "All 32 layer-0 Q calls, residual outputs at steps 1/16/32, 33 complete stock-relative logits vectors and internal/external probe-off neutrality.",
+      "strict_Q_capture_exit_code": 0,
+      "actual_analysis_CLI_exit_code": 0,
+      "flags": {
+        "execution_pass": true,
+        "same_input_pass": true,
+        "parity_pass": true,
+        "fp64_pass": true,
+        "model_output_pass": true,
+        "probe_logit_nonperturbation_pass": true,
+        "independent_reference_oracle_pass": true,
+        "Q_all32_bitwise_stock_pass": true
+      },
+      "GPU_Q_values_checked": 163840,
+      "Q_vectors_checked": 64,
+      "rows_per_Q_vector": 2560,
+      "Q_failed_rows": 0,
+      "Q_nonfinite_rows": 0,
+      "Q_stock_bit_different_values": 0,
+      "Q_max_abs_error_vs_FP64": 1.5768015600770013e-05,
+      "Q_max_error_over_tolerance": 0.07649209762976193,
+      "Q_max_relative_L2": 3.241287711600122e-06,
+      "residual_checkpoints": [
+        1,
+        16,
+        32
+      ],
+      "residual_stock_bit_different_values": 0,
+      "residual_failed_rows": 0,
+      "logits_vectors_per_path": 33,
+      "vocabulary": 128256,
+      "logit_comparisons": [
+        {
+          "comparison": "Q4_vs_S",
+          "vectors": 33,
+          "bit_different_values": 0,
+          "failed_values": 0,
+          "nonfinite_values": 0,
+          "tolerance_pass": true,
+          "bitwise_pass": true,
+          "greedy_same_all_vectors": true
+        },
+        {
+          "comparison": "S_probe_on_vs_internal_probe_off",
+          "vectors": 33,
+          "bit_different_values": 0,
+          "failed_values": 0,
+          "nonfinite_values": 0,
+          "tolerance_pass": true,
+          "bitwise_pass": true,
+          "greedy_same_all_vectors": true
+        },
+        {
+          "comparison": "Q4_probe_on_vs_internal_probe_off",
+          "vectors": 33,
+          "bit_different_values": 0,
+          "failed_values": 0,
+          "nonfinite_values": 0,
+          "tolerance_pass": true,
+          "bitwise_pass": true,
+          "greedy_same_all_vectors": true
+        },
+        {
+          "comparison": "S_probe_on_vs_external_probe_off",
+          "vectors": 33,
+          "bit_different_values": 0,
+          "failed_values": 0,
+          "nonfinite_values": 0,
+          "tolerance_pass": true,
+          "bitwise_pass": true,
+          "greedy_same_all_vectors": true
+        },
+        {
+          "comparison": "Q4_probe_on_vs_external_probe_off",
+          "vectors": 33,
+          "bit_different_values": 0,
+          "failed_values": 0,
+          "nonfinite_values": 0,
+          "tolerance_pass": true,
+          "bitwise_pass": true,
+          "greedy_same_all_vectors": true
+        }
+      ],
+      "oracle_rows_checked": 192,
+      "oracle_max_abs_difference": 0.0,
+      "runtime_per_route": {
+        "S": {
+          "GPU_shadow_copies": 68,
+          "weight_bindings_checked": 32,
+          "actual_diagnostic_copy_dispatches": 129,
+          "weight_copies": 1,
+          "pipeline_encodes": {
+            "q-stock": 960,
+            "ffn-stock-gate": 960,
+            "ffn-relu": 960,
+            "ffn-stock-up": 960,
+            "ffn-sqr": 960,
+            "ffn-mul": 960,
+            "ffn-subnorm": 960,
+            "ffn-stock-down": 960
+          },
+          "pipeline_completions": {
+            "q-stock": 960,
+            "ffn-stock-gate": 960,
+            "ffn-relu": 960,
+            "ffn-stock-up": 960,
+            "ffn-sqr": 960,
+            "ffn-mul": 960,
+            "ffn-subnorm": 960,
+            "ffn-stock-down": 960
+          },
+          "all_copy_commands_completed_and_saved": true
+        },
+        "Q4": {
+          "GPU_shadow_copies": 68,
+          "weight_bindings_checked": 32,
+          "actual_diagnostic_copy_dispatches": 129,
+          "weight_copies": 1,
+          "pipeline_encodes": {
+            "q-custom": 32,
+            "ffn-stock-gate": 960,
+            "ffn-relu": 960,
+            "ffn-stock-up": 960,
+            "ffn-sqr": 960,
+            "ffn-mul": 960,
+            "ffn-subnorm": 960,
+            "ffn-stock-down": 960,
+            "q-stock": 928
+          },
+          "pipeline_completions": {
+            "q-custom": 32,
+            "ffn-stock-gate": 960,
+            "ffn-relu": 960,
+            "ffn-stock-up": 960,
+            "ffn-sqr": 960,
+            "ffn-mul": 960,
+            "ffn-subnorm": 960,
+            "ffn-stock-down": 960,
+            "q-stock": 928
+          },
+          "all_copy_commands_completed_and_saved": true
+        }
+      },
+      "prefill_custom_dispatches": 0,
+      "prefill_custom_completions": 0,
+      "capture_manifest_sha256": {
+        "S": "1f10f85b3952abe7d552dabca54427a357e93140debd1360f90c00c692b13cf7",
+        "Q4": "5820cfca137068d868b2f2b7646fa9cac0b7c6c4c8417a857fb12ec4ecfa3b4a"
+      },
+      "app_reported_iOS": "27.2.1"
+    },
+    {
+      "history": "independent",
+      "declared_scope": "All 32 layer-0 Q calls, residual outputs at steps 1/16/32, 33 complete stock-relative logits vectors and internal/external probe-off neutrality.",
+      "strict_Q_capture_exit_code": 0,
+      "actual_analysis_CLI_exit_code": 0,
+      "flags": {
+        "execution_pass": true,
+        "same_input_pass": true,
+        "parity_pass": true,
+        "fp64_pass": true,
+        "model_output_pass": true,
+        "probe_logit_nonperturbation_pass": true,
+        "independent_reference_oracle_pass": true,
+        "Q_all32_bitwise_stock_pass": true
+      },
+      "GPU_Q_values_checked": 163840,
+      "Q_vectors_checked": 64,
+      "rows_per_Q_vector": 2560,
+      "Q_failed_rows": 0,
+      "Q_nonfinite_rows": 0,
+      "Q_stock_bit_different_values": 0,
+      "Q_max_abs_error_vs_FP64": 1.3242594661733165e-05,
+      "Q_max_error_over_tolerance": 0.05698411036674133,
+      "Q_max_relative_L2": 2.887771660531504e-06,
+      "residual_checkpoints": [
+        1,
+        16,
+        32
+      ],
+      "residual_stock_bit_different_values": 0,
+      "residual_failed_rows": 0,
+      "logits_vectors_per_path": 33,
+      "vocabulary": 128256,
+      "logit_comparisons": [
+        {
+          "comparison": "Q4_vs_S",
+          "vectors": 33,
+          "bit_different_values": 0,
+          "failed_values": 0,
+          "nonfinite_values": 0,
+          "tolerance_pass": true,
+          "bitwise_pass": true,
+          "greedy_same_all_vectors": true
+        },
+        {
+          "comparison": "S_probe_on_vs_internal_probe_off",
+          "vectors": 33,
+          "bit_different_values": 0,
+          "failed_values": 0,
+          "nonfinite_values": 0,
+          "tolerance_pass": true,
+          "bitwise_pass": true,
+          "greedy_same_all_vectors": true
+        },
+        {
+          "comparison": "Q4_probe_on_vs_internal_probe_off",
+          "vectors": 33,
+          "bit_different_values": 0,
+          "failed_values": 0,
+          "nonfinite_values": 0,
+          "tolerance_pass": true,
+          "bitwise_pass": true,
+          "greedy_same_all_vectors": true
+        },
+        {
+          "comparison": "S_probe_on_vs_external_probe_off",
+          "vectors": 33,
+          "bit_different_values": 0,
+          "failed_values": 0,
+          "nonfinite_values": 0,
+          "tolerance_pass": true,
+          "bitwise_pass": true,
+          "greedy_same_all_vectors": true
+        },
+        {
+          "comparison": "Q4_probe_on_vs_external_probe_off",
+          "vectors": 33,
+          "bit_different_values": 0,
+          "failed_values": 0,
+          "nonfinite_values": 0,
+          "tolerance_pass": true,
+          "bitwise_pass": true,
+          "greedy_same_all_vectors": true
+        }
+      ],
+      "oracle_rows_checked": 192,
+      "oracle_max_abs_difference": 0.0,
+      "runtime_per_route": {
+        "S": {
+          "GPU_shadow_copies": 68,
+          "weight_bindings_checked": 32,
+          "actual_diagnostic_copy_dispatches": 129,
+          "weight_copies": 1,
+          "pipeline_encodes": {
+            "q-stock": 960,
+            "ffn-stock-gate": 960,
+            "ffn-relu": 960,
+            "ffn-stock-up": 960,
+            "ffn-sqr": 960,
+            "ffn-mul": 960,
+            "ffn-subnorm": 960,
+            "ffn-stock-down": 960
+          },
+          "pipeline_completions": {
+            "q-stock": 960,
+            "ffn-stock-gate": 960,
+            "ffn-relu": 960,
+            "ffn-stock-up": 960,
+            "ffn-sqr": 960,
+            "ffn-mul": 960,
+            "ffn-subnorm": 960,
+            "ffn-stock-down": 960
+          },
+          "all_copy_commands_completed_and_saved": true
+        },
+        "Q4": {
+          "GPU_shadow_copies": 68,
+          "weight_bindings_checked": 32,
+          "actual_diagnostic_copy_dispatches": 129,
+          "weight_copies": 1,
+          "pipeline_encodes": {
+            "q-custom": 32,
+            "ffn-stock-gate": 960,
+            "ffn-relu": 960,
+            "ffn-stock-up": 960,
+            "ffn-sqr": 960,
+            "ffn-mul": 960,
+            "ffn-subnorm": 960,
+            "ffn-stock-down": 960,
+            "q-stock": 928
+          },
+          "pipeline_completions": {
+            "q-custom": 32,
+            "ffn-stock-gate": 960,
+            "ffn-relu": 960,
+            "ffn-stock-up": 960,
+            "ffn-sqr": 960,
+            "ffn-mul": 960,
+            "ffn-subnorm": 960,
+            "ffn-stock-down": 960,
+            "q-stock": 928
+          },
+          "all_copy_commands_completed_and_saved": true
+        }
+      },
+      "prefill_custom_dispatches": 0,
+      "prefill_custom_completions": 0,
+      "capture_manifest_sha256": {
+        "S": "94594ec563df12724853031b6f4d10fc886d24a6389004580cc8f0359a65f41c",
+        "Q4": "b231ef96c710d74b966c29c39485a3577158ddf2264ee8e81ff7884230c65913"
+      },
+      "app_reported_iOS": "27.2.1"
+    }
+  ],
+  "fallback_controls": [
+    {
+      "control": "missing-library",
+      "functional_execution_pass": true,
+      "parity_pass": true,
+      "model_output_pass": true,
+      "local_FP64_pass": null,
+      "custom_Q_encodes": 0,
+      "stock_Q_encodes": 960,
+      "stock_down_encodes": 960,
+      "recorded_fallback_reason": "pipeline",
+      "recorded_fallback_count": 32,
+      "encode_completion_counts_equal": true,
+      "prefill_custom_dispatches": 0,
+      "prefill_custom_completions": 0,
+      "portable_driver_full_V1_exit_code_preserved": 2
+    },
+    {
+      "control": "invalid-geometry",
+      "functional_execution_pass": true,
+      "parity_pass": true,
+      "model_output_pass": true,
+      "local_FP64_pass": null,
+      "custom_Q_encodes": 0,
+      "stock_Q_encodes": 960,
+      "stock_down_encodes": 960,
+      "recorded_fallback_reason": "geometry",
+      "recorded_fallback_count": 32,
+      "encode_completion_counts_equal": true,
+      "prefill_custom_dispatches": 0,
+      "prefill_custom_completions": 0,
+      "portable_driver_full_V1_exit_code_preserved": 2
+    }
+  ],
+  "fresh_sampled_operator_qualification": [
+    {
+      "route": "S",
+      "sampled_steps": [
+        1,
+        16,
+        32
+      ],
+      "vectors": 3,
+      "rows_checked": 7680,
+      "failed_rows": 0,
+      "nonfinite_rows": 0,
+      "max_abs_FP64_error": 9.595010098450985e-06,
+      "stock_bit_different_rows": 0,
+      "all_GPU_completed": true
+    },
+    {
+      "route": "C8",
+      "sampled_steps": [
+        1,
+        16,
+        32
+      ],
+      "vectors": 3,
+      "rows_checked": 7680,
+      "failed_rows": 0,
+      "nonfinite_rows": 0,
+      "max_abs_FP64_error": 5.846816129917443e-06,
+      "stock_bit_different_rows": 7576,
+      "all_GPU_completed": true
+    },
+    {
+      "route": "Q4",
+      "sampled_steps": [
+        1,
+        16,
+        32
+      ],
+      "vectors": 3,
+      "rows_checked": 7680,
+      "failed_rows": 0,
+      "nonfinite_rows": 0,
+      "max_abs_FP64_error": 9.595010098450985e-06,
+      "stock_bit_different_rows": 0,
+      "all_GPU_completed": true
+    }
+  ],
+  "performance_campaigns": [
+    {
+      "campaign": "operator-nominal-start",
+      "mode": "operator",
+      "history": "primary",
+      "analysis_exit_code": 0,
+      "actual_pairs": 1809,
+      "actual_measured_command_buffers": 3618,
+      "actual_token_rows": null,
+      "metric": "Single-dispatch GPU command-buffer elapsed (GPUEndTime-GPUStartTime) after completion",
+      "unit": "us",
+      "raw_rows_excluded": 0,
+      "prior_same_build_Q_capture_acceptance_pass": true,
+      "nominal_endpoints_imply_cold_device": false,
+      "contrast_direction_flags": {
+        "CQ": {
+          "B_faster_in_each_recorded_round_median": false,
+          "B_faster_in_each_recorded_order_group_median": false,
+          "B_faster_in_each_recorded_chronological_quartile_median": false,
+          "automatic_statistical_significance_or_general_speedup_claim": false
+        },
+        "SQ": {
+          "B_faster_in_each_recorded_round_median": true,
+          "B_faster_in_each_recorded_order_group_median": true,
+          "B_faster_in_each_recorded_chronological_quartile_median": true,
+          "automatic_statistical_significance_or_general_speedup_claim": false
+        }
+      },
+      "round_power_snapshots": null
+    },
+    {
+      "campaign": "operator-sustained",
+      "mode": "operator",
+      "history": "primary",
+      "analysis_exit_code": 0,
+      "actual_pairs": 1809,
+      "actual_measured_command_buffers": 3618,
+      "actual_token_rows": null,
+      "metric": "Single-dispatch GPU command-buffer elapsed (GPUEndTime-GPUStartTime) after completion",
+      "unit": "us",
+      "raw_rows_excluded": 0,
+      "prior_same_build_Q_capture_acceptance_pass": true,
+      "nominal_endpoints_imply_cold_device": false,
+      "contrast_direction_flags": {
+        "CQ": {
+          "B_faster_in_each_recorded_round_median": false,
+          "B_faster_in_each_recorded_order_group_median": false,
+          "B_faster_in_each_recorded_chronological_quartile_median": false,
+          "automatic_statistical_significance_or_general_speedup_claim": false
+        },
+        "SQ": {
+          "B_faster_in_each_recorded_round_median": true,
+          "B_faster_in_each_recorded_order_group_median": true,
+          "B_faster_in_each_recorded_chronological_quartile_median": true,
+          "automatic_statistical_significance_or_general_speedup_claim": false
+        }
+      },
+      "round_power_snapshots": null
+    },
+    {
+      "campaign": "decode-primary-first",
+      "mode": "decode",
+      "history": "primary",
+      "analysis_exit_code": 0,
+      "actual_pairs": 126,
+      "actual_measured_command_buffers": null,
+      "actual_token_rows": 8064,
+      "metric": "Complete synchronized fixed 32-token decode host wall time; KV reset/prefix restoration excluded",
+      "unit": "ms",
+      "raw_rows_excluded": 0,
+      "prior_same_build_Q_capture_acceptance_pass": true,
+      "nominal_endpoints_imply_cold_device": false,
+      "contrast_direction_flags": {
+        "SQ4": {
+          "B_faster_in_each_recorded_round_median": false,
+          "B_faster_in_each_recorded_order_group_median": false,
+          "B_faster_in_each_recorded_chronological_quartile_median": false,
+          "automatic_statistical_significance_or_general_speedup_claim": false
+        }
+      },
+      "round_power_snapshots": [
+        {
+          "round": 1,
+          "before": {
+            "uptime_s": 8842.941572458334,
+            "thermal": "nominal",
+            "battery_state": 2,
+            "battery_level": 1,
+            "low_power": false
+          },
+          "after": {
+            "uptime_s": 8967.162035500001,
+            "thermal": "serious",
+            "battery_state": 2,
+            "battery_level": 1,
+            "low_power": false
+          }
+        },
+        {
+          "round": 2,
+          "before": {
+            "uptime_s": 8967.162063458334,
+            "thermal": "serious",
+            "battery_state": 2,
+            "battery_level": 1,
+            "low_power": false
+          },
+          "after": {
+            "uptime_s": 9119.567336666667,
+            "thermal": "serious",
+            "battery_state": 3,
+            "battery_level": 1,
+            "low_power": false
+          }
+        },
+        {
+          "round": 3,
+          "before": {
+            "uptime_s": 9119.567357375001,
+            "thermal": "serious",
+            "battery_state": 3,
+            "battery_level": 1,
+            "low_power": false
+          },
+          "after": {
+            "uptime_s": 9281.109353083333,
+            "thermal": "serious",
+            "battery_state": 3,
+            "battery_level": 1,
+            "low_power": false
+          }
+        }
+      ]
+    },
+    {
+      "campaign": "decode-primary-sustained",
+      "mode": "decode",
+      "history": "primary",
+      "analysis_exit_code": 0,
+      "actual_pairs": 126,
+      "actual_measured_command_buffers": null,
+      "actual_token_rows": 8064,
+      "metric": "Complete synchronized fixed 32-token decode host wall time; KV reset/prefix restoration excluded",
+      "unit": "ms",
+      "raw_rows_excluded": 0,
+      "prior_same_build_Q_capture_acceptance_pass": true,
+      "nominal_endpoints_imply_cold_device": false,
+      "contrast_direction_flags": {
+        "SQ4": {
+          "B_faster_in_each_recorded_round_median": false,
+          "B_faster_in_each_recorded_order_group_median": false,
+          "B_faster_in_each_recorded_chronological_quartile_median": false,
+          "automatic_statistical_significance_or_general_speedup_claim": false
+        }
+      },
+      "round_power_snapshots": [
+        {
+          "round": 1,
+          "before": {
+            "uptime_s": 9321.463449208333,
+            "thermal": "serious",
+            "battery_state": 3,
+            "battery_level": 1,
+            "low_power": false
+          },
+          "after": {
+            "uptime_s": 9494.614630333333,
+            "thermal": "serious",
+            "battery_state": 3,
+            "battery_level": 1,
+            "low_power": false
+          }
+        },
+        {
+          "round": 2,
+          "before": {
+            "uptime_s": 9494.614652791668,
+            "thermal": "serious",
+            "battery_state": 3,
+            "battery_level": 1,
+            "low_power": false
+          },
+          "after": {
+            "uptime_s": 9700.697951,
+            "thermal": "serious",
+            "battery_state": 3,
+            "battery_level": 1,
+            "low_power": false
+          }
+        },
+        {
+          "round": 3,
+          "before": {
+            "uptime_s": 9700.697978,
+            "thermal": "serious",
+            "battery_state": 3,
+            "battery_level": 1,
+            "low_power": false
+          },
+          "after": {
+            "uptime_s": 9933.303821333335,
+            "thermal": "serious",
+            "battery_state": 3,
+            "battery_level": 1,
+            "low_power": false
+          }
+        }
+      ]
+    }
+  ],
+  "preserved_invalid_preliminary_evidence": {
+    "analysis_completed": false,
+    "strict_exit_code": 2,
+    "reason": "Oversized diagnostic dispatch exceeded the frozen copy shader index bound and did not copy the complete packed weight.",
+    "repair": "CPU encoding now rebases 62 bounded GPU copy chunks in the same command buffer. No shader arithmetic or numerical tolerance changed.",
+    "partial_weight_substituted_from_disk": false,
+    "original_invalid_outputs_retained_locally": true
+  },
+  "conclusions": {
+    "Q4_current_Q_only_numerical_acceptance_pass": true,
+    "Q4_recorded_single_operator_gain": "All three paired SQ group medians favor Q4 in each of the nominal-endpoint and sustained/serious-endpoint campaigns; every recorded AB/BA and chronological-quartile median also favors Q4.",
+    "whole_decode_result": "Neither primary-prompt campaign demonstrates an end-to-end Q4 gain. All six paired round medians are positive, but the last sustained result is small and mixed across order/time groups.",
+    "fixed_0_6_percent_regression_established": false,
+    "CPU_guard_vs_GPU_scheduling_cause_localized": false,
+    "recommended_default": "Stock",
+    "recommended_Q4_scope": "Opt-in layer-0 compatibility candidate with the recorded operator benefit; no whole-model acceleration claim."
+  },
+  "out_of_scope": {
+    "timing_on_independent_prompt": false,
+    "whole_Transformer_FP64_verified": false,
+    "full_FFN_FP64_failures_repaired": false,
+    "model_quality_evaluated": false,
+    "team_checkpoint_evaluated": false,
+    "original_4x2_PoC_phone_test_in_this_campaign": false,
+    "C8_real_graph_compatibility_repaired": false,
+    "GPU_frequency_bandwidth_occupancy_or_ALU_counters": "unavailable"
+  },
+  "interpretation_limits": [
+    "All performance campaigns use the primary prompt; independent-prompt correctness is a separate result.",
+    "GPU command-buffer elapsed microseconds and complete 32-token host-wall milliseconds are different intervals and are not pooled.",
+    "Ratios of route p50 values differ from medians of per-pair relative changes; both are retained.",
+    "Thermal metadata records discrete endpoints. Nominal endpoints do not establish a cold or fixed-frequency phone.",
+    "A/A is calibration, never subtracted; no universal statistical significance or tail-latency claim is inferred.",
+    "Large absolute decode-time drift and changing order/time-block behavior remain visible.",
+    "Historical complete-FFN FP64 failures, original CPU/Metal token divergence and C8 model-compatibility failures remain separate and unchanged."
+  ]
+}

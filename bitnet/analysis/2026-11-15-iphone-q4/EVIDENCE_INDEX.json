@@ -1,0 +1,542 @@
+{
+  "schema_version": 1,
+  "experiment_id": "2026-11-15_182149+0900-iphone-q4-complete",
+  "raw_artifacts_included": false,
+  "path_basis": "Experiment-relative identifiers for locally retained evidence; no machine/device paths are published.",
+  "artifacts": [
+    {
+      "experiment_relative_path": "analysis/capture3-independent/FP64_ORACLE.json",
+      "kind": "CPU-derived evidence; only this digest is published",
+      "bytes": 45807,
+      "sha256": "e539aa98c3d82c50bbed32a44a5e8007a614a1f7ce679910c41dfa79d2c2f14a"
+    },
+    {
+      "experiment_relative_path": "analysis/capture3-independent/INPUT_HASHES.json",
+      "kind": "CPU-derived evidence; only this digest is published",
+      "bytes": 12613,
+      "sha256": "537de43aea19ec3718deeec9f1896516c0b1d34dae4f7e0daab8aeac2b929acc"
+    },
+    {
+      "experiment_relative_path": "analysis/capture3-independent/LOGITS.json",
+      "kind": "CPU-derived evidence; only this digest is published",
+      "bytes": 219389,
+      "sha256": "5f1517e7b448c4987e6cbf770eafc540d37acdce63b161e70e67a47075004f4d"
+    },
+    {
+      "experiment_relative_path": "analysis/capture3-independent/RUNTIME_EVIDENCE.json",
+      "kind": "CPU-derived evidence; only this digest is published",
+      "bytes": 1790,
+      "sha256": "434b9f906dbedd532ec429376866862c9582df463059f261131f13c8e2d8ac4f"
+    },
+    {
+      "experiment_relative_path": "analysis/capture3-independent/SUMMARY.json",
+      "kind": "CPU-derived evidence; only this digest is published",
+      "bytes": 54143,
+      "sha256": "957eb7f12f9e1aa49b041cb06909bcca049ef3a6278d03d1eb94fb0dd3ef9ec1"
+    },
+    {
+      "experiment_relative_path": "analysis/capture3-primary/FP64_ORACLE.json",
+      "kind": "CPU-derived evidence; only this digest is published",
+      "bytes": 45753,
+      "sha256": "b773faa784d881677eff96e2791db47e5f59ffcaa7d45f8acf6a051c23facc6e"
+    },
+    {
+      "experiment_relative_path": "analysis/capture3-primary/INPUT_HASHES.json",
+      "kind": "CPU-derived evidence; only this digest is published",
+      "bytes": 12613,
+      "sha256": "09b90954e75a59a73de70c6c265d11b55dbf168bde07eb30cc627d27a8717282"
+    },
+    {
+      "experiment_relative_path": "analysis/capture3-primary/LOGITS.json",
+      "kind": "CPU-derived evidence; only this digest is published",
+      "bytes": 219289,
+      "sha256": "0312e98650e85774b3ba60fa1a9c447c51fd2fa3bee2fb10dbb9d18aaa145611"
+    },
+    {
+      "experiment_relative_path": "analysis/capture3-primary/RUNTIME_EVIDENCE.json",
+      "kind": "CPU-derived evidence; only this digest is published",
+      "bytes": 1790,
+      "sha256": "2abdd501f9cd6b0ed89bf0aff9364f075dae2db92f3031dc9b87e9858b55c7c3"
+    },
+    {
+      "experiment_relative_path": "analysis/capture3-primary/SUMMARY.json",
+      "kind": "CPU-derived evidence; only this digest is published",
+      "bytes": 54147,
+      "sha256": "958abb7878f4f92f1aef310b3ad981c3b44e84b7f3ec0cedad87dd08a95de149"
+    },
+    {
+      "experiment_relative_path": "analysis/decode-primary-first/PROVENANCE.json",
+      "kind": "Local full derived analysis; only curated columns published",
+      "bytes": 4353,
+      "sha256": "6c93e59e4c29b1d6d38702ad90a6cd3436ab06cc8659b2d4102e2f535b01e5d3"
+    },
+    {
+      "experiment_relative_path": "analysis/decode-primary-first/ROUND_SUMMARY.csv",
+      "kind": "Local full derived analysis; only curated columns published",
+      "bytes": 1345,
+      "sha256": "81a1721806ef2819e90647ef69f35197bf0b7b78464c813414386b804445c3b5"
+    },
+    {
+      "experiment_relative_path": "analysis/decode-primary-first/SUMMARY.json",
+      "kind": "Local full derived analysis; only curated columns published",
+      "bytes": 124434,
+      "sha256": "d8a1b0b464d276da53b44205370cdb1b29911b17bf505c22bf3bd7ad82a70aa9"
+    },
+    {
+      "experiment_relative_path": "analysis/decode-primary-sustained/PROVENANCE.json",
+      "kind": "Local full derived analysis; only curated columns published",
+      "bytes": 4405,
+      "sha256": "085fc1daa446c531e70c8a32908bfd74e17ab7420e1612a3fd8e18d862320a81"
+    },
+    {
+      "experiment_relative_path": "analysis/decode-primary-sustained/ROUND_SUMMARY.csv",
+      "kind": "Local full derived analysis; only curated columns published",
+      "bytes": 1343,
+      "sha256": "20704fa504a41ffb0ab0735761ae951f26fc55d7b50eb29d9e78713b29570096"
+    },
+    {
+      "experiment_relative_path": "analysis/decode-primary-sustained/SUMMARY.json",
+      "kind": "Local full derived analysis; only curated columns published",
+      "bytes": 102034,
+      "sha256": "b0a0568795765b322c8e79d782160ca7d3420119dec0069cf77cf715098de537"
+    },
+    {
+      "experiment_relative_path": "analysis/down-selected-serialization-fixed/summary.json",
+      "kind": "Local serialization-hardened selected-down analysis; finite metrics unchanged; only this digest is published",
+      "bytes": 3928,
+      "sha256": "c970d51e8a046349d23e1db89790ba81d65ec892862b45283e86341ac3a82f2d"
+    },
+    {
+      "experiment_relative_path": "analysis/down-selected/reference-audit.csv",
+      "kind": "Local selected-down evidence; only aggregate metrics and this digest are published",
+      "bytes": 8052,
+      "sha256": "3ddaae9314bdac18e8db63d0939f9874246263e3507a7b530464f14d4ea8c44d"
+    },
+    {
+      "experiment_relative_path": "analysis/down-selected/route-summary.csv",
+      "kind": "Local selected-down evidence; only aggregate metrics and this digest are published",
+      "bytes": 356,
+      "sha256": "b6ca7e61a66d7c528ffadd93403b25b78de1e7786e39b90991bcd260d411d3e7"
+    },
+    {
+      "experiment_relative_path": "analysis/down-selected/rows.csv",
+      "kind": "Local selected-down evidence; only aggregate metrics and this digest are published",
+      "bytes": 56092,
+      "sha256": "1089d64421684a4a5ceed41ece079c290cdc34732ce4be70896dd31e7ceb6489"
+    },
+    {
+      "experiment_relative_path": "analysis/down-selected/summary.json",
+      "kind": "Local selected-down evidence; only aggregate metrics and this digest are published",
+      "bytes": 3648,
+      "sha256": "70429671a860d50e74d102b78768cd436d76bd235992e9b11f299e165306d49a"
+    },
+    {
+      "experiment_relative_path": "analysis/operator-nominal-start/PROVENANCE.json",
+      "kind": "Local full derived analysis; only curated columns published",
+      "bytes": 3818,
+      "sha256": "8f4e223d1cc4bf4ebe8788820c545f1a03073c25a724a7e961273700380093f0"
+    },
+    {
+      "experiment_relative_path": "analysis/operator-nominal-start/ROUND_SUMMARY.csv",
+      "kind": "Local full derived analysis; only curated columns published",
+      "bytes": 2144,
+      "sha256": "bfc352dea111eb89ea94f509cb8484bcfc253b9cf8a06c592b31b8253ef21e78"
+    },
+    {
+      "experiment_relative_path": "analysis/operator-nominal-start/SUMMARY.json",
+      "kind": "Local full derived analysis; only curated columns published",
+      "bytes": 84606,
+      "sha256": "5687c20c82ea28d0856bc36ce62fcdaadeea1dcbd7be8e5faf3bb1f029a1be81"
+    },
+    {
+      "experiment_relative_path": "analysis/operator-sustained/PROVENANCE.json",
+      "kind": "Local full derived analysis; only curated columns published",
+      "bytes": 3752,
+      "sha256": "b3f4b4c2874c73b83986a98dab11076a4e2993a2fc6f2549c5e0e70f7a530a84"
+    },
+    {
+      "experiment_relative_path": "analysis/operator-sustained/ROUND_SUMMARY.csv",
+      "kind": "Local full derived analysis; only curated columns published",
+      "bytes": 2122,
+      "sha256": "41cdc4abbf61a6133ccdda60693ab44232f42ae7d0a32273cce610c39b62d5ca"
+    },
+    {
+      "experiment_relative_path": "analysis/operator-sustained/SUMMARY.json",
+      "kind": "Local full derived analysis; only curated columns published",
+      "bytes": 84402,
+      "sha256": "b8ca7e38d293bf572855764d98e51efe0e44b261a853a5e01f7ce6085137bc50"
+    },
+    {
+      "experiment_relative_path": "analysis/primary/SUMMARY.json",
+      "kind": "Preserved invalid pre-fix evidence verdict; payload excluded",
+      "bytes": 2424,
+      "sha256": "d4db0f5c55f798cba81052a7dc1ecfa60296e4bc61d5a75a25de7684029ff0bd"
+    },
+    {
+      "experiment_relative_path": "fixtures/current-primary-q/MANIFEST.json",
+      "kind": "Fresh accepted operator-input provenance; payloads excluded",
+      "bytes": 4234,
+      "sha256": "bf0d76bdd7902719590c2c9a254e20acb6e8ff51c477875e0379df776e888440"
+    },
+    {
+      "experiment_relative_path": "runs/capture3-independent-off/BUILD_IDENTITY.json",
+      "kind": "Retained local app/host evidence; payload excluded",
+      "bytes": 1206,
+      "sha256": "642213804136a8c8ddc2d1c57a84a2043add87cdd1cbbadf591f26e01fd3dd42"
+    },
+    {
+      "experiment_relative_path": "runs/capture3-independent-off/device/result.json",
+      "kind": "Retained local app/host evidence; payload excluded",
+      "bytes": 1943,
+      "sha256": "3459c84f32a2253e117ecfc2d365a5b61d38073a09374eaed7983fc0818182ee"
+    },
+    {
+      "experiment_relative_path": "runs/capture3-independent-off/logs/launch.log",
+      "kind": "Retained local app/host evidence; payload excluded",
+      "bytes": 10262964,
+      "sha256": "2a4179396b5933d5129b6c9bfe2932b333e03c54a283be187dfe805720f7f4e9"
+    },
+    {
+      "experiment_relative_path": "runs/capture3-independent-off/summary.json",
+      "kind": "Retained local app/host evidence; payload excluded",
+      "bytes": 4066,
+      "sha256": "095fc830c813f23ab244bd21915baf1c2de911ffa0e198f7ec86705d8b1ecae3"
+    },
+    {
+      "experiment_relative_path": "runs/capture3-independent-on/BUILD_IDENTITY.json",
+      "kind": "Retained local app/host evidence; payload excluded",
+      "bytes": 1206,
+      "sha256": "642213804136a8c8ddc2d1c57a84a2043add87cdd1cbbadf591f26e01fd3dd42"
+    },
+    {
+      "experiment_relative_path": "runs/capture3-independent-on/device/result.json",
+      "kind": "Retained local app/host evidence; payload excluded",
+      "bytes": 2505,
+      "sha256": "c59d34ab42276c495d3b89d4e30e054e52da3d6026503873f7ada3f2b963b363"
+    },
+    {
+      "experiment_relative_path": "runs/capture3-independent-on/device/route-Q4/q-readback/manifest.json",
+      "kind": "Local captured-tensor digest manifest; tensors excluded",
+      "bytes": 10017,
+      "sha256": "b231ef96c710d74b966c29c39485a3577158ddf2264ee8e81ff7884230c65913"
+    },
+    {
+      "experiment_relative_path": "runs/capture3-independent-on/device/route-S/q-readback/manifest.json",
+      "kind": "Local captured-tensor digest manifest; tensors excluded",
+      "bytes": 10016,
+      "sha256": "94594ec563df12724853031b6f4d10fc886d24a6389004580cc8f0359a65f41c"
+    },
+    {
+      "experiment_relative_path": "runs/capture3-independent-on/logs/launch.log",
+      "kind": "Retained local app/host evidence; payload excluded",
+      "bytes": 10499499,
+      "sha256": "39755b384aee5e154006d1e5b7de0ae3efc1293264d03dcb7be0cd179258848e"
+    },
+    {
+      "experiment_relative_path": "runs/capture3-independent-on/summary.json",
+      "kind": "Retained local app/host evidence; payload excluded",
+      "bytes": 5331,
+      "sha256": "5d8ce78a531b15ded55bcc485e77eaa0facd4a6bdea2f2f599de7f0bb7448c75"
+    },
+    {
+      "experiment_relative_path": "runs/capture3-primary-off/BUILD_IDENTITY.json",
+      "kind": "Retained local app/host evidence; payload excluded",
+      "bytes": 1206,
+      "sha256": "642213804136a8c8ddc2d1c57a84a2043add87cdd1cbbadf591f26e01fd3dd42"
+    },
+    {
+      "experiment_relative_path": "runs/capture3-primary-off/device/result.json",
+      "kind": "Retained local app/host evidence; payload excluded",
+      "bytes": 1937,
+      "sha256": "e016b5ce8a123d140c9676f36733d42802512581a292c65c000e65a0624164fe"
+    },
+    {
+      "experiment_relative_path": "runs/capture3-primary-off/logs/launch.log",
+      "kind": "Retained local app/host evidence; payload excluded",
+      "bytes": 10262956,
+      "sha256": "6ece3691d83fa7972c0b44e8fb2eda64af7ca48ba7824d84d70427016d2a4b3e"
+    },
+    {
+      "experiment_relative_path": "runs/capture3-primary-off/summary.json",
+      "kind": "Retained local app/host evidence; payload excluded",
+      "bytes": 4056,
+      "sha256": "50e15452d63e02a7eca1a09bcb87ef13a57201f4e28941b3c10154d95cb83d50"
+    },
+    {
+      "experiment_relative_path": "runs/capture3-primary-on/BUILD_IDENTITY.json",
+      "kind": "Retained local app/host evidence; payload excluded",
+      "bytes": 1206,
+      "sha256": "642213804136a8c8ddc2d1c57a84a2043add87cdd1cbbadf591f26e01fd3dd42"
+    },
+    {
+      "experiment_relative_path": "runs/capture3-primary-on/device/result.json",
+      "kind": "Retained local app/host evidence; payload excluded",
+      "bytes": 2499,
+      "sha256": "58db413a20767a2c41c5b44128b0289fca43970f6534c098867651fcc4f6d274"
+    },
+    {
+      "experiment_relative_path": "runs/capture3-primary-on/device/route-Q4/q-readback/manifest.json",
+      "kind": "Local captured-tensor digest manifest; tensors excluded",
+      "bytes": 10017,
+      "sha256": "5820cfca137068d868b2f2b7646fa9cac0b7c6c4c8417a857fb12ec4ecfa3b4a"
+    },
+    {
+      "experiment_relative_path": "runs/capture3-primary-on/device/route-S/q-readback/manifest.json",
+      "kind": "Local captured-tensor digest manifest; tensors excluded",
+      "bytes": 10016,
+      "sha256": "1f10f85b3952abe7d552dabca54427a357e93140debd1360f90c00c692b13cf7"
+    },
+    {
+      "experiment_relative_path": "runs/capture3-primary-on/logs/launch.log",
+      "kind": "Retained local app/host evidence; payload excluded",
+      "bytes": 10499496,
+      "sha256": "3f970b1054b7acd831b4edae14703f3b0e12e1a3854149273f723366578be548"
+    },
+    {
+      "experiment_relative_path": "runs/capture3-primary-on/summary.json",
+      "kind": "Retained local app/host evidence; payload excluded",
+      "bytes": 5321,
+      "sha256": "9987a3cbd1c19540581798f195435fd9bfff90a10d048e258c830cefd6a0c693"
+    },
+    {
+      "experiment_relative_path": "runs/decode-primary-first/BUILD_IDENTITY.json",
+      "kind": "Local native app/host evidence; payload excluded",
+      "bytes": 1206,
+      "sha256": "642213804136a8c8ddc2d1c57a84a2043add87cdd1cbbadf591f26e01fd3dd42"
+    },
+    {
+      "experiment_relative_path": "runs/decode-primary-first/device/execution.json",
+      "kind": "Local raw/native whole-decode evidence; payload excluded",
+      "bytes": 572,
+      "sha256": "7ed6fc914cc27736be6aa2588a0e14b47644b7fcccb2c619fa619b11724c5251"
+    },
+    {
+      "experiment_relative_path": "runs/decode-primary-first/device/result.json",
+      "kind": "Local native app/host evidence; payload excluded",
+      "bytes": 3360,
+      "sha256": "f22d45dfaa838019c4e0aef8340cd3ce12a6b1f24e8261483b6d3885a946c32c"
+    },
+    {
+      "experiment_relative_path": "runs/decode-primary-first/device/samples.csv",
+      "kind": "Local raw/native whole-decode evidence; payload excluded",
+      "bytes": 30966,
+      "sha256": "dd8a5425b1b3c77513049925710b9803d16184cc6c76c2406b7f631d8882b4e7"
+    },
+    {
+      "experiment_relative_path": "runs/decode-primary-first/device/token-times.csv",
+      "kind": "Local raw/native whole-decode evidence; payload excluded",
+      "bytes": 622828,
+      "sha256": "5317e3ac5d85f5ce850a5c1038618df423a9f9e90e43cb4dd29aa619637990f1"
+    },
+    {
+      "experiment_relative_path": "runs/decode-primary-first/logs/launch.log",
+      "kind": "Local native app/host evidence; payload excluded",
+      "bytes": 219008,
+      "sha256": "48016bcb24ad4f4852b1464962af576c2e54561a7ac87dd42a67e9ee95b655c9"
+    },
+    {
+      "experiment_relative_path": "runs/decode-primary-first/summary.json",
+      "kind": "Local native app/host evidence; payload excluded",
+      "bytes": 4268,
+      "sha256": "0e961749c5927f63e6f38c81177c72c550cb394fec33fd3c9571395429e51b2c"
+    },
+    {
+      "experiment_relative_path": "runs/decode-primary-sustained/BUILD_IDENTITY.json",
+      "kind": "Local native app/host evidence; payload excluded",
+      "bytes": 1206,
+      "sha256": "642213804136a8c8ddc2d1c57a84a2043add87cdd1cbbadf591f26e01fd3dd42"
+    },
+    {
+      "experiment_relative_path": "runs/decode-primary-sustained/device/execution.json",
+      "kind": "Local raw/native whole-decode evidence; payload excluded",
+      "bytes": 572,
+      "sha256": "7ed6fc914cc27736be6aa2588a0e14b47644b7fcccb2c619fa619b11724c5251"
+    },
+    {
+      "experiment_relative_path": "runs/decode-primary-sustained/device/result.json",
+      "kind": "Local native app/host evidence; payload excluded",
+      "bytes": 3360,
+      "sha256": "ac812692e580f802fae2fcc72f96ab6f3fdcf930eee42b59172575825f36f786"
+    },
+    {
+      "experiment_relative_path": "runs/decode-primary-sustained/device/samples.csv",
+      "kind": "Local raw/native whole-decode evidence; payload excluded",
+      "bytes": 31477,
+      "sha256": "c093fdf3788e1ce5aab918727756bb4b36b46aeb5dafa8ad1f80ffff9c0a9067"
+    },
+    {
+      "experiment_relative_path": "runs/decode-primary-sustained/device/token-times.csv",
+      "kind": "Local raw/native whole-decode evidence; payload excluded",
+      "bytes": 625591,
+      "sha256": "56769a759e49f9e21d0cf38e64e43b320885cc4ba76fbf0b110bf027a84c56ee"
+    },
+    {
+      "experiment_relative_path": "runs/decode-primary-sustained/logs/launch.log",
+      "kind": "Local native app/host evidence; payload excluded",
+      "bytes": 219008,
+      "sha256": "ecdfc52bcfe3878632ca9d7f01eec1c4f7d5e3a96e1e2006e63493e43d49183a"
+    },
+    {
+      "experiment_relative_path": "runs/decode-primary-sustained/summary.json",
+      "kind": "Local native app/host evidence; payload excluded",
+      "bytes": 4260,
+      "sha256": "58ed1b668b862b0f65570a3ffe382c25ba5cf50992c6987c2a63ed1804959259"
+    },
+    {
+      "experiment_relative_path": "runs/down-selected-correction/BUILD_IDENTITY.json",
+      "kind": "Local selected-down evidence; only aggregate metrics and this digest are published",
+      "bytes": 1206,
+      "sha256": "642213804136a8c8ddc2d1c57a84a2043add87cdd1cbbadf591f26e01fd3dd42"
+    },
+    {
+      "experiment_relative_path": "runs/down-selected-correction/summary.json",
+      "kind": "Local selected-down evidence; only aggregate metrics and this digest are published",
+      "bytes": 1480,
+      "sha256": "3e8fdccbe4b942cdeb06b0ca11b3017a58f4873693ef3daebca7429fb16cff71"
+    },
+    {
+      "experiment_relative_path": "runs/fallback-invalid-geometry/device/result.json",
+      "kind": "Local fallback evidence; payload excluded",
+      "bytes": 1953,
+      "sha256": "9b242060e788dc06f30efccb14c6ddf97d835f18a4c99a49fa158812dbef3252"
+    },
+    {
+      "experiment_relative_path": "runs/fallback-invalid-geometry/logs/launch.log",
+      "kind": "Local fallback evidence; payload excluded",
+      "bytes": 10252279,
+      "sha256": "8da7f6fb9e3f22ae9b1aa4ed0b66d4f047cfaa387938aab38bb302b759090a77"
+    },
+    {
+      "experiment_relative_path": "runs/fallback-invalid-geometry/summary.json",
+      "kind": "Local fallback evidence; payload excluded",
+      "bytes": 4050,
+      "sha256": "b981c633148895676daf7cff76b817b2b6bc91eaced7b7c6c1b271c247ffffde"
+    },
+    {
+      "experiment_relative_path": "runs/fallback-missing-library/device/result.json",
+      "kind": "Local fallback evidence; payload excluded",
+      "bytes": 1952,
+      "sha256": "3dc88f5923f4f0d2e35352e8c6d950d2d894584d48bb3704618b89a8b85c6672"
+    },
+    {
+      "experiment_relative_path": "runs/fallback-missing-library/logs/launch.log",
+      "kind": "Local fallback evidence; payload excluded",
+      "bytes": 10259416,
+      "sha256": "a31c805ec4ff62a6dd476d6bb5fd973b0034cae13d044ae60497864a9a72366b"
+    },
+    {
+      "experiment_relative_path": "runs/fallback-missing-library/summary.json",
+      "kind": "Local fallback evidence; payload excluded",
+      "bytes": 4047,
+      "sha256": "941e6e4ad82484f27a89a37d2fbbd981af8c9386709ae46a381216b6f46ff021"
+    },
+    {
+      "experiment_relative_path": "runs/operator-current-verify/logs/launch.log",
+      "kind": "Local fresh operator qualification; payload excluded",
+      "bytes": 5912,
+      "sha256": "d1bc96b1444d7db2dd4293fb138d4e3d6e1c952b46bb0cc12b6d002d29c59a65"
+    },
+    {
+      "experiment_relative_path": "runs/operator-current-verify/operator/qualification.json",
+      "kind": "Local fresh operator qualification; payload excluded",
+      "bytes": 5061,
+      "sha256": "c4ed9c4dd979707f8f6bd1f89fc7eeda933ea884a191f351b8d0592ffa08d79d"
+    },
+    {
+      "experiment_relative_path": "runs/operator-current-verify/summary.json",
+      "kind": "Local fresh operator qualification; payload excluded",
+      "bytes": 1045,
+      "sha256": "534f1d27a37343a541ea7248e3204bc9699e5801311eff8a2a8168572f66095d"
+    },
+    {
+      "experiment_relative_path": "runs/operator-nominal-start-2/BUILD_IDENTITY.json",
+      "kind": "Local native app/host evidence; payload excluded",
+      "bytes": 1206,
+      "sha256": "642213804136a8c8ddc2d1c57a84a2043add87cdd1cbbadf591f26e01fd3dd42"
+    },
+    {
+      "experiment_relative_path": "runs/operator-nominal-start-2/device/result.json",
+      "kind": "Local native app/host evidence; payload excluded",
+      "bytes": 414,
+      "sha256": "cb6d782af116a1a27ff9b473b830800fed3a822af56b02d2e1a7bb5ac2ba02cd"
+    },
+    {
+      "experiment_relative_path": "runs/operator-nominal-start-2/logs/launch.log",
+      "kind": "Local native app/host evidence; payload excluded",
+      "bytes": 4632,
+      "sha256": "dcc18ae21f1e610cfe3a79ce90e99079dedaa329a5e788119a4575d5175875fd"
+    },
+    {
+      "experiment_relative_path": "runs/operator-nominal-start-2/operator/performance/samples.csv",
+      "kind": "Local raw/native operator evidence; payload excluded",
+      "bytes": 133327,
+      "sha256": "9cc37b511271b14ad1f5e9df7ed8aaf848fdd5f52e2b028cc575001409e84f0b"
+    },
+    {
+      "experiment_relative_path": "runs/operator-nominal-start-2/operator/performance/summary.json",
+      "kind": "Local raw/native operator evidence; payload excluded",
+      "bytes": 9193,
+      "sha256": "767e506065ca414745b8569d36158c6cc7d395b7cf9bc78e5a54f08577d8d5f5"
+    },
+    {
+      "experiment_relative_path": "runs/operator-nominal-start-2/operator/qualification.json",
+      "kind": "Local raw/native operator evidence; payload excluded",
+      "bytes": 5061,
+      "sha256": "6d1bd3a2b3060e47cdc4479263b3f659d52707e0e3285cf632f813714d220e0e"
+    },
+    {
+      "experiment_relative_path": "runs/operator-nominal-start-2/summary.json",
+      "kind": "Local native app/host evidence; payload excluded",
+      "bytes": 4016,
+      "sha256": "eb3df4a4cd66d46aa3bea7e731e2b0747b5c7cdea030fea1a762e09614a62133"
+    },
+    {
+      "experiment_relative_path": "runs/operator-sustained/BUILD_IDENTITY.json",
+      "kind": "Local native app/host evidence; payload excluded",
+      "bytes": 1206,
+      "sha256": "642213804136a8c8ddc2d1c57a84a2043add87cdd1cbbadf591f26e01fd3dd42"
+    },
+    {
+      "experiment_relative_path": "runs/operator-sustained/device/result.json",
+      "kind": "Local native app/host evidence; payload excluded",
+      "bytes": 414,
+      "sha256": "c51a8c094d1d8d3b2d1a87a6ba6a370ca34e55caf910699fed143420f60a9e64"
+    },
+    {
+      "experiment_relative_path": "runs/operator-sustained/logs/launch.log",
+      "kind": "Local native app/host evidence; payload excluded",
+      "bytes": 4632,
+      "sha256": "95df2dd15e59daed87255499e41955542b06910ba7a46bf331ba2e8641b5c7ad"
+    },
+    {
+      "experiment_relative_path": "runs/operator-sustained/operator/performance/samples.csv",
+      "kind": "Local raw/native operator evidence; payload excluded",
+      "bytes": 133307,
+      "sha256": "d771baa3316e9deca30aab0575aba6b273aabe8fbad650da4ce2989f798b520c"
+    },
+    {
+      "experiment_relative_path": "runs/operator-sustained/operator/performance/summary.json",
+      "kind": "Local raw/native operator evidence; payload excluded",
+      "bytes": 9175,
+      "sha256": "e04a5f7e1822059c697b6314b1c69356f5c80323f3458ef886395d51d9233db1"
+    },
+    {
+      "experiment_relative_path": "runs/operator-sustained/operator/qualification.json",
+      "kind": "Local raw/native operator evidence; payload excluded",
+      "bytes": 5061,
+      "sha256": "c8189986585a0ca6b8a43aedeacec67a75ac5aefc16df271f20b59efa32a07f8"
+    },
+    {
+      "experiment_relative_path": "runs/operator-sustained/summary.json",
+      "kind": "Local native app/host evidence; payload excluded",
+      "bytes": 4005,
+      "sha256": "06e5df5c0df15b283d789b88864aa11ba41cca6ca341783fb052920839d24659"
+    },
+    {
+      "experiment_relative_path": "signed-build-4/BUILD.json",
+      "kind": "Selected signed build provenance; only digest published",
+      "bytes": 123009,
+      "sha256": "8a823a2313db013b2d293a019ccbb42fd469c36c1c1d1580b1eb231b5233c46f"
+    }
+  ]
+}

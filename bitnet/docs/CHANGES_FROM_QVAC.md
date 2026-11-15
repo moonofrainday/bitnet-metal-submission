@@ -32,7 +32,7 @@ These changes adapt Microsoft's public packed checkpoint. They neither add I2_S 
 | `ggml/src/ggml-metal/ggml-metal-device.m` | Candidate pipeline loading/cache and capability checks. |
 | `ggml/src/ggml-metal/ggml-metal-ops.cpp` | Opt-in Q/FFN graph and consumer/encoding-boundary guards, real buffers/offsets, bounds/alias checks, launch selection and stock fallback; also a residual-binding correctness fix. |
 
-One coherent against-base patch is in `../patches/pinned-to-iphone.patch`. It is already applied to this repository: **do not apply it again here**. It changes eight upstream files in total (1,561 insertions, 14 deletions), before packaging/documentation additions. It includes experimental diagnostic hooks; a smaller production-only patch is future cleanup, not represented as complete.
+The original packaged against-base patch is in `../patches/pinned-to-iphone.patch`. It is already applied to this repository: **do not apply it again here**. It changes eight upstream files in total (1,561 insertions, 14 deletions), before packaging/documentation additions. It includes experimental diagnostic hooks; a smaller production-only patch is future cleanup, not represented as complete. The subsequent `q4-readback-additive.patch` is relative to packaged commit `b6441351acb21418959a52b3864c11d55defa189` and adds the default-off Q diagnostic copies and their fixes to three backend files. Both patches are already applied in this checkout. The additive patch is not a replacement for the compatibility patch.
 
 The residual-binding fix is unconditional: for a fused stock ADD, choose the other operand by tensor identity (`dst->src[0] == op`) rather than an operation-type heuristic that can misidentify it when both inputs are MUL_MAT. "Stock default" means the original stock shader/dispatch is selected by default; it does not mean no CPU-side backend code changed.
 
@@ -40,6 +40,8 @@ The residual-binding fix is unconditional: for a fused stock ADD, choose the oth
 
 - `validation/`: standalone original PoC and Q4 shader, CPU FP64 unpack reference, native harness, independent analysis and explicit negative/exit-code checks.
 - `shaders/`: source for opt-in Q4, G dual projection/postprocessing, F8, K and split-C controls. `scripts/build-shaders.py` rebuilds platform-specific metallibs; no prebuilt library is shipped.
+- `analysis-tools/`: independent CPU-only complete Q/readback, paired-timing and selected Down analyzers; they distinguish processing success from numerical acceptance.
+- `down-controls/`: a separately compiled stock wrapper and a correction-placement negative control, with explicit fixed-input preparation. It changes no default model shader.
 - `ios/`: replay/operator helpers and a portable staged application build. Upstream SwiftUI/LibLlama remain the foundation; only the bridge hook and background start are added to the staged app.
 - `docs/`, `analysis/`, `provenance/`: English scope, measured derived results, source identities and limitations.
 

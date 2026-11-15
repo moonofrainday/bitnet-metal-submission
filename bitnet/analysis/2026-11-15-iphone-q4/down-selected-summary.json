@@ -1,0 +1,97 @@
+{
+  "analysis_completed": true,
+  "CPU_only": true,
+  "GPU_executed_by_analyzer": false,
+  "execution_pass": true,
+  "parity_pass": true,
+  "fp64_pass": false,
+  "model_output_pass": null,
+  "overall_pass": false,
+  "strict_exit_code": 1,
+  "processing_exit_code": 0,
+  "scope": "96 selected real down outputs/path; actual captured stock norm input; not full-matrix/model acceptance",
+  "tolerance": {
+    "abs": 0.0002,
+    "relative": 2e-05
+  },
+  "reference": "Independent logical-K TQ2_0 decode with math.fsum; each F32 input and FP16 block scale retained",
+  "W_sha256": "c032780f9245f4ecfe37fe117f0b6f16b5a76cfb72734c60b1f7e4beabe99888",
+  "X_sha256": "c9e096fc21f1e6ab4dcc1c4329925942219f848b4ab082dc30b930fe2bf43e7a",
+  "native_ordered_reference_bit_differences": 0,
+  "native_reference_max_abs_vs_fsum": 2.842170943040401e-14,
+  "GPU_completions_independently_checked": 36,
+  "performance_measured": false,
+  "full_matrix_expanded": false,
+  "experiment": "Selected-down arithmetic control, separate from Q4 acceptance",
+  "dimensions": {
+    "W_rows": 2560,
+    "W_columns": 6912,
+    "W_type": "TQ2_0",
+    "X_values": 6912,
+    "X_type": "F32",
+    "selected_output_rows": 96,
+    "block_values": 256,
+    "bytes_per_block": 66
+  },
+  "routes": {
+    "S": {
+      "rows": 96,
+      "failed_rows": 12,
+      "nonfinite_rows": 0,
+      "max_abs": 0.0003891796691171123,
+      "max_error_over_tolerance": 1.5662682655382343,
+      "relative_L2": 3.4141670911735287e-06,
+      "max_relative_error_nonzero_reference": 0.0018686956240915574,
+      "zero_reference_rows": 0,
+      "stock_bit_different_rows": 0,
+      "stock_tolerance_failed_rows": 0,
+      "stock_max_abs": 0.0,
+      "worst_ratio_row": 362,
+      "pointwise_reference_error_changes": null
+    },
+    "S-wrap": {
+      "rows": 96,
+      "failed_rows": 12,
+      "nonfinite_rows": 0,
+      "max_abs": 0.0003891796691171123,
+      "max_error_over_tolerance": 1.5662682655382343,
+      "relative_L2": 3.4141670911735287e-06,
+      "max_relative_error_nonzero_reference": 0.0018686956240915574,
+      "zero_reference_rows": 0,
+      "stock_bit_different_rows": 0,
+      "stock_tolerance_failed_rows": 0,
+      "stock_max_abs": 0.0,
+      "worst_ratio_row": 362,
+      "pointwise_reference_error_changes": {
+        "closer_to_fsum_rows": 0,
+        "farther_from_fsum_rows": 0,
+        "equal_error_rows": 96
+      }
+    },
+    "correction-end": {
+      "rows": 96,
+      "failed_rows": 12,
+      "nonfinite_rows": 0,
+      "max_abs": 0.0003891796691171123,
+      "max_error_over_tolerance": 1.829765222640437,
+      "relative_L2": 3.58219584739955e-06,
+      "max_relative_error_nonzero_reference": 0.002340834600293022,
+      "zero_reference_rows": 0,
+      "stock_bit_different_rows": 48,
+      "stock_tolerance_failed_rows": 0,
+      "stock_max_abs": 0.00011444091796875,
+      "worst_ratio_row": 362,
+      "pointwise_reference_error_changes": {
+        "closer_to_fsum_rows": 22,
+        "farther_from_fsum_rows": 26,
+        "equal_error_rows": 48
+      }
+    }
+  },
+  "interpretation": [
+    "S-wrap reproduces actual stock bitwise on all 96 selected outputs.",
+    "Moving correction to the end changes 48 selected outputs but leaves 12 failures; 22 get closer to FP64, 26 farther and 48 retain equal error.",
+    "The larger worst error/tolerance ratio does not show that correction-end is the sole source of the original stock failure.",
+    "This is a selected-row control on one existing real down input, not a fresh full-matrix, full-FFN, model-quality or performance pass."
+  ]
+}

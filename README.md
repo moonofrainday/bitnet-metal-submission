@@ -12,7 +12,8 @@ The source baseline is `tetherto/qvac-fabric-llm.cpp@2db8b046d555316019ae75d1be9
 | [Source walkthrough](bitnet/docs/SOURCE_WALKTHROUGH.md) | Input/output contract, graph flow, dispatch and stock fallback |
 | [Build and run](bitnet/docs/BUILD_AND_RUN.md) | Fresh builds, standalone test and model conversion |
 | [iPhone package](bitnet/ios/README.md) | Source-only SwiftUI background-init hook, replay/operator helpers, build and launch tools |
-| [iPhone results](bitnet/docs/IPHONE_RESULTS.md) | Physical iPhone 14 Pro/A16 measurements and their limits |
+| [Latest iPhone Q4 acceptance](bitnet/docs/IPHONE_Q4_COMPLETE_2026-11-15.md) | Fresh-build all-32-call numerical verification, operator gain, no whole-decode gain, negative Down control |
+| [Historical iPhone results](bitnet/docs/IPHONE_RESULTS.md) | Earlier A16 Q4 and G/F8 measurements and their limits |
 | [Validation status](bitnet/docs/VALIDATION.md) | Separate parity, FP64 and model-output outcomes; preserved failures |
 | [Limitations](bitnet/docs/LIMITATIONS.md) | Unverified scope and remaining delivery work |
 
@@ -39,7 +40,7 @@ This builds **this modified source** and runs the original 59-case TQ2_0 Metal b
 
 The checkpoint is the **public Microsoft BitNet b1.58 2B-4T**, converted to TQ2_0 with the documented compatibility changes. It is separate from the team's checkpoint. I2_S is not TQ2_0.
 
-All performance claims here concern **physical iPhone 14 Pro/A16 measurements**. Mac runs establish build and numerical reproducibility only. Historical phone results are explicitly distinguished from tests of this newly packaged checkout.
+All performance claims here concern **physical iPhone 14 Pro/A16 measurements**. Mac runs establish build and numerical reproducibility only. Historical phone results are explicitly distinguished from the fresh signed-build Q4 campaign documented above. Raw samples stay local in both cases.
 
 ## Publication contents
 

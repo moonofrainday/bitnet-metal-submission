@@ -156,7 +156,7 @@ def main():
         for original, alias in (("qcur0-c8x2.metallib", "q-c8x2.metallib"), ("stock4x1.metallib", "q-stock4x1.metallib")):
             shutil.copy2(shaders / original, shaders / alias)
         objects = []
-        for source in ("iphone-q.mm", "iphone-operator.mm"):
+        for source in ("iphone-q.mm", "iphone-operator.mm", "iphone-down-controls.mm"):
             obj = output / "objects" / (Path(source).stem + ".o")
             obj.parent.mkdir(exist_ok=True)
             command = ["xcrun", "--sdk", "iphoneos", "clang++", "-arch", "arm64", "-mios-version-min=" + args.minimum_ios,

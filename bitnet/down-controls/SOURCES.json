@@ -1,0 +1,21 @@
+{
+  "stock_source": "ggml/src/ggml-metal/kernels/mul_mv.metal",
+  "stock_helper": "kernel_mul_mv_tq2_0_f32_impl",
+  "stock_helper_sha256": "3e224fb9d475abec8ccbd98fe1f48ed1e767d0c6232ebfab19c6135e022fa729",
+  "wrap_helper_byte_identical": true,
+  "variant_source_edits": [
+    "float sum=-sumy -> float sum=0",
+    "subtract sumy immediately after four dot additions, before scale"
+  ],
+  "ABI_bytes": 120,
+  "function_constants": {
+    "600": 2,
+    "602": 1,
+    "603": 1,
+    "604": 1
+  },
+  "sources": {
+    "wrap.metal": "50bf5998cb7652dee28aebd99f58db728a603130b5376986295b0a7e884c3836",
+    "correction-end.metal": "4bb5712ab2742a87b47e3554513d570278e6c4b95ed37e63293c03a83b60fcba"
+  }
+}
