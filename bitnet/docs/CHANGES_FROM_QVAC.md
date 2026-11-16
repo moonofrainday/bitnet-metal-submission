@@ -78,3 +78,9 @@ The optional Q4/C8 route now uses canonical versioned entries and exact launch d
 ## A16 attribution preparation
 
 Default-off guard/getter/encode and natural-command-buffer diagnostics, same-context ActQuant-ON S/QB/Q4 replay and source-bound staged qualification are described in [the evening plan](IPHONE_ATTRIBUTION_PLAN.md). QB now requires the same exact Q4/producer contract and explicit permission while retaining actual stock dispatch. No shader arithmetic or frozen tolerance changes.
+
+## Focused Mac selected-Q value supplement
+
+`bitnet/tests/run_mac_q_value.py` reuses the hash-qualified prepared backend and two real histories for same-context S/QB/Q4 controls. `run_mac_q_operator.py` builds an isolated actual-stock/Q4 operator runner; the associated analyzers preserve raw-integrity, numerical, clock-domain and thermal boundaries. These additions change no default backend or shader algorithm. [Measured results](../analysis/mac-qcur0-value-2026-11-16/README.md) distinguish local GPU benefit from absent whole-decode gain and observed warm getter/identity-check costs.
+
+`../patches/mac-qcur0-encoder-diagnostic.patch` is an **optional, unapplied** four-file patch against packaged base `578ec123ec2f0eed01f3edf6dc09ac6dcbe6104a`, corresponding to isolated source commit `6c775b38cc0283ba126da3dc1890bfd9a2a6b864`. It changes the Metal device header/implementation, Metal ops, and the attribution harness. The corrected fresh v2 build was tested on M2 Pro; it is not in the normal benchmark or signed phone build. Its selected encoder intervals include new fence/encoder boundaries, so they do not establish normal critical-path share. See [mechanism and reproduction](MAC_QCUR0_DIAGNOSTIC.md). Do not apply it to the normal source merely to reproduce the uninstrumented timing campaign.

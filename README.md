@@ -6,7 +6,9 @@ The source baseline is `tetherto/qvac-fabric-llm.cpp@2db8b046d555316019ae75d1be9
 
 **Current safety revision (16 November):** the optional Q launch/cache contract has been fixed and requalified on Mac. The new signed iPhone build is **not yet device-qualified or performance-measured**. The proposal PDF/Word and earlier A16 timing describe the previous measured build. See [the contract fix and evening gate](bitnet/docs/Q_KERNEL_CONTRACT_FIX.md).
 
-**Evening attribution preparation:** [staged A16 plan](bitnet/docs/IPHONE_ATTRIBUTION_PLAN.md) and [Chinese checklist](bitnet/analysis/iphone-attribution-preparation-2026-11-16/PLAN_ZH.md) cover the new same-profile stock/guard/Q4 control. Mac correctness and collector integrity pass; the new signed phone build remains untested on A16. No new performance result is claimed.
+**Evening attribution preparation:** [staged A16 plan](bitnet/docs/IPHONE_ATTRIBUTION_PLAN.md) and [Chinese checklist](bitnet/analysis/iphone-attribution-preparation-2026-11-16/PLAN_ZH.md) cover the new same-profile stock/guard/Q4 control. Mac correctness and collector integrity pass; the new signed phone build remains untested on A16. No new A16 performance result is claimed.
+
+**Separate M2 Pro supplement:** the [selected-Q value experiment](bitnet/analysis/mac-qcur0-value-2026-11-16/README.md) measures the already selected Q4 candidate, not alternative kernel priorities. Isolated Q4 GPU command-buffer time improves by 8.30%-8.36%, but the current layer-0 integration does not improve whole-decode wall time. The full-guard same-stock control has measurable host-path cost. A separate optional encoder timestamp diagnostic preserves the tested outputs but perturbs scheduling; normal critical-path share remains unverified. This supplement does not update or replace the earlier physical-phone tables in the proposal.
 
 ## Start here
 
@@ -49,7 +51,7 @@ This builds **this modified source** and runs the original 59-case TQ2_0 Metal b
 
 The checkpoint is the **public Microsoft BitNet b1.58 2B-4T**, converted to TQ2_0 with the documented compatibility changes. It is separate from the team's checkpoint. I2_S is not TQ2_0.
 
-All performance claims here concern **physical iPhone 14 Pro/A16 measurements**. Mac runs establish build and numerical reproducibility only. Historical ActQuant-OFF results and the fresh joint ActQuant-ON Q4 campaign use different input profiles and are reported separately. The new isolated Q measurement excludes activation-quantizer preparation and does not establish whole-model acceleration. Raw samples stay local.
+Primary proposal performance tables concern **physical iPhone 14 Pro/A16 measurements**. The separately authorized M2 Pro supplement reports Mac measurements explicitly and cannot predict A16 performance. Historical ActQuant-OFF results and the fresh joint ActQuant-ON Q4 campaign use different input profiles and are reported separately. Isolated Q measurements exclude activation-quantizer preparation and do not establish whole-model acceleration. Raw samples stay local.
 
 ## Publication contents
 

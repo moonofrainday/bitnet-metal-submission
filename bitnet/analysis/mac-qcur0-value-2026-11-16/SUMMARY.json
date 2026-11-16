@@ -1,0 +1,1395 @@
+{
+  "schema": 1,
+  "scope": "Existing selected layer0 Qcur-0 stock4x1 candidate on Mac M2 Pro; no new kernel selection or A16 results",
+  "analysis_only_publication": true,
+  "raw_data_retained_locally": true,
+  "verdict": {
+    "scoped_stock_ON_compatibility_pass": true,
+    "isolated_Q_FP64_pass": true,
+    "isolated_Q_GPU_improvement_observed": true,
+    "full_32token_decode_speedup_observed": false,
+    "normal_schedule_Q_time_share": null,
+    "stable_thermal_fullmodel_claim": false,
+    "official_source_model_acceptance": null,
+    "historical_official_strict_exit_preserved": 1,
+    "recommended_default": "stock",
+    "Q4_status": "Correct scoped local-GPU PoC candidate; end-to-end improvement not established"
+  },
+  "provenance": {
+    "lab_baseline_commit": "578ec123ec2f0eed01f3edf6dc09ac6dcbe6104a",
+    "native_preparation_commit": "14a9f103c23b5a24bd0da1e0dbc5a0d5a37ade3a",
+    "QVAC_commit": "2db8b046d555316019ae75d1be90484adc8b9330",
+    "platform": "Mac Apple M2 Pro, 16 GB unified memory",
+    "macOS": "27.2.1 (26B131)",
+    "Xcode": "27.2 (27B52)",
+    "macOS_SDK": "27.2",
+    "model_sha256": "52257df879ab4366d97228e7bda94a9a3c6a9065ec44e7879a8b87d54e568cd2",
+    "native_runner_sha256": "f6ae6e0ce4df36267a8ebcbe81afad61d93f1734d0bfa1d8fdac50cc9abab486",
+    "native_source_files_bound": 1073,
+    "q4_metallib_sha256": "5a3f9dac0e21394f579e90d2af7fa13b3a2a85dd761801c827ccf0b594156347",
+    "q4_source_sha256": "589a35035bd69c7bbb23daf7f3382178ff9f6192544bd57fd8a9331949d7cb67",
+    "q4_contract_sha256": "4c36dda96c0be9a3425e3b26ce0566ed4352a450511012c5811625914b436308",
+    "weight_sha256": "b2dea7f42cacfd08ed780df979f6f28240026795b1f5c87ca8c16fc7da23dc58",
+    "step16_post_ActQuant_X_sha256": "faca9f62eb02a1da3d87cf39df20816a4a15b79806995b4225df68b008e0cbcb",
+    "supplement_code_commit": "5a8b534a289c294a50ad2f2718f5d07fe2a2f78f",
+    "optional_probe_commit": "6c775b38cc0283ba126da3dc1890bfd9a2a6b864",
+    "optional_probe_patch_sha256": "d140f98f968fb58e93e3c4efcf75f9ba02f03ee78c0457447540c552c39e4ebd",
+    "optional_probe_applied_to_normal_build": false,
+    "phone_tests_executed_this_round": false
+  },
+  "routes": {
+    "S": {
+      "behavior": "Actual stock dispatch and stock pipeline",
+      "entry": "kernel_mul_mv_tq2_0_f32",
+      "rows": 4,
+      "simd_groups": 2,
+      "grid": [
+        320,
+        1,
+        1
+      ],
+      "threads": [
+        32,
+        2,
+        1
+      ]
+    },
+    "QB": {
+      "behavior": "Full candidate guards and file-aware getter, then same actual stock PSO/ABI/launch; zero custom dispatches"
+    },
+    "Q4": {
+      "behavior": "Stock-helper four-row arithmetic specialized to one SIMD group/threadgroup",
+      "entry": "tq2_0_matvec_stock4x1_v1",
+      "rows": 4,
+      "simd_groups": 1,
+      "grid": [
+        640,
+        1,
+        1
+      ],
+      "threads": [
+        32,
+        1,
+        1
+      ]
+    }
+  },
+  "structural_reuse": {
+    "TQ2_0_projection_weights": 210,
+    "Q_projection_weights": 30,
+    "square_2560_TQ2_0_weights": 60,
+    "measured_enabled_nodes": 1,
+    "actual_Q0_dispatches_per_replay": 32,
+    "measured_time_fraction": null,
+    "note": "Weight counts are structural opportunities only, not measured GPU time shares or qualification for other nodes."
+  },
+  "formal_protocol": {
+    "histories": 2,
+    "rounds_per_history": 3,
+    "pairs_per_contrast_round": 21,
+    "contrasts": [
+      "AA",
+      "SQB",
+      "SQ4"
+    ],
+    "total_pairs": 378,
+    "replay_warmups_per_route": 2,
+    "tokens_per_path": 32,
+    "prompt_tokens": 27,
+    "ActQuant": true,
+    "KV": "F16",
+    "context": 512,
+    "batch": 128,
+    "ubatch": 128,
+    "threads": 6,
+    "capture_readback_trace_metrics": false,
+    "reset_and_prefix_outside_wall": true,
+    "thermal_and_low_power": "unavailable; unqualified",
+    "metric": "Wall for32 fixed N1 llama_decode calls including existing synchronize per token"
+  },
+  "formal_rounds": [
+    {
+      "history": "primary",
+      "round": 1,
+      "contrast": "AA",
+      "pairs": 21,
+      "a_p50_ms": 431.848167,
+      "a_p95_ms": 437.591375,
+      "b_p50_ms": 431.547834,
+      "b_p95_ms": 439.263791,
+      "paired_B_minus_A_median_ms": -0.1873740000000339,
+      "paired_relative_median_percent": -0.04342074241730436,
+      "B_wins": 12,
+      "ties": 0,
+      "AB_pairs": 11,
+      "BA_pairs": 10,
+      "order_paired_medians_ms": {
+        "AB": -0.809915999999987,
+        "BA": 0.024626000000012027
+      },
+      "time_block_paired_medians_ms": [
+        -0.7201239999999984,
+        -1.0936249999999745,
+        0.0740430000000174
+      ]
+    },
+    {
+      "history": "primary",
+      "round": 1,
+      "contrast": "SQB",
+      "pairs": 21,
+      "a_p50_ms": 432.111208,
+      "a_p95_ms": 447.565083,
+      "b_p50_ms": 433.679,
+      "b_p95_ms": 436.803,
+      "paired_B_minus_A_median_ms": 1.448124000000007,
+      "paired_relative_median_percent": 0.3354310711899563,
+      "B_wins": 3,
+      "ties": 0,
+      "AB_pairs": 11,
+      "BA_pairs": 10,
+      "order_paired_medians_ms": {
+        "AB": 1.3269999999999982,
+        "BA": 2.0831039999999916
+      },
+      "time_block_paired_medians_ms": [
+        2.335667000000001,
+        1.5728330000000028,
+        0.532999000000018
+      ]
+    },
+    {
+      "history": "primary",
+      "round": 1,
+      "contrast": "SQ4",
+      "pairs": 21,
+      "a_p50_ms": 432.748167,
+      "a_p95_ms": 444.73625,
+      "b_p50_ms": 433.948542,
+      "b_p95_ms": 435.679417,
+      "paired_B_minus_A_median_ms": 1.2003749999999513,
+      "paired_relative_median_percent": 0.2773841905146536,
+      "B_wins": 5,
+      "ties": 0,
+      "AB_pairs": 11,
+      "BA_pairs": 10,
+      "order_paired_medians_ms": {
+        "AB": 0.8818739999999821,
+        "BA": 1.4447080000000199
+      },
+      "time_block_paired_medians_ms": [
+        1.0515009999999734,
+        1.2003749999999513,
+        2.095874999999978
+      ]
+    },
+    {
+      "history": "primary",
+      "round": 2,
+      "contrast": "AA",
+      "pairs": 21,
+      "a_p50_ms": 432.968166,
+      "a_p95_ms": 434.720167,
+      "b_p50_ms": 432.443125,
+      "b_p95_ms": 434.465625,
+      "paired_B_minus_A_median_ms": -0.254333000000031,
+      "paired_relative_median_percent": -0.05841174216642988,
+      "B_wins": 14,
+      "ties": 0,
+      "AB_pairs": 10,
+      "BA_pairs": 11,
+      "order_paired_medians_ms": {
+        "AB": -0.2867919999999913,
+        "BA": -0.254333000000031
+      },
+      "time_block_paired_medians_ms": [
+        -1.3944159999999783,
+        -0.07441699999998264,
+        0.1054589999999962
+      ]
+    },
+    {
+      "history": "primary",
+      "round": 2,
+      "contrast": "SQB",
+      "pairs": 21,
+      "a_p50_ms": 432.41425,
+      "a_p95_ms": 441.548291,
+      "b_p50_ms": 433.662625,
+      "b_p95_ms": 436.139542,
+      "paired_B_minus_A_median_ms": 0.9799999999999613,
+      "paired_relative_median_percent": 0.226743160523346,
+      "B_wins": 8,
+      "ties": 0,
+      "AB_pairs": 10,
+      "BA_pairs": 11,
+      "order_paired_medians_ms": {
+        "AB": -0.45300000000000296,
+        "BA": 1.24837500000001
+      },
+      "time_block_paired_medians_ms": [
+        -0.20937500000002274,
+        0.9381260000000111,
+        1.2065840000000208
+      ]
+    },
+    {
+      "history": "primary",
+      "round": 2,
+      "contrast": "SQ4",
+      "pairs": 21,
+      "a_p50_ms": 432.226917,
+      "a_p95_ms": 433.225583,
+      "b_p50_ms": 433.287709,
+      "b_p95_ms": 440.927875,
+      "paired_B_minus_A_median_ms": 1.0744169999999826,
+      "paired_relative_median_percent": 0.2489603693942434,
+      "B_wins": 3,
+      "ties": 0,
+      "AB_pairs": 10,
+      "BA_pairs": 11,
+      "order_paired_medians_ms": {
+        "AB": 0.9905214999999998,
+        "BA": 1.3448740000000043
+      },
+      "time_block_paired_medians_ms": [
+        1.0617090000000076,
+        1.4795419999999808,
+        1.0744169999999826
+      ]
+    },
+    {
+      "history": "primary",
+      "round": 3,
+      "contrast": "AA",
+      "pairs": 21,
+      "a_p50_ms": 431.846584,
+      "a_p95_ms": 443.766,
+      "b_p50_ms": 431.657791,
+      "b_p95_ms": 432.205375,
+      "paired_B_minus_A_median_ms": -0.44479200000000674,
+      "paired_relative_median_percent": -0.10321522676047282,
+      "B_wins": 14,
+      "ties": 0,
+      "AB_pairs": 11,
+      "BA_pairs": 10,
+      "order_paired_medians_ms": {
+        "AB": -0.44479200000000674,
+        "BA": -0.7136459999999829
+      },
+      "time_block_paired_medians_ms": [
+        0.3546660000000088,
+        -3.0661249999999995,
+        -0.44479200000000674
+      ]
+    },
+    {
+      "history": "primary",
+      "round": 3,
+      "contrast": "SQB",
+      "pairs": 21,
+      "a_p50_ms": 431.404041,
+      "a_p95_ms": 440.022708,
+      "b_p50_ms": 433.042333,
+      "b_p95_ms": 434.836542,
+      "paired_B_minus_A_median_ms": 1.5414579999999773,
+      "paired_relative_median_percent": 0.3570363438852767,
+      "B_wins": 4,
+      "ties": 0,
+      "AB_pairs": 11,
+      "BA_pairs": 10,
+      "order_paired_medians_ms": {
+        "AB": 1.1412910000000238,
+        "BA": 1.608771499999989
+      },
+      "time_block_paired_medians_ms": [
+        1.2128749999999968,
+        1.5736259999999902,
+        1.5414579999999773
+      ]
+    },
+    {
+      "history": "primary",
+      "round": 3,
+      "contrast": "SQ4",
+      "pairs": 21,
+      "a_p50_ms": 432.999875,
+      "a_p95_ms": 447.942792,
+      "b_p50_ms": 434.442875,
+      "b_p95_ms": 441.92725,
+      "paired_B_minus_A_median_ms": 1.4924159999999915,
+      "paired_relative_median_percent": 0.34466460978033303,
+      "B_wins": 6,
+      "ties": 0,
+      "AB_pairs": 11,
+      "BA_pairs": 10,
+      "order_paired_medians_ms": {
+        "AB": 1.386624999999981,
+        "BA": 2.774562500000002
+      },
+      "time_block_paired_medians_ms": [
+        3.1389579999999455,
+        0.9134160000000406,
+        1.386624999999981
+      ]
+    },
+    {
+      "history": "independent",
+      "round": 1,
+      "contrast": "AA",
+      "pairs": 21,
+      "a_p50_ms": 431.929292,
+      "a_p95_ms": 437.843583,
+      "b_p50_ms": 431.582375,
+      "b_p95_ms": 439.201584,
+      "paired_B_minus_A_median_ms": 0.3331250000000523,
+      "paired_relative_median_percent": 0.07707167369051393,
+      "B_wins": 8,
+      "ties": 0,
+      "AB_pairs": 11,
+      "BA_pairs": 10,
+      "order_paired_medians_ms": {
+        "AB": 0.3527910000000247,
+        "BA": 0.2898955000000285
+      },
+      "time_block_paired_medians_ms": [
+        -0.7640820000000303,
+        0.3527910000000247,
+        0.3331250000000523
+      ]
+    },
+    {
+      "history": "independent",
+      "round": 1,
+      "contrast": "SQB",
+      "pairs": 21,
+      "a_p50_ms": 432.215875,
+      "a_p95_ms": 433.188917,
+      "b_p50_ms": 433.246167,
+      "b_p95_ms": 439.44325,
+      "paired_B_minus_A_median_ms": 1.3280000000000314,
+      "paired_relative_median_percent": 0.30852814302882203,
+      "B_wins": 2,
+      "ties": 0,
+      "AB_pairs": 11,
+      "BA_pairs": 10,
+      "order_paired_medians_ms": {
+        "AB": 0.8779169999999681,
+        "BA": 1.4530630000000144
+      },
+      "time_block_paired_medians_ms": [
+        1.866624999999999,
+        1.4222090000000094,
+        0.48424899999997706
+      ]
+    },
+    {
+      "history": "independent",
+      "round": 1,
+      "contrast": "SQ4",
+      "pairs": 21,
+      "a_p50_ms": 432.721125,
+      "a_p95_ms": 438.990834,
+      "b_p50_ms": 433.197625,
+      "b_p95_ms": 434.659792,
+      "paired_B_minus_A_median_ms": 0.10395900000003166,
+      "paired_relative_median_percent": 0.024066795528673184,
+      "B_wins": 10,
+      "ties": 0,
+      "AB_pairs": 11,
+      "BA_pairs": 10,
+      "order_paired_medians_ms": {
+        "AB": 1.3243340000000217,
+        "BA": -0.6936255000000244
+      },
+      "time_block_paired_medians_ms": [
+        -0.27633300000002237,
+        0.7560420000000363,
+        1.4893340000000421
+      ]
+    },
+    {
+      "history": "independent",
+      "round": 2,
+      "contrast": "AA",
+      "pairs": 21,
+      "a_p50_ms": 433.168417,
+      "a_p95_ms": 435.074,
+      "b_p50_ms": 432.669458,
+      "b_p95_ms": 434.22625,
+      "paired_B_minus_A_median_ms": -0.5217089999999871,
+      "paired_relative_median_percent": -0.12044022129156917,
+      "B_wins": 15,
+      "ties": 0,
+      "AB_pairs": 10,
+      "BA_pairs": 11,
+      "order_paired_medians_ms": {
+        "AB": -0.4535214999999937,
+        "BA": -0.5217089999999871
+      },
+      "time_block_paired_medians_ms": [
+        -0.03345799999999599,
+        -0.13162599999998292,
+        -0.8490409999999997
+      ]
+    },
+    {
+      "history": "independent",
+      "round": 2,
+      "contrast": "SQB",
+      "pairs": 21,
+      "a_p50_ms": 419.31625,
+      "a_p95_ms": 442.983083,
+      "b_p50_ms": 423.623208,
+      "b_p95_ms": 454.374084,
+      "paired_B_minus_A_median_ms": 3.378499999999974,
+      "paired_relative_median_percent": 0.8012868194347063,
+      "B_wins": 6,
+      "ties": 0,
+      "AB_pairs": 10,
+      "BA_pairs": 11,
+      "order_paired_medians_ms": {
+        "AB": 2.3007495000000233,
+        "BA": 3.378499999999974
+      },
+      "time_block_paired_medians_ms": [
+        1.3859160000000088,
+        1.7842930000000479,
+        4.306957999999952
+      ]
+    },
+    {
+      "history": "independent",
+      "round": 2,
+      "contrast": "SQ4",
+      "pairs": 21,
+      "a_p50_ms": 419.447416,
+      "a_p95_ms": 424.37325,
+      "b_p50_ms": 421.405208,
+      "b_p95_ms": 427.47325,
+      "paired_B_minus_A_median_ms": 1.9577920000000404,
+      "paired_relative_median_percent": 0.46675505088820013,
+      "B_wins": 3,
+      "ties": 0,
+      "AB_pairs": 10,
+      "BA_pairs": 11,
+      "order_paired_medians_ms": {
+        "AB": 2.019917000000021,
+        "BA": 1.852708000000007
+      },
+      "time_block_paired_medians_ms": [
+        2.0820420000000013,
+        0.4544580000000451,
+        1.9577920000000404
+      ]
+    },
+    {
+      "history": "independent",
+      "round": 3,
+      "contrast": "AA",
+      "pairs": 21,
+      "a_p50_ms": 432.480041,
+      "a_p95_ms": 446.807375,
+      "b_p50_ms": 432.466458,
+      "b_p95_ms": 433.192625,
+      "paired_B_minus_A_median_ms": 0.04854199999999764,
+      "paired_relative_median_percent": 0.011228108600008963,
+      "B_wins": 10,
+      "ties": 0,
+      "AB_pairs": 11,
+      "BA_pairs": 10,
+      "order_paired_medians_ms": {
+        "AB": 0.15395700000004808,
+        "BA": -0.5677504999999883
+      },
+      "time_block_paired_medians_ms": [
+        0.07070899999996527,
+        -0.4114169999999717,
+        0.04854199999999764
+      ]
+    },
+    {
+      "history": "independent",
+      "round": 3,
+      "contrast": "SQB",
+      "pairs": 21,
+      "a_p50_ms": 432.598709,
+      "a_p95_ms": 433.779833,
+      "b_p50_ms": 434.086708,
+      "b_p95_ms": 438.912833,
+      "paired_B_minus_A_median_ms": 1.51483300000001,
+      "paired_relative_median_percent": 0.34986878474173205,
+      "B_wins": 1,
+      "ties": 0,
+      "AB_pairs": 11,
+      "BA_pairs": 10,
+      "order_paired_medians_ms": {
+        "AB": 1.373707999999965,
+        "BA": 2.4254374999999584
+      },
+      "time_block_paired_medians_ms": [
+        1.1394170000000372,
+        2.950958000000014,
+        1.373707999999965
+      ]
+    },
+    {
+      "history": "independent",
+      "round": 3,
+      "contrast": "SQ4",
+      "pairs": 21,
+      "a_p50_ms": 432.445875,
+      "a_p95_ms": 434.941791,
+      "b_p50_ms": 433.119917,
+      "b_p95_ms": 436.423917,
+      "paired_B_minus_A_median_ms": 0.7508330000000001,
+      "paired_relative_median_percent": 0.17336785683464598,
+      "B_wins": 5,
+      "ties": 0,
+      "AB_pairs": 11,
+      "BA_pairs": 10,
+      "order_paired_medians_ms": {
+        "AB": 0.7508330000000001,
+        "BA": 0.6956254999999771
+      },
+      "time_block_paired_medians_ms": [
+        0.7508330000000001,
+        1.0430830000000242,
+        0.488125000000025
+      ]
+    }
+  ],
+  "isolated_operator": {
+    "protocol": {
+      "rounds": 3,
+      "pairs_per_contrast_round": 201,
+      "warmups_per_path": 30,
+      "contrasts": [
+        "AA",
+        "SQ4"
+      ],
+      "total_pairs": 1206,
+      "timed_dispatches": 2412,
+      "metric": "(GPUEndTime-GPUStartTime)*1e6 after completion; GPU command-buffer elapsed microseconds",
+      "scope": "Isolated actual step16 Qcur0 W/X; excludes guard/cache checks, ActQuant preparation and full-model scheduling",
+      "diagnostic_capture_readback_during_timing": false,
+      "thermal_block_endpoints": "nominal",
+      "low_power_block_endpoints": false
+    },
+    "rounds": [
+      {
+        "round": 1,
+        "contrast": "AA",
+        "pairs": 201,
+        "a_p50_us": 23.54166645091027,
+        "a_p95_us": 27.70833089016378,
+        "b_p50_us": 23.54166645091027,
+        "b_p95_us": 24.125009076669812,
+        "paired_B_minus_A_median_us": 0.0,
+        "B_wins": 100,
+        "before": {
+          "thermal": "nominal",
+          "low_power": false
+        },
+        "after": {
+          "thermal": "nominal",
+          "low_power": false
+        },
+        "order_paired_medians_us": {
+          "AB": -0.041676685214042664,
+          "BA": 0.04164758138358593
+        },
+        "median_paired_relative_percent": 0.0
+      },
+      {
+        "round": 1,
+        "contrast": "SQ4",
+        "pairs": 201,
+        "a_p50_us": 23.500004317611456,
+        "a_p95_us": 24.08333239145577,
+        "b_p50_us": 21.500003640539944,
+        "b_p95_us": 21.916668629273772,
+        "paired_B_minus_A_median_us": -1.958323991857469,
+        "B_wins": 198,
+        "before": {
+          "thermal": "nominal",
+          "low_power": false
+        },
+        "after": {
+          "thermal": "nominal",
+          "low_power": false
+        },
+        "order_paired_medians_us": {
+          "AB": -1.958323991857469,
+          "BA": -1.9583312678150833
+        },
+        "median_paired_relative_percent": -8.333297211542213
+      },
+      {
+        "round": 2,
+        "contrast": "SQ4",
+        "pairs": 201,
+        "a_p50_us": 23.500004317611456,
+        "a_p95_us": 23.87500717304647,
+        "b_p50_us": 21.54166577383876,
+        "b_p95_us": 22.083331714384258,
+        "paired_B_minus_A_median_us": -1.958323991857469,
+        "B_wins": 199,
+        "before": {
+          "thermal": "nominal",
+          "low_power": false
+        },
+        "after": {
+          "thermal": "nominal",
+          "low_power": false
+        },
+        "order_paired_medians_us": {
+          "AB": -1.9999934011138976,
+          "BA": -1.9166618585586548
+        },
+        "median_paired_relative_percent": -8.303848987495018
+      },
+      {
+        "round": 2,
+        "contrast": "AA",
+        "pairs": 201,
+        "a_p50_us": 23.500004317611456,
+        "a_p95_us": 24.00000812485814,
+        "b_p50_us": 23.500004317611456,
+        "b_p95_us": 23.916654754430056,
+        "paired_B_minus_A_median_us": 0.0,
+        "B_wins": 94,
+        "before": {
+          "thermal": "nominal",
+          "low_power": false
+        },
+        "after": {
+          "thermal": "nominal",
+          "low_power": false
+        },
+        "order_paired_medians_us": {
+          "AB": 0.0,
+          "BA": 0.0416621332988143
+        },
+        "median_paired_relative_percent": 0.0
+      },
+      {
+        "round": 3,
+        "contrast": "AA",
+        "pairs": 201,
+        "a_p50_us": 23.500004317611456,
+        "a_p95_us": 24.041655706241727,
+        "b_p50_us": 23.500004317611456,
+        "b_p95_us": 24.00000812485814,
+        "paired_B_minus_A_median_us": -0.0416621332988143,
+        "B_wins": 103,
+        "before": {
+          "thermal": "nominal",
+          "low_power": false
+        },
+        "after": {
+          "thermal": "nominal",
+          "low_power": false
+        },
+        "order_paired_medians_us": {
+          "AB": -1.4551915228366852e-05,
+          "BA": -0.0416621332988143
+        },
+        "median_paired_relative_percent": -0.17640921023616907
+      },
+      {
+        "round": 3,
+        "contrast": "SQ4",
+        "pairs": 201,
+        "a_p50_us": 23.500004317611456,
+        "a_p95_us": 23.87499262113124,
+        "b_p50_us": 21.500003640539944,
+        "b_p95_us": 22.124993847683072,
+        "paired_B_minus_A_median_us": -1.9583385437726974,
+        "B_wins": 196,
+        "before": {
+          "thermal": "nominal",
+          "low_power": false
+        },
+        "after": {
+          "thermal": "nominal",
+          "low_power": false
+        },
+        "order_paired_medians_us": {
+          "AB": -1.9583385437726974,
+          "BA": -1.9583385437726974
+        },
+        "median_paired_relative_percent": -8.362949848401144
+      }
+    ],
+    "correctness": [
+      {
+        "step": 1,
+        "route": "S",
+        "rows": 2560,
+        "FP64_failures": 0,
+        "stock_bitwise_differences": 0,
+        "nonfinite": 0,
+        "max_abs": 1.0247051250189543e-05,
+        "relative_L2": 2.401457768248989e-06,
+        "canaries_unchanged": true,
+        "inputs_unchanged": true,
+        "GPU_completed": true
+      },
+      {
+        "step": 1,
+        "route": "Q4",
+        "rows": 2560,
+        "FP64_failures": 0,
+        "stock_bitwise_differences": 0,
+        "nonfinite": 0,
+        "max_abs": 1.0247051250189543e-05,
+        "relative_L2": 2.401457768248989e-06,
+        "canaries_unchanged": true,
+        "inputs_unchanged": true,
+        "GPU_completed": true
+      },
+      {
+        "step": 16,
+        "route": "S",
+        "rows": 2560,
+        "FP64_failures": 0,
+        "stock_bitwise_differences": 0,
+        "nonfinite": 0,
+        "max_abs": 8.83735265233554e-06,
+        "relative_L2": 2.201599035938514e-06,
+        "canaries_unchanged": true,
+        "inputs_unchanged": true,
+        "GPU_completed": true
+      },
+      {
+        "step": 16,
+        "route": "Q4",
+        "rows": 2560,
+        "FP64_failures": 0,
+        "stock_bitwise_differences": 0,
+        "nonfinite": 0,
+        "max_abs": 8.83735265233554e-06,
+        "relative_L2": 2.201599035938514e-06,
+        "canaries_unchanged": true,
+        "inputs_unchanged": true,
+        "GPU_completed": true
+      },
+      {
+        "step": 32,
+        "route": "S",
+        "rows": 2560,
+        "FP64_failures": 0,
+        "stock_bitwise_differences": 0,
+        "nonfinite": 0,
+        "max_abs": 1.1220903616049327e-05,
+        "relative_L2": 2.3702383520976913e-06,
+        "canaries_unchanged": true,
+        "inputs_unchanged": true,
+        "GPU_completed": true
+      },
+      {
+        "step": 32,
+        "route": "Q4",
+        "rows": 2560,
+        "FP64_failures": 0,
+        "stock_bitwise_differences": 0,
+        "nonfinite": 0,
+        "max_abs": 1.1220903616049327e-05,
+        "relative_L2": 2.3702383520976913e-06,
+        "canaries_unchanged": true,
+        "inputs_unchanged": true,
+        "GPU_completed": true
+      }
+    ],
+    "frozen_tolerance": {
+      "absolute": 0.0002,
+      "relative": 2e-05
+    },
+    "output_values_checked": 15360,
+    "fails": 0,
+    "nonfinite": 0,
+    "stock_bitwise_differences": 0
+  },
+  "host_diagnostic": {
+    "rows": [
+      {
+        "history": "primary",
+        "route": "QB",
+        "guard_calls": 32,
+        "guard_passes": 32,
+        "custom_dispatches": 0,
+        "stock_target_dispatches": 32,
+        "guard_total_ms": 1.193621,
+        "getter_total_ms": 1.135084,
+        "tensor_buffer_total_ms": 0.056163,
+        "target_function_total_ms": 1.264999,
+        "all_native_encode_elapsed_sum_ms": 33.229437,
+        "getter_p50_us": 34.958,
+        "getter_p95_us": 47.0712,
+        "snapshot_key_p50_us": 34.292,
+        "snapshot_key_p95_us": 45.94795,
+        "snapshot_key_total_ms": 1.109212,
+        "cache": {
+          "hits": 32,
+          "misses": 0,
+          "invalid_paths": 0,
+          "stable_load_failures": 0
+        },
+        "load_total_ms": 0.0,
+        "scope": "Instrumented nested worker elapsed; not additive CPU work or model critical-path time"
+      },
+      {
+        "history": "primary",
+        "route": "Q4",
+        "guard_calls": 32,
+        "guard_passes": 32,
+        "custom_dispatches": 32,
+        "stock_target_dispatches": 0,
+        "guard_total_ms": 1.096088,
+        "getter_total_ms": 1.039167,
+        "tensor_buffer_total_ms": 0.054919,
+        "target_function_total_ms": 1.143956,
+        "all_native_encode_elapsed_sum_ms": 33.233978,
+        "getter_p50_us": 31.896,
+        "getter_p95_us": 39.960750000000004,
+        "snapshot_key_p50_us": 31.167,
+        "snapshot_key_p95_us": 39.183,
+        "snapshot_key_total_ms": 1.014582,
+        "cache": {
+          "hits": 32,
+          "misses": 0,
+          "invalid_paths": 0,
+          "stable_load_failures": 0
+        },
+        "load_total_ms": 0.0,
+        "scope": "Instrumented nested worker elapsed; not additive CPU work or model critical-path time"
+      },
+      {
+        "history": "independent",
+        "route": "QB",
+        "guard_calls": 32,
+        "guard_passes": 32,
+        "custom_dispatches": 0,
+        "stock_target_dispatches": 32,
+        "guard_total_ms": 4.361205,
+        "getter_total_ms": 4.185085,
+        "tensor_buffer_total_ms": 0.16658,
+        "target_function_total_ms": 4.636331,
+        "all_native_encode_elapsed_sum_ms": 102.758443,
+        "getter_p50_us": 92.333,
+        "getter_p95_us": 287.5546499999999,
+        "snapshot_key_p50_us": 89.542,
+        "snapshot_key_p95_us": 281.64795,
+        "snapshot_key_total_ms": 4.060374,
+        "cache": {
+          "hits": 32,
+          "misses": 0,
+          "invalid_paths": 0,
+          "stable_load_failures": 0
+        },
+        "load_total_ms": 0.0,
+        "scope": "Instrumented nested worker elapsed; not additive CPU work or model critical-path time"
+      },
+      {
+        "history": "independent",
+        "route": "Q4",
+        "guard_calls": 32,
+        "guard_passes": 32,
+        "custom_dispatches": 32,
+        "stock_target_dispatches": 0,
+        "guard_total_ms": 1.345125,
+        "getter_total_ms": 1.281959,
+        "tensor_buffer_total_ms": 0.059917,
+        "target_function_total_ms": 1.404376,
+        "all_native_encode_elapsed_sum_ms": 34.176765,
+        "getter_p50_us": 37.0415,
+        "getter_p95_us": 56.15,
+        "snapshot_key_p50_us": 36.0415,
+        "snapshot_key_p95_us": 54.7708,
+        "snapshot_key_total_ms": 1.244375,
+        "cache": {
+          "hits": 32,
+          "misses": 0,
+          "invalid_paths": 0,
+          "stable_load_failures": 0
+        },
+        "load_total_ms": 0.0,
+        "scope": "Instrumented nested worker elapsed; not additive CPU work or model critical-path time"
+      }
+    ],
+    "per_path_coverage": {
+      "actual_Q0_calls": 32,
+      "Q_identities_all_layers": 960,
+      "natural_CBs": 64,
+      "full_guard_attempts_QB_Q4": 32
+    },
+    "interpretation": "Warm file snapshot/key construction dominates the instrumented getter region; all32 hits and zero loads. Host elapsed includes preemption/instrumentation. The independent QB interval is nonstationary; no pure CPU-cycle or full causal decomposition."
+  },
+  "encoder_probe": {
+    "native_patch_scope": "Separate four-file Mac-only worktree, not applied to main or phone native build",
+    "primary_OFF_ON_saved_payloads_bitwise": 199,
+    "followup_final_hash_paths": 270,
+    "sampled_paths_validated": 29,
+    "counter_scopes_validated": 928,
+    "normal_schedule_Q_share": null,
+    "pure_encoder_cost": null,
+    "target_and_empty_rounds": [
+      {
+        "run": "diagnostic-1",
+        "mode": "target",
+        "records": 32,
+        "command_buffers": 64,
+        "dispatches_per_scope": 1,
+        "interval_us": {
+          "p50": 24.7915,
+          "p95": 25.816850000000002,
+          "min": 24.208,
+          "max": 27.917,
+          "sum": 798.505
+        },
+        "path_label": "path-7"
+      },
+      {
+        "run": "diagnostic-1",
+        "mode": "target",
+        "records": 32,
+        "command_buffers": 64,
+        "dispatches_per_scope": 1,
+        "interval_us": {
+          "p50": 24.6665,
+          "p95": 25.5401,
+          "min": 24.209,
+          "max": 26.333,
+          "sum": 792.7939999999999
+        },
+        "path_label": "path-8"
+      },
+      {
+        "run": "diagnostic-1",
+        "mode": "target",
+        "records": 32,
+        "command_buffers": 64,
+        "dispatches_per_scope": 1,
+        "interval_us": {
+          "p50": 24.6665,
+          "p95": 25.1208,
+          "min": 24.167,
+          "max": 26.292,
+          "sum": 790.2910000000002
+        },
+        "path_label": "path-9"
+      },
+      {
+        "run": "diagnostic-1",
+        "mode": "target",
+        "records": 32,
+        "command_buffers": 64,
+        "dispatches_per_scope": 1,
+        "interval_us": {
+          "p50": 24.459,
+          "p95": 25.49535,
+          "min": 24.166,
+          "max": 27.084,
+          "sum": 788.0830000000003
+        },
+        "path_label": "path-11"
+      },
+      {
+        "run": "diagnostic-empty",
+        "mode": "empty",
+        "records": 32,
+        "command_buffers": 64,
+        "dispatches_per_scope": 0,
+        "interval_us": {
+          "p50": 0.541,
+          "p95": 0.5793499999999999,
+          "min": 0.5,
+          "max": 0.875,
+          "sum": 17.415
+        },
+        "path_label": "path-7"
+      },
+      {
+        "run": "diagnostic-empty",
+        "mode": "empty",
+        "records": 32,
+        "command_buffers": 64,
+        "dispatches_per_scope": 0,
+        "interval_us": {
+          "p50": 0.541,
+          "p95": 0.542,
+          "min": 0.5,
+          "max": 0.709,
+          "sum": 16.957
+        },
+        "path_label": "path-8"
+      },
+      {
+        "run": "diagnostic-empty",
+        "mode": "empty",
+        "records": 32,
+        "command_buffers": 64,
+        "dispatches_per_scope": 0,
+        "interval_us": {
+          "p50": 0.5,
+          "p95": 0.56045,
+          "min": 0.5,
+          "max": 0.709,
+          "sum": 16.711
+        },
+        "path_label": "path-9"
+      },
+      {
+        "run": "diagnostic-empty",
+        "mode": "empty",
+        "records": 32,
+        "command_buffers": 64,
+        "dispatches_per_scope": 0,
+        "interval_us": {
+          "p50": 0.5,
+          "p95": 0.542,
+          "min": 0.5,
+          "max": 0.709,
+          "sum": 16.627000000000002
+        },
+        "path_label": "path-11"
+      }
+    ],
+    "S_METRICS_control_rounds": [
+      {
+        "probe_selector": "0",
+        "round": 1,
+        "contrast": "S_METRICS",
+        "pairs": 7,
+        "A_p50_ms": 434.720625,
+        "A_p95_ms": 436.06064580000003,
+        "B_p50_ms": 436.427292,
+        "B_p95_ms": 436.7964002,
+        "paired_B_minus_A_p50_ms": 1.7066670000000386,
+        "B_faster_pairs": 0,
+        "order_medians_ms": {
+          "AB": 2.5723330000000146,
+          "BA": 1.3554584999999975
+        },
+        "time_block_medians_ms": [
+          1.5439159999999674,
+          2.567312500000014,
+          0.9225420000000213
+        ],
+        "thermal_cohort": "unavailable_unqualified",
+        "raw_csv": "followup/overhead-0/samples.csv"
+      },
+      {
+        "probe_selector": "0",
+        "round": 2,
+        "contrast": "S_METRICS",
+        "pairs": 7,
+        "A_p50_ms": 436.335375,
+        "A_p95_ms": 437.2741044,
+        "B_p50_ms": 437.765083,
+        "B_p95_ms": 439.28916250000003,
+        "paired_B_minus_A_p50_ms": 1.3923330000000078,
+        "B_faster_pairs": 0,
+        "order_medians_ms": {
+          "AB": 1.2846665000000144,
+          "BA": 1.3923330000000078
+        },
+        "time_block_medians_ms": [
+          2.2127080000000205,
+          0.9507499999999993,
+          0.688208000000003
+        ],
+        "thermal_cohort": "unavailable_unqualified",
+        "raw_csv": "followup/overhead-0/samples.csv"
+      },
+      {
+        "probe_selector": "0",
+        "round": 3,
+        "contrast": "S_METRICS",
+        "pairs": 7,
+        "A_p50_ms": 437.143625,
+        "A_p95_ms": 438.0790296,
+        "B_p50_ms": 438.276417,
+        "B_p95_ms": 444.6558751,
+        "paired_B_minus_A_p50_ms": 1.6164160000000152,
+        "B_faster_pairs": 1,
+        "order_medians_ms": {
+          "AB": 1.6164160000000152,
+          "BA": 1.5068959999999834
+        },
+        "time_block_medians_ms": [
+          1.636041999999975,
+          1.2082704999999976,
+          4.931353999999999
+        ],
+        "thermal_cohort": "unavailable_unqualified",
+        "raw_csv": "followup/overhead-0/samples.csv"
+      },
+      {
+        "probe_selector": "1",
+        "round": 1,
+        "contrast": "S_METRICS",
+        "pairs": 7,
+        "A_p50_ms": 435.643958,
+        "A_p95_ms": 437.85288760000003,
+        "B_p50_ms": 438.734875,
+        "B_p95_ms": 439.644192,
+        "paired_B_minus_A_p50_ms": 3.0272090000000276,
+        "B_faster_pairs": 0,
+        "order_medians_ms": {
+          "AB": 2.677082999999982,
+          "BA": 3.1399795000000097
+        },
+        "time_block_medians_ms": [
+          2.823750000000018,
+          3.4101459999999975,
+          3.7658124999999814
+        ],
+        "thermal_cohort": "unavailable_unqualified",
+        "raw_csv": "followup/overhead-1/samples.csv"
+      },
+      {
+        "probe_selector": "1",
+        "round": 2,
+        "contrast": "S_METRICS",
+        "pairs": 7,
+        "A_p50_ms": 435.875125,
+        "A_p95_ms": 436.6261252,
+        "B_p50_ms": 439.188167,
+        "B_p95_ms": 441.0072204,
+        "paired_B_minus_A_p50_ms": 3.047916999999984,
+        "B_faster_pairs": 0,
+        "order_medians_ms": {
+          "AB": 3.802208500000006,
+          "BA": 2.332417000000021
+        },
+        "time_block_medians_ms": [
+          4.556500000000028,
+          2.1657920000000104,
+          2.966604000000018
+        ],
+        "thermal_cohort": "unavailable_unqualified",
+        "raw_csv": "followup/overhead-1/samples.csv"
+      },
+      {
+        "probe_selector": "1",
+        "round": 3,
+        "contrast": "S_METRICS",
+        "pairs": 7,
+        "A_p50_ms": 435.7775,
+        "A_p95_ms": 437.8805877,
+        "B_p50_ms": 438.515458,
+        "B_p95_ms": 447.1628124,
+        "paired_B_minus_A_p50_ms": 2.7379580000000487,
+        "B_faster_pairs": 0,
+        "order_medians_ms": {
+          "AB": 4.365834000000007,
+          "BA": 1.367937000000012
+        },
+        "time_block_medians_ms": [
+          4.378541000000041,
+          3.5518960000000277,
+          0.9223749999999882
+        ],
+        "thermal_cohort": "unavailable_unqualified",
+        "raw_csv": "followup/overhead-1/samples.csv"
+      }
+    ],
+    "interval_scope": "Perturbative selected encoder with explicit fences and stage-boundary timestamps, not pure shader latency; empty scopes are separate and not subtracted"
+  },
+  "limitations": [
+    "Q4 reuses stock-helper arithmetic; it is distinct from the original self-written4x2PoC and C8x2.",
+    "The local operator benchmark reuses the same W/X; hot/cache and scheduling conditions differ from the full model.",
+    "The complete official-source model fidelity failure remains unresolved and strict exit1 is preserved.",
+    "Whole-model thermal and low-power state unavailable; independent round2 exhibits time drift.",
+    "Worker timing regions nest and overlap; do not add them or subtract cross-campaign medians for pure shader cost.",
+    "No hardware-counter bandwidth/occupancy/ALU bottleneck is established.",
+    "No new iPhone/A16, energy, held-out quality or broader-node performance claim."
+  ],
+  "evidence": [
+    {
+      "artifact": "FORMAL_FINDINGS.json",
+      "sha256": "ff8039533c6fbfa78d52e9902481ace3b0aa2f597b8b5a4ca8aac802692ba702"
+    },
+    {
+      "artifact": "CPU_DIAGNOSTIC_FINDINGS.md",
+      "sha256": "efd79d9edc2eaab8a49d7adcb322bf4bfea85de244f936740eeb4fb2a7e93125"
+    },
+    {
+      "artifact": "SELECTED_KERNEL_REUSE.json",
+      "sha256": "ea1feb64c329d0e59aa380b1447b58cc766320b2ddec896431248da6766feeab"
+    },
+    {
+      "artifact": "campaign/MAC_GATE.json",
+      "sha256": "fafe5b26d455b0ae6159fcfe0b01e041c70c85b53d2d925569b170bff62ddaa6"
+    },
+    {
+      "artifact": "campaign/formal-primary/RUN.json",
+      "sha256": "54a8119685c01fda3881cae32d02dacad994edc8f45fba86c01535d2d1b111c4"
+    },
+    {
+      "artifact": "campaign/formal-primary/samples.csv",
+      "sha256": "6886dd4be295cdff3865f8804f518310e06c06517502a93c5ae11ec70ad95e49"
+    },
+    {
+      "artifact": "campaign/formal-independent/RUN.json",
+      "sha256": "bef238441a9b9c5fd0860008ee7d60421230d43ecbab26b5fff9044bc69453e3"
+    },
+    {
+      "artifact": "campaign/formal-independent/samples.csv",
+      "sha256": "ae20135c796ba7fc8fa95015703b0059f90f114600de91d1cbe7f7d14edf26f9"
+    },
+    {
+      "artifact": "operator-build/run/SUMMARY.json",
+      "sha256": "7a3fe801e000035972659cd165613f04cbbe54ad9dc109c688c6c62c80f41eae"
+    },
+    {
+      "artifact": "operator-build/run/qualification.json",
+      "sha256": "f84172a2559a3053433d3d400ddde190ec58c94df768abfbc372b4cf3335eb92"
+    },
+    {
+      "artifact": "operator-build/run/samples.csv",
+      "sha256": "070029a458f81b48270973449e96fb6d7d60ff70836cbf45e8fc27a425085e0d"
+    },
+    {
+      "artifact": "fresh-cpu-analysis-primary/SUMMARY.json",
+      "sha256": "07d5dd37a132d3ecf8ac99400535fe5bb27bd5dfd679c8755d8ffbd102258dde"
+    },
+    {
+      "artifact": "fresh-cpu-analysis-independent/SUMMARY.json",
+      "sha256": "08587f2f3e9d7a647583df94b2c606ca779510cf9081ee5985e51cc9d74c1a86"
+    },
+    {
+      "artifact": "profiling-feasibility/encoder-probe/PROBE_FINDINGS.json",
+      "sha256": "af939c2520af7e6ff9a542d3e2c5f585fc8e6bdbccf1d04dcff23a244544ba18"
+    },
+    {
+      "artifact": "profiling-feasibility/encoder-probe/SOURCE-v2.json",
+      "sha256": "514cd7100b00403329f4d9597703de5091a8c84cc178b92e69726144b1553cdf"
+    }
+  ],
+  "instrumentation_overhead": {
+    "scope": "Separate metrics OFF/ON diagnostic, excluded from formal wall results",
+    "groups": [
+      {
+        "history": "primary",
+        "contrast": "S_METRICS",
+        "rounds": 3,
+        "pairs_per_round": 7,
+        "paired_medians_ms": [
+          1.2480830000000083,
+          1.293292000000008,
+          1.2702089999999657
+        ],
+        "all_round_medians_positive": true,
+        "B_wins_per_round": [
+          0,
+          2,
+          2
+        ]
+      },
+      {
+        "history": "primary",
+        "contrast": "QB_METRICS",
+        "rounds": 3,
+        "pairs_per_round": 7,
+        "paired_medians_ms": [
+          2.935834,
+          0.49762500000002774,
+          0.6627080000000092
+        ],
+        "all_round_medians_positive": true,
+        "B_wins_per_round": [
+          0,
+          1,
+          3
+        ]
+      },
+      {
+        "history": "primary",
+        "contrast": "Q4_METRICS",
+        "rounds": 3,
+        "pairs_per_round": 7,
+        "paired_medians_ms": [
+          1.421042,
+          1.255790999999988,
+          0.5739580000000046
+        ],
+        "all_round_medians_positive": true,
+        "B_wins_per_round": [
+          2,
+          2,
+          1
+        ]
+      },
+      {
+        "history": "independent",
+        "contrast": "S_METRICS",
+        "rounds": 3,
+        "pairs_per_round": 7,
+        "paired_medians_ms": [
+          2.205332999999996,
+          6.814334000000031,
+          1.742750000000001
+        ],
+        "all_round_medians_positive": true,
+        "B_wins_per_round": [
+          1,
+          0,
+          1
+        ]
+      },
+      {
+        "history": "independent",
+        "contrast": "QB_METRICS",
+        "rounds": 3,
+        "pairs_per_round": 7,
+        "paired_medians_ms": [
+          0.7799999999999727,
+          2.4414170000000013,
+          0.5502079999999978
+        ],
+        "all_round_medians_positive": true,
+        "B_wins_per_round": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "history": "independent",
+        "contrast": "Q4_METRICS",
+        "rounds": 3,
+        "pairs_per_round": 7,
+        "paired_medians_ms": [
+          0.9923330000000306,
+          1.0503740000000334,
+          0.7421239999999898
+        ],
+        "all_round_medians_positive": true,
+        "B_wins_per_round": [
+          2,
+          2,
+          2
+        ]
+      }
+    ],
+    "thermal_qualified": false
+  },
+  "conditional_budget": {
+    "isolated_saving_us_per_call_approx": 1.9583,
+    "actual_target_calls_per_replay": 32,
+    "hypothetical_gross_saving_us": 62.6656,
+    "illustrative_wall_ms": 432,
+    "illustrative_fraction_percent": 0.014505925925925926,
+    "measured_normal_Q_time_fraction": null,
+    "assumption": "Isolated saving transfers unchanged to each Q0 call with no overhead or overlap change. Arithmetic illustration only; not model prediction, measured saving or proven upper bound."
+  },
+  "CPU_reanalysis": {
+    "operator_summary_sha256": "81cf960a5535ff5a3e25a12c8986a5805deb6c4df774b7caee23231e196454a8",
+    "operator_negative_controls_sha256": "251793988b6951918987f39b6ba0f3f7945fe89f43d960e0b5efda6cc0b5a1fe",
+    "native_main_source_changed": false,
+    "controller_failure_status_fix": "Post-campaign CPU-only accounting fix: failed first native attempt leaves GPU execution unknown instead of falsely claiming none; successful native commands/metrics unchanged."
+  }
+}
