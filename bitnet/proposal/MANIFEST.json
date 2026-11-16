@@ -1,34 +1,50 @@
 {
+  "schema_version": 2,
   "evidence_cutoff": "2026-11-16 Asia/Tokyo",
-  "reviewed_implementation_commit": "edbd109bc152decbbc7274b703d21bd6099bf98c",
+  "artifact_type": "English technical proposal submission-preparation version with explicit pending A16 fields",
+  "report_revision_base_commit": "1bae1cdbf3181dd99e39749e623d0ba3453a6058",
   "QVAC_commit": "2db8b046d555316019ae75d1be90484adc8b9330",
-  "artifact_type": "English proposal draft for author review",
+  "historical_phone_compute_commit": "edbd109bc152decbbc7274b703d21bd6099bf98c",
+  "hardened_preparation_compute_commit": "14a9f103c23b5a24bd0da1e0dbc5a0d5a37ade3a",
   "pages": {
-    "PDF": 23,
-    "DOCX_render": 23
+    "PDF": 25,
+    "DOCX_render": 25
   },
   "all_11_brief_topics_covered": true,
-  "new_GPU_measurements": true,
-  "raw_experiment_data_included": false,
-  "timing_hardware_scope": "Physical iPhone14Pro/A16 only; Mac build/numerical tests without a performance campaign",
-  "native_compute_source_changed": true,
+  "new_GPU_or_device_measurements_in_this_document_revision": false,
+  "native_compute_source_changed_in_this_document_revision": false,
+  "existing_M2_attribution_supplement_included": true,
+  "current_hardened_package_A16_runtime_pass": null,
+  "current_hardened_package_A16_performance": null,
+  "normal_schedule_Q_critical_path_share": null,
+  "historical_official_model_reference_pass": false,
+  "historical_official_model_strict_exit_preserved": 1,
   "numerical_threshold_changed": false,
+  "raw_experiment_data_included": false,
+  "model_checkpoints_or_signing_credentials_included": false,
+  "original_authored_PoC_and_stock_derived_Q4_attribution_separate": true,
+  "current_phone_blank_fields_ledger": "PENDING_A16_RESULTS.json",
   "source": "PROPOSAL.md",
   "outputs": [
     {
       "path": "PROPOSAL.md",
-      "bytes": 65488,
-      "sha256": "d2e45505793da557abaefe9a74e6ee1e3d8b370653fced54645cd51d11ee8192"
+      "bytes": 70464,
+      "sha256": "e8c135c688313b47e8e6fa54b3b1dc877d38448fadb59d8ac625f235d3c58d3f"
     },
     {
       "path": "OUTLINE.md",
-      "bytes": 2432,
-      "sha256": "2e678dd99121649e49f9b17140d5403d2a0526ee86df5128995f063c192d0421"
+      "bytes": 2895,
+      "sha256": "90564119f8abddbf1c9e84e1d0622ec55e08a35a5b59a839d28cecf005ef9074"
+    },
+    {
+      "path": "README.md",
+      "bytes": 4256,
+      "sha256": "0b10d57be163f49787af0d82d318046c7da84a2a0c37decd01c3f33b60ea464c"
     },
     {
       "path": "render_proposal.py",
-      "bytes": 16184,
-      "sha256": "32dace76a62255cd61376d2eb5a6dd01ad36d92479e5d860cd1764fae5b73694"
+      "bytes": 16633,
+      "sha256": "218900d2ef2f30551c6038a7ebda6dee9994c363ff0993271a5341df84effbfc"
     },
     {
       "path": "requirements-docs.txt",
@@ -46,64 +62,35 @@
       "sha256": "4a5e332bd79d11440a683126d733414fbd900397b32e4c423b2cc57223a64e9e"
     },
     {
+      "path": "PENDING_A16_RESULTS.json",
+      "bytes": 1564,
+      "sha256": "b94824d891684cf44b2c0ede052e38a5f03196f2309536bad6ea61865b8f6285"
+    },
+    {
       "path": "BitNet_Mobile_GPU_Proposal.pdf",
-      "bytes": 236556,
-      "sha256": "0e072657e20a8e64bf2701ee2b54c123934d434072b6029b5e9f1556c31d291a"
+      "bytes": 242155,
+      "sha256": "c5101044c0e7450687d585ae00b9724bb75062f0c56703ac086077b67d379167"
     },
     {
       "path": "BitNet_Mobile_GPU_Proposal.docx",
-      "bytes": 130659,
-      "sha256": "aad2d1713c2d65634a83a38f3061b1f31b109dc611833982120813748998ede2"
+      "bytes": 133686,
+      "sha256": "426bb80dd88ed0126734f3f4aed28feea4d96de129b59cbd83aadbfbc64dc40e"
     }
   ],
   "quality_review": {
-    "all_11_topics_covered": true,
-    "independent_content_review": "pass",
-    "PDF_pages_visually_inspected": 23,
-    "DOCX_pages_visually_inspected": 23,
+    "PDF_pages_visually_inspected": 25,
+    "DOCX_pages_visually_inspected": 25,
+    "all_final_pages_covered_by_native_image_review_or_exact_pixel_identity": true,
     "clipping_overlap_or_missing_glyphs_observed": false,
-    "title_paragraph_borders_remaining": 0,
-    "personal_host_device_or_signing_IDs_embedded": false,
-    "new_ActQuant_revision_QA": "all initial22 pages plus finalchanged17/18/19; unchangedWordbodycomparison",
-    "new_phone_revision_QA": "changed pages1/5/17/18/21 in both formats plus all unchanged bodies/footers",
-    "new_joint_revision_QA": "All23 final PDF pages and all23 final DOCX-render pages individually opened at source image resolution; bilingual numbers/code/citations checked"
+    "pending_cells_blank_and_labelled": true,
+    "no_bottleneck_elsewhere_claim": true,
+    "source_and_artifact_scope_review_pass": true,
+    "raw_QA_images_kept_local": true
   },
-  "Metal_shader_arithmetic_changed_in_this_review": false,
-  "source_baseline_before_review": "eb7858492d0f39e7a4f97f58ef53239c17bcb594",
-  "reviewed_control_commits": {
-    "original_phone": "7d680ad1b266ab652e20a27f12cbe876cec8bfff",
-    "quality_helper": "338af43",
-    "guard_control": "16a366602438b53548853a2921fbcb4a5e6f9b2e",
-    "combined_build": "fd8234fcf5b2683f67d0c3148f2f3ae2e4fed454",
-    "semantic_reference": "f171cf9"
-  },
-  "known_public_model_ActQuant_omission": true,
-  "original_PoC_physical_phone_sample_IO_pass": true,
-  "original_PoC_model_graph_acceptance": null,
-  "representative_model_quality_acceptance": null,
-  "report_revision_base_commit": "816c0c4f7a8f7337d26289033ee13ed7ff0f0b53",
-  "historical_FFN_evidence_reorganized": true,
-  "ActQuant_experiment_resumed": true,
-  "GPU_measurement_scope": "Fresh A16 post-ActQuant isolated Q operator timing plus Mac/A16 joint numerical validation; new full-decode performance unmeasured",
-  "ActQuant_same_input_F32_pass": true,
-  "full_model_source_F32_pass": false,
-  "new_ActQuant_phone_pass": true,
-  "ActQuant_revision_base_commit": "b7efadd3b0e4d8ae1000798eb1e869c285dcca07",
-  "ActQuant_backend_patch_sha256": "4f67351cf9a00bfe107c03593c318f950b7fd98b6c19c8d8123e2e9f5fce3fa3",
-  "new_ActQuant_phone_scope": "Both-history layer0 Q-only joint stock-ON compatibility, all32 Q decode FP64 checks, all33 Q/residual/logit vectors bitwise; trusted-model reference remains failed",
-  "new_phone_compute_commit": "edbd109bc152decbbc7274b703d21bd6099bf98c",
-  "phone_offload_count": "31/31",
-  "phone_corpus_ON_PPL": 19.12770191845115,
-  "new_phone_performance_measured": true,
-  "historical_reviewed_implementation_commit": "bbf70e9cc70302534ff87b4f34d4ce52a9670baa",
-  "previous_ActQuant_phone_compute_commit": "4c249e3e13dfce7b21bc2bab0912a1ff4807bc7e",
-  "joint_ActQuant_Q4_stock_ON_pass": true,
-  "joint_ActQuant_Q4_strict_exit_code": 0,
-  "full_model_trusted_reference_strict_exit_code_preserved": 1,
-  "joint_ActQuant_Q4_decode_performance_measured": false,
-  "joint_ActQuant_Q4_corpus_PPL_measured": false,
-  "ActQuant_Q4_joint_patch_sha256": "bbd9cbdce44c2bd61b03edd68bd7c75c4df8ce16ef76e654090f556ce0190343",
-  "phone_corpus_ON_PPL_scope": "Earlier stock-ON binary4c249e3; not a new joint Q4 corpus measurement",
-  "native_compute_source_commit": "edbd109bc152decbbc7274b703d21bd6099bf98c",
-  "post_compute_changes": "CPU-only fixture preparation/timing audit, analyzer exit-code docstring clarification, bilingual report/source-provenance updates; no native/shader math change"
+  "QA_evidence_digest_only": {
+    "EN_PDF_VISUAL_QA.json": "cd4541bc13a8563b0c59965b18f5a8163648af70a5908a4a86affa6cba5875ae",
+    "EN_DOCX_VISUAL_QA.json": "1287c8f662b391eb3d662fd33f1e53629a8f9131d8253873b3b078ab00c45fd1",
+    "ZH_PDF_VISUAL_QA.json": "456f3b50b326881a1cd3b4189dc5d4921d9c902bb5107964bc054c8de082e7dc",
+    "ZH_DOCX_VISUAL_QA.json": "1ee805cf9fbd3672018015317c455757fd26a5850dcc37bef4d6c9ea28026845"
+  }
 }

@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "report_status": "submission preparation; new A16 fields pending",
+  "target": "iPhone 14 Pro / Apple A16",
+  "expected_native_source_commit": "14a9f103c23b5a24bd0da1e0dbc5a0d5a37ade3a",
+  "historical_phone_compute_commit": "edbd109bc152decbbc7274b703d21bd6099bf98c",
+  "frozen_absolute_tolerance": 0.0002,
+  "frozen_relative_tolerance": 2e-05,
+  "expected_decode_calls_per_history": 32,
+  "histories": [
+    "primary",
+    "independent"
+  ],
+  "current_device_results": {
+    "device_iOS": null,
+    "app_build_digest": null,
+    "framework_digest": null,
+    "metallib_digest": null,
+    "contract_cache_18case_pass": null,
+    "ActQuant_20case_pass": null,
+    "same_process_both_history_gate_pass": null,
+    "all32_Q_FP64_pass": null,
+    "all33_logits_stock_parity_pass": null,
+    "fallback_pass": null,
+    "CPU_diagnostic_integrity_pass": null,
+    "normal_schedule_selected_Q_share": null,
+    "A16_hardware_bottleneck_evidence": null,
+    "AA_wall_rounds": null,
+    "SQB_wall_rounds": null,
+    "SQ4_wall_rounds": null,
+    "stock_Q4_operator_rounds": null,
+    "thermal_power_observations": null
+  },
+  "existing_observed_failure": {
+    "complete_trusted_model_reference_pass": false,
+    "strict_exit_code": 1,
+    "status": "OBSERVED FAIL; preserved, not pending"
+  },
+  "fill_policy": "Fill only from this new package actual device logs plus independent analysis; unknown stays null. Do not import earlier phone or Mac measurements.",
+  "new_device_or_GPU_tests_in_this_document_revision": false,
+  "raw_data_uploaded": false
+}

@@ -24,7 +24,7 @@ import render_proposal as en
 HERE=Path(__file__).resolve().parent
 TITLE='移动 GPU BitNet 推理技术方案'
 SUBTITLE='Metal 概念验证与 Vulkan 跨平台适配计划'
-FOOTER='中文版 供逐节审阅'
+FOOTER='技术方案 中文版'
 
 
 def set_fonts(rpr,family):

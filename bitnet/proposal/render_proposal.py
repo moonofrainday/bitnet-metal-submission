@@ -120,13 +120,15 @@ def widths(rows, width):
     if n==2:
         fractions=[.44,.56] if 'file' in header.lower() or 'Source location' in header else [.32,.68]
     elif n==3:
-        if rows[0][0]=='Route' and 'Implementation' in header:fractions=[.08,.46,.46]
+        if rows[0]==['Check','New result','Status']:fractions=[.56,.22,.22]
+        elif rows[0][0]=='Route' and 'Implementation' in header:fractions=[.08,.46,.46]
         elif rows[0][0]=='Day':fractions=[.06,.29,.65]
         elif 'Risk' in header:fractions=[.26,.26,.48]
         elif 'Proposed acceptance' in header:fractions=[.20,.48,.32]
         else:fractions=[.25,.35,.40]
     elif n==4:
-        fractions=[.10,.33,.39,.18] if rows[0][0]=='Route' and 'Full FFN GPU' in header else [.24,.25,.25,.26]
+        if rows[0]==['Check','Required scope / metric','New result','Status']:fractions=[.20,.54,.14,.12]
+        else:fractions=[.10,.33,.39,.18] if rows[0][0]=='Route' and 'Full FFN GPU' in header else [.24,.25,.25,.26]
     elif n==5:
         if 'p50' in header:fractions=[.20,.23,.23,.20,.14]
         elif 'Grid' in header:fractions=[.22,.15,.18,.12,.33]
@@ -170,7 +172,7 @@ def make_pdf(blocks,path):
     def page(canvas,document):
         canvas.saveState();canvas.setFont('Body',8);canvas.setFillColor(colors.black)
         canvas.drawString(43,A4[1]-25,'Mobile BitNet inference technical proposal')
-        canvas.drawRightString(A4[0]-43,25,f'Draft for author review     {document.page}')
+        canvas.drawRightString(A4[0]-43,25,f'Technical proposal     {document.page}')
         canvas.restoreState()
     doc.build(story,onFirstPage=page,onLaterPages=page)
 
@@ -207,7 +209,7 @@ def make_docx(blocks,path):
         doc.styles[name].paragraph_format.space_after=Pt(10);doc.styles[name].paragraph_format.keep_with_next=True
     header=sec.header.paragraphs[0];header.text='Mobile BitNet inference technical proposal';header.runs[0].font.size=Pt(8)
     footer=sec.footer.paragraphs[0];footer.alignment=WD_ALIGN_PARAGRAPH.RIGHT
-    run=footer.add_run('Draft for author review     ');run.font.size=Pt(8)
+    run=footer.add_run('Technical proposal     ');run.font.size=Pt(8)
     field=OxmlElement('w:fldSimple');field.set(qn('w:instr'),'PAGE');footer._p.append(field)
     page_before = False
     for kind,value in blocks:
@@ -257,8 +259,12 @@ def make_docx(blocks,path):
 
 
 def main():
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--output',type=Path,required=True);args=parser.parse_args()
-    args.output.mkdir(parents=True,exist_ok=True);figure();blocks=parse((HERE/'PROPOSAL.md').read_text())
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--output',type=Path,required=True)
+    parser.add_argument('--preserve-figure',action='store_true',help='Keep the existing reviewed figure when only text changes')
+    args=parser.parse_args();args.output.mkdir(parents=True,exist_ok=True)
+    if not args.preserve_figure:figure()
+    elif not (HERE/'assets/execution-flow.png').is_file():parser.error('The reviewed figure is missing')
+    blocks=parse((HERE/'PROPOSAL.md').read_text())
     make_pdf(blocks,args.output/'BitNet_Mobile_GPU_Proposal.pdf');make_docx(blocks,args.output/'BitNet_Mobile_GPU_Proposal.docx')
     print('Created PDF and DOCX from one editable source; inference not executed.')
 

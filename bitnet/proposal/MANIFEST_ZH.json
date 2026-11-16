@@ -1,21 +1,25 @@
 {
+  "schema_version": 2,
   "language": "zh-CN",
-  "English_source_sha256": "d2e45505793da557abaefe9a74e6ee1e3d8b370653fced54645cd51d11ee8192",
+  "English_source_sha256": "e8c135c688313b47e8e6fa54b3b1dc877d38448fadb59d8ac625f235d3c58d3f",
   "evidence_cutoff": "2026-11-16 Asia/Tokyo",
-  "section_numbering_same_as_English": true,
   "sections": 16,
-  "tables": 25,
-  "PDF_pages": 23,
-  "DOCX_render_pages": 23,
+  "tables": 27,
+  "PDF_pages": 25,
+  "DOCX_render_pages": 25,
   "original_figure_bytes_preserved": true,
-  "new_inference_measurements": true,
+  "new_inference_measurements_in_this_document_revision": false,
   "numerical_threshold_changed": false,
   "raw_experiment_data_included": false,
   "translation_literal_checks_pass": true,
-  "independent_semantic_reviews_pass": true,
+  "current_hardened_package_A16_runtime_pass": null,
+  "current_hardened_package_A16_performance": null,
+  "normal_schedule_Q_critical_path_share": null,
+  "historical_official_model_strict_exit_preserved": 1,
   "quality_review": {
-    "PDF_pages_inspected": 23,
-    "DOCX_pages_inspected": 23,
+    "PDF_pages_inspected": 25,
+    "DOCX_pages_inspected": 25,
+    "all_final_pages_covered_by_native_image_review_or_exact_pixel_identity": true,
     "Chinese_glyphs_present": true,
     "original_graph_fully_visible": true,
     "clipping_overlap_or_missing_content_observed": false,
@@ -24,13 +28,13 @@
   "files": [
     {
       "path": "PROPOSAL_ZH.md",
-      "bytes": 63895,
-      "sha256": "29adf9ca601362340c2bd0a71d749721ba5bdff545877185c69ba6efc266ff8a"
+      "bytes": 68282,
+      "sha256": "5a936ad8187960526acba2670d3f20dc1ca5d9ff0ba48942bbc6c8357e136e10"
     },
     {
       "path": "render_proposal_zh.py",
-      "bytes": 8874,
-      "sha256": "cfe83e2c291d84953491675e0c98e5c18eabc2d7615bf820f75b4acaf7ec62d0"
+      "bytes": 8871,
+      "sha256": "fa4cd6813a134568e0bbcec8149ce1a9fc650c01ea53cdd23be287998debcb81"
     },
     {
       "path": "check_translation.py",
@@ -39,39 +43,23 @@
     },
     {
       "path": "README_ZH.md",
-      "bytes": 4770,
-      "sha256": "65c52c88c8319321b6ccdfa19d5ef6bc0ee4626406659f82621be6e64b1b1d28"
+      "bytes": 3284,
+      "sha256": "1822eff6e5cb350f64d3e3aeccb8059408e41d076ccc0a1bbc777190a6f3aaed"
     },
     {
       "path": "TRANSLATION_CHECK.json",
       "bytes": 1203,
-      "sha256": "0ee9792979c59667f9bcfbf6bb1a6f28ecd5f57ecd168a6ec17cef110a20d5a2"
+      "sha256": "fd90c4fc663bc68a1ecc55a5f9465e1529c322c15885e09dfa2872a7d4e4c435"
     },
     {
       "path": "BitNet_Mobile_GPU_Proposal_ZH.pdf",
-      "bytes": 597464,
-      "sha256": "bd4ef9f708f386a9950e1a633d468d9cd44b2441ec0ac94974c90af204e8b86e"
+      "bytes": 614312,
+      "sha256": "04c843662d1e189f780458c9e00691b23cc63ea9df539516f3ed09c93e421953"
     },
     {
       "path": "BitNet_Mobile_GPU_Proposal_ZH.docx",
-      "bytes": 138713,
-      "sha256": "6dd6ced91038dd4dd310fd5cf15de16f696d0930cba7e22f7dae7f1605a2a5d6"
+      "bytes": 142728,
+      "sha256": "4dd19a3cc3a0b0ae9096d561999113f264d8bc0f4d6a148b25e9aedcf9dee879"
     }
-  ],
-  "source_baseline_before_review": "eb7858492d0f39e7a4f97f58ef53239c17bcb594",
-  "English_files_unchanged_by_Chinese_renderer": true,
-  "old_revisions_preserved_in_Git": true,
-  "historical_FFN_evidence_reorganized": true,
-  "ActQuant_experiment_resumed": true,
-  "measurement_scope": "Mac numerical validation and physical A16 joint ActQuant-ON/Q4 numerical and isolated-operator timing; new full-decode/corpus/PPL unmeasured",
-  "ActQuant_same_input_F32_pass": true,
-  "full_model_source_F32_pass": false,
-  "new_ActQuant_phone_pass": true,
-  "new_ActQuant_phone_scope": "A16 same-input quantizer and both-history Q-only stock-ON compatibility pass; trusted-model reference still fails",
-  "new_phone_performance_measured": true,
-  "new_phone_compute_commit": "edbd109bc152decbbc7274b703d21bd6099bf98c",
-  "joint_ActQuant_Q4_stock_ON_pass": true,
-  "joint_ActQuant_Q4_strict_exit_code": 0,
-  "full_model_trusted_reference_strict_exit_code_preserved": 1,
-  "later_Q_contract_fix_note": "README-only notice: new source fix Mac-qualified, new iPhone binary pending; PDF/Word not regenerated or relabeled."
+  ]
 }
