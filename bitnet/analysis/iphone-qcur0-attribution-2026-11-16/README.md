@@ -102,4 +102,3 @@ Exit0 means complete analysis evidence, not speedup or model-quality acceptance.
 For a fresh phone campaign use `bitnet/docs/IPHONE_TEST_PLAN_2026-11-16.md`. Set local device, model, fixtures, token and package variables, run the scoped correctness gate first, then the isolated benchmark and diagnostic/overhead/formal planned commands serially. Run prepared-product checks from the original source checkout bound into its compile provenance; a different clone requires a clean package build. Exact executed argv/cwd/exit codes are preserved only in the local command indexes.
 
 Host-only packaging repair: `bitnet/actquant/run_phone.py` now supports both relative package import and direct script import of q4_contract.2 CPU subprocess regression checks pass. The measured native app/framework/metallib were unchanged and launched from the frozen source using an explicit PYTHONPATH. This host repair is not a new phone-binary validation.
-
