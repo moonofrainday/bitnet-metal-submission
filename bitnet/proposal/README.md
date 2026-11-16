@@ -1,5 +1,7 @@
 # Mobile BitNet technical proposal
 
+**New source safety fix:** [Q launch/cache contract](../docs/Q_KERNEL_CONTRACT_FIX.md) is Mac-qualified; its new signed iPhone package is pending physical-device checks. The PDF/Word below remain the earlier reviewed artifacts and do not certify this new binary or its performance.
+
 English proposal for the Tether mobile GPU assignment. `PROPOSAL.md` is the editable content source. `OUTLINE.md` maps the eleven requested topics before the sections were drafted. The implementation evidence cutoff is 16 November 2026. The historical reviewed/import snapshot is `bbf70e9cc70302534ff87b4f34d4ce52a9670baa`; the ActQuant A16 executable is tied to source `4c249e3`, and the documentation/evidence snapshot is `e84732c`. The combined ActQuant/Q4 binary is `edbd109`; both histories now pass its own scoped stock-ON gate. Its post-ActQuant operator timing is separate from earlier results.
 
 - `BitNet_Mobile_GPU_Proposal.pdf`: technical plan report for author review.

@@ -4,6 +4,8 @@ This private repository contains the pinned QVAC Fabric source plus our BitNet M
 
 The source baseline is `tetherto/qvac-fabric-llm.cpp@2db8b046d555316019ae75d1be90484adc8b9330`. The published import preserves every upstream path/blob/mode **except the 63 upstream CI workflow files**, which are explicitly listed with their original hashes. Our code changes are in subsequent commits. See [baseline identity and exclusions](bitnet/provenance/BASELINE.json), [changes from QVAC](bitnet/docs/CHANGES_FROM_QVAC.md), and the preserved [upstream README](README.upstream.md). Upstream licenses and attribution remain in place.
 
+**Current safety revision (16 November):** the optional Q launch/cache contract has been fixed and requalified on Mac. The new signed iPhone build is **not yet device-qualified or performance-measured**. The proposal PDF/Word and earlier A16 timing describe the previous measured build. See [the contract fix and evening gate](bitnet/docs/Q_KERNEL_CONTRACT_FIX.md).
+
 ## Start here
 
 | Location | What to inspect |

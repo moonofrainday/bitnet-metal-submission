@@ -39,8 +39,8 @@
     },
     {
       "path": "README_ZH.md",
-      "bytes": 4503,
-      "sha256": "10c8979205724d813afb2188871cede59bdf25ef61a028684cd4f0211dfed9e7"
+      "bytes": 4770,
+      "sha256": "65c52c88c8319321b6ccdfa19d5ef6bc0ee4626406659f82621be6e64b1b1d28"
     },
     {
       "path": "TRANSLATION_CHECK.json",
@@ -72,5 +72,6 @@
   "new_phone_compute_commit": "edbd109bc152decbbc7274b703d21bd6099bf98c",
   "joint_ActQuant_Q4_stock_ON_pass": true,
   "joint_ActQuant_Q4_strict_exit_code": 0,
-  "full_model_trusted_reference_strict_exit_code_preserved": 1
+  "full_model_trusted_reference_strict_exit_code_preserved": 1,
+  "later_Q_contract_fix_note": "README-only notice: new source fix Mac-qualified, new iPhone binary pending; PDF/Word not regenerated or relabeled."
 }
