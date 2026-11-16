@@ -1,24 +1,34 @@
 {
   "schema_version": 2,
   "language": "zh-CN",
-  "English_source_sha256": "e8c135c688313b47e8e6fa54b3b1dc877d38448fadb59d8ac625f235d3c58d3f",
+  "English_source_sha256": "e66c04bf034c6488a926b7f7eb5b9dcb0468eab43323001f88348c0a3a10ed0f",
   "evidence_cutoff": "2026-11-16 Asia/Tokyo",
   "sections": 16,
-  "tables": 27,
-  "PDF_pages": 25,
-  "DOCX_render_pages": 25,
+  "tables": 32,
+  "PDF_pages": 28,
+  "DOCX_render_pages": 28,
   "original_figure_bytes_preserved": true,
-  "new_inference_measurements_in_this_document_revision": false,
+  "new_inference_measurements_in_this_document_revision": true,
   "numerical_threshold_changed": false,
   "raw_experiment_data_included": false,
   "translation_literal_checks_pass": true,
-  "current_hardened_package_A16_runtime_pass": null,
-  "current_hardened_package_A16_performance": null,
+  "current_hardened_package_A16_runtime_pass": true,
+  "current_hardened_package_A16_performance": {
+    "isolated_Q4_faster_initial_Fair": true,
+    "isolated_Q4_faster_post_model_Serious": true,
+    "full_guard_QB_decode_regression_observed": true,
+    "Q4_decode_regression_observed": true,
+    "end_to_end_speedup_established": false,
+    "formal_histories": 2,
+    "rounds_per_contrast": 3,
+    "pairs_per_round": 21,
+    "formal_all_Serious": true
+  },
   "normal_schedule_Q_critical_path_share": null,
   "historical_official_model_strict_exit_preserved": 1,
   "quality_review": {
-    "PDF_pages_inspected": 25,
-    "DOCX_pages_inspected": 25,
+    "PDF_pages_inspected_or_exact_identity": 28,
+    "DOCX_pages_inspected_or_exact_identity": 28,
     "all_final_pages_covered_by_native_image_review_or_exact_pixel_identity": true,
     "Chinese_glyphs_present": true,
     "original_graph_fully_visible": true,
@@ -28,8 +38,8 @@
   "files": [
     {
       "path": "PROPOSAL_ZH.md",
-      "bytes": 68282,
-      "sha256": "5a936ad8187960526acba2670d3f20dc1ca5d9ff0ba48942bbc6c8357e136e10"
+      "bytes": 77541,
+      "sha256": "e5026993c429de7708a6ea45253d0584908a5facf72d957b91ed5d276192b76b"
     },
     {
       "path": "render_proposal_zh.py",
@@ -43,23 +53,27 @@
     },
     {
       "path": "README_ZH.md",
-      "bytes": 3284,
-      "sha256": "1822eff6e5cb350f64d3e3aeccb8059408e41d076ccc0a1bbc777190a6f3aaed"
+      "bytes": 3669,
+      "sha256": "96098c955bd63723572d7812b2eec9ae716e1220e2b961a7be7585eb00f6f446"
     },
     {
       "path": "TRANSLATION_CHECK.json",
-      "bytes": 1203,
-      "sha256": "fd90c4fc663bc68a1ecc55a5f9465e1529c322c15885e09dfa2872a7d4e4c435"
+      "bytes": 1205,
+      "sha256": "653c8bab53b1f67a42c8dbffd0402e9d92c1ae3c3dfd3b40b88bb7c90ed59b16"
     },
     {
       "path": "BitNet_Mobile_GPU_Proposal_ZH.pdf",
-      "bytes": 614312,
-      "sha256": "04c843662d1e189f780458c9e00691b23cc63ea9df539516f3ed09c93e421953"
+      "bytes": 628415,
+      "sha256": "83dfd98bc788214f4f059cc804950db5b402ec1929698b5b0da455ca9bddd60e"
     },
     {
       "path": "BitNet_Mobile_GPU_Proposal_ZH.docx",
-      "bytes": 142728,
-      "sha256": "4dd19a3cc3a0b0ae9096d561999113f264d8bc0f4d6a148b25e9aedcf9dee879"
+      "bytes": 148942,
+      "sha256": "d24f3965d06993080b49e33114e41c94320f9a82ef8caa1fd709f73c93c9eb66"
     }
-  ]
+  ],
+  "QA_evidence_digest_only": {
+    "QA_ZH_PDF.json": "1477441f0b90c691199cc91c67417b39501ba36f0c3a2cd1ed9e1fe5b87d4686",
+    "QA_ZH_DOCX.json": "f90effd7376ef8c60a01828708e0e124bb49544164bddde4850d04c87a53c16b"
+  }
 }

@@ -1,0 +1,11 @@
+{
+  "scope": "One optional normal-stock trace, outside all formal timing",
+  "trace_cli_exit_code": 0,
+  "usable_model_trace": false,
+  "model_started": false,
+  "duration_seconds": 1.362303,
+  "end_reason": "Device disconnected",
+  "subsequent_device_connected": true,
+  "normal_graph_Q_share": null,
+  "hardware_counters": null
+}

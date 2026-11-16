@@ -1,6 +1,8 @@
 # 中文版审阅入口
 
-这是 16 November 2026 的提交准备版。中英文均为 25 页 PDF 和 25 页渲染后的 Word，保留原流程图、关键英文术语和历史手机实测数字。本轮只整理报告，没有运行新的推理、GPU、签名或手机部署。
+这是2026年11月16日的实测更新版。中英文PDF和可编辑Word均保留流程图、关键英文术语与历史手机数字，并补入当前14a9f103硬化包的真实A16结果。报告生成不运行推理；新增实测来自单独保存的真机实验。
+
+中英文均为28页PDF和28页渲染后的Word；全部最终页面均已逐页查看，或与已查看页面进行精确图片一致性核对。
 
 ## 文件与重点
 
@@ -8,14 +10,14 @@
 - `BitNet_Mobile_GPU_Proposal_ZH.docx`：可编辑中文 Word。
 - `PROPOSAL_ZH.md`：中文源稿，与英文保持 16 节对应。
 - `TRANSLATION_CHECK.json`：数值、表格、代码、URL 与引用一致性检查。
-- `PENDING_A16_RESULTS.json`：今晚待测结果登记；null 表示未测，不能当作零或通过。
+- `PENDING_A16_RESULTS.json`：结果登记；已测项填写，未核实项仍为null，不能当作零或通过。
 - [今晚手机测试顺序与命令](../docs/IPHONE_TEST_PLAN_2026-11-16.md)。
 
 英文 PDF、Word、源稿继续保留，并与本版同步更新。
 
 第 9 节新增 M2 Pro 归因补充：已选 Q4 的局部收益成立，但当前单层单投影接入没有整段 decode 收益。完整 guard 后调用同一 stock pipeline 的对照，定位了 warm 文件身份检查这一显著 host 区间；仍不能完整拆分 CPU/GPU/热漂移，也未取得正常关键路径占比。独立 encoder 时间戳探针改变调度，未进入正常或手机构建。
 
-第 10 节保留旧 A16 单算子、guard 和 FFN 表格；另留一页当前包的空白结果栏，统一标 PENDING。既有真机源码 `edbd109` 的结果与当前 `14a9f103` 包分开。后者已有 Mac 验证和签名构建，但尚未真机验收，不能借用旧包或 Mac 数据填入。
+第10节保留旧A16数据并填写当前包：两次18/18契约、20项ActQuant、两组history各32次Q和33份logits、同进程stock/QB/Q4、独立算子、CPU诊断及整段decode。Fair和持续模型负载后的Serious算子结果分开。Q4局部快约2.18%–2.78%，但当前包QB/Q4整段decode均变慢。snapshot/key是已测host热点，尚不能拆清CPU/GPU/热漂移。[本轮分析与逐轮数据](../analysis/iphone-qcur0-attribution-2026-11-16/README.md)另存，原始数据只留本地。
 
 报告明确解释：本作业交付一个 Transformer 层内矩阵 kernel、独立 sample-I/O harness、源码脚本和技术方案 PDF；没有要求自研整个 Transformer block、最低加速比例或整模型加速。系统 profiling 用于量化收益空间和限制结论，不能把“可能存在其他瓶颈”写成“已证明瓶颈在别处”。
 

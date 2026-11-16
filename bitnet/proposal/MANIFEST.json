@@ -1,21 +1,31 @@
 {
   "schema_version": 2,
   "evidence_cutoff": "2026-11-16 Asia/Tokyo",
-  "artifact_type": "English technical proposal submission-preparation version with explicit pending A16 fields",
-  "report_revision_base_commit": "1bae1cdbf3181dd99e39749e623d0ba3453a6058",
+  "artifact_type": "English technical proposal incorporating measured hardened A16 correctness and attribution",
+  "report_revision_base_commit": "3bc5f4f420c133ad12d9bf871adfb123eb79df3d",
   "QVAC_commit": "2db8b046d555316019ae75d1be90484adc8b9330",
   "historical_phone_compute_commit": "edbd109bc152decbbc7274b703d21bd6099bf98c",
   "hardened_preparation_compute_commit": "14a9f103c23b5a24bd0da1e0dbc5a0d5a37ade3a",
   "pages": {
-    "PDF": 25,
-    "DOCX_render": 25
+    "PDF": 28,
+    "DOCX_render": 28
   },
   "all_11_brief_topics_covered": true,
-  "new_GPU_or_device_measurements_in_this_document_revision": false,
+  "new_GPU_or_device_measurements_in_this_document_revision": true,
   "native_compute_source_changed_in_this_document_revision": false,
   "existing_M2_attribution_supplement_included": true,
-  "current_hardened_package_A16_runtime_pass": null,
-  "current_hardened_package_A16_performance": null,
+  "current_hardened_package_A16_runtime_pass": true,
+  "current_hardened_package_A16_performance": {
+    "isolated_Q4_faster_initial_Fair": true,
+    "isolated_Q4_faster_post_model_Serious": true,
+    "full_guard_QB_decode_regression_observed": true,
+    "Q4_decode_regression_observed": true,
+    "end_to_end_speedup_established": false,
+    "formal_histories": 2,
+    "rounds_per_contrast": 3,
+    "pairs_per_round": 21,
+    "formal_all_Serious": true
+  },
   "normal_schedule_Q_critical_path_share": null,
   "historical_official_model_reference_pass": false,
   "historical_official_model_strict_exit_preserved": 1,
@@ -28,18 +38,18 @@
   "outputs": [
     {
       "path": "PROPOSAL.md",
-      "bytes": 70464,
-      "sha256": "e8c135c688313b47e8e6fa54b3b1dc877d38448fadb59d8ac625f235d3c58d3f"
+      "bytes": 80301,
+      "sha256": "e66c04bf034c6488a926b7f7eb5b9dcb0468eab43323001f88348c0a3a10ed0f"
     },
     {
       "path": "OUTLINE.md",
-      "bytes": 2895,
-      "sha256": "90564119f8abddbf1c9e84e1d0622ec55e08a35a5b59a839d28cecf005ef9074"
+      "bytes": 3359,
+      "sha256": "39e6bb325896dd240825dc81b85445e09029accec8c2de0078a8264c1e5dd0f6"
     },
     {
       "path": "README.md",
-      "bytes": 4256,
-      "sha256": "0b10d57be163f49787af0d82d318046c7da84a2a0c37decd01c3f33b60ea464c"
+      "bytes": 4827,
+      "sha256": "6a6b9e453864ebff258dc60eab4e255068bed9b89e21992915953b268f35a5e2"
     },
     {
       "path": "render_proposal.py",
@@ -63,34 +73,38 @@
     },
     {
       "path": "PENDING_A16_RESULTS.json",
-      "bytes": 1564,
-      "sha256": "b94824d891684cf44b2c0ede052e38a5f03196f2309536bad6ea61865b8f6285"
+      "bytes": 50256,
+      "sha256": "27809e89b8a2c2a9647309d206d8fe72554257fbfd00b6945ddf7876d1f5b462"
     },
     {
       "path": "BitNet_Mobile_GPU_Proposal.pdf",
-      "bytes": 242155,
-      "sha256": "c5101044c0e7450687d585ae00b9724bb75062f0c56703ac086077b67d379167"
+      "bytes": 252152,
+      "sha256": "5d78d44ab021a2f26d35c988290f99495e3821e7cf2424b8c52a044bc08b94d8"
     },
     {
       "path": "BitNet_Mobile_GPU_Proposal.docx",
-      "bytes": 133686,
-      "sha256": "426bb80dd88ed0126734f3f4aed28feea4d96de129b59cbd83aadbfbc64dc40e"
+      "bytes": 139332,
+      "sha256": "97a723d6b33cd73ad1ead4331f56d3854a043845a387f8952ecd90ccc93bc428"
     }
   ],
   "quality_review": {
-    "PDF_pages_visually_inspected": 25,
-    "DOCX_pages_visually_inspected": 25,
+    "PDF_pages_visually_inspected_or_exact_identity": 28,
+    "DOCX_pages_visually_inspected_or_exact_identity": 28,
     "all_final_pages_covered_by_native_image_review_or_exact_pixel_identity": true,
     "clipping_overlap_or_missing_glyphs_observed": false,
-    "pending_cells_blank_and_labelled": true,
+    "unverified_fields_retained_as_null": true,
     "no_bottleneck_elsewhere_claim": true,
     "source_and_artifact_scope_review_pass": true,
     "raw_QA_images_kept_local": true
   },
   "QA_evidence_digest_only": {
-    "EN_PDF_VISUAL_QA.json": "cd4541bc13a8563b0c59965b18f5a8163648af70a5908a4a86affa6cba5875ae",
-    "EN_DOCX_VISUAL_QA.json": "1287c8f662b391eb3d662fd33f1e53629a8f9131d8253873b3b078ab00c45fd1",
-    "ZH_PDF_VISUAL_QA.json": "456f3b50b326881a1cd3b4189dc5d4921d9c902bb5107964bc054c8de082e7dc",
-    "ZH_DOCX_VISUAL_QA.json": "1ee805cf9fbd3672018015317c455757fd26a5850dcc37bef4d6c9ea28026845"
-  }
+    "QA_EN_PDF.json": "4982f01e5e49a4d62f9e692ef544ad2ce212752e9f7dd4624eaa832c46429c02",
+    "QA_EN_DOCX.json": "ff12902e646a615152b222719c4f1f2b691781852fc3c09cb61036157d286f5d",
+    "QA_ZH_PDF.json": "1477441f0b90c691199cc91c67417b39501ba36f0c3a2cd1ed9e1fe5b87d4686",
+    "QA_ZH_DOCX.json": "f90effd7376ef8c60a01828708e0e124bb49544164bddde4850d04c87a53c16b"
+  },
+  "tested_package_controller_commit": "578ec123ec2f0eed01f3edf6dc09ac6dcbe6104a",
+  "host_only_import_repair_commit": "a4f5433",
+  "derived_analysis": "../analysis/iphone-qcur0-attribution-2026-11-16/SUMMARY.json",
+  "derived_analysis_sha256": "f7f3f5875d8b01d577ef50551b654fa374bfc08aafd677d56bee899f54927849"
 }

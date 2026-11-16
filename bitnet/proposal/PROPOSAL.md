@@ -8,12 +8,12 @@ Prepared for the Tether technical assessment. Submission preparation version; pe
 
 We propose a Metal-first implementation of mobile BitNet inference using the existing llama.cpp graph, loader, memory planner and GPU backend. A narrowly guarded matrix-vector kernel replaces one projection inside a Transformer layer, while all unsupported calls retain the stock path. A parallel file-level plan extends and validates QVAC's existing Vulkan support on selected Adreno and Mali devices.
 
-The practical deliverable is a reproducible source package, an independent sample-I/O harness and this technical plan. The implementation uses a public Microsoft checkpoint to establish the development path; acceptance of the team's pretrained checkpoint remains a separate dependency. The source baseline is QVAC commit `2db8b046d555316019ae75d1be90484adc8b9330`. The historical reviewed implementation snapshot is `bbf70e9cc70302534ff87b4f34d4ce52a9670baa`; the tested ActQuant phone binary comes from `4c249e3`, with derived evidence consolidated in `e84732c`. The historical combined ActQuant/Q4 binary uses `edbd109` and has its own scoped qualification. The later launch/cache revision is Mac-qualified and awaits A16 requalification; Section 10 reserves its result fields. [E7]-[E12] [E1][E2][E14]
+The practical deliverable is a reproducible source package, an independent sample-I/O harness and this technical plan. The implementation uses a public Microsoft checkpoint to establish the development path; acceptance of the team's pretrained checkpoint remains a separate dependency. The source baseline is QVAC commit `2db8b046d555316019ae75d1be90484adc8b9330`. The historical reviewed implementation snapshot is `bbf70e9cc70302534ff87b4f34d4ce52a9670baa`; the tested ActQuant phone binary comes from `4c249e3`, with derived evidence consolidated in `e84732c`. The historical combined ActQuant/Q4 binary uses `edbd109` and has its own scoped qualification. The later launch/cache package from `14a9f103` now passes fresh A16 scoped qualification and local operator checks; formal decode is slower with QB/Q4, while CPU diagnostics identify a large warm snapshot/key region. Section 10 separates these results from earlier binaries. [E7]-[E12] [E1][E2][E14][E15]
 
 | Primary implementation and attribution | Reference and measured scope |
 |---|---|
 | Original authored 4x2 PoC | Independent TQ2_0 unpack/dot on supplied F32 X; host and physical-phone sample-I/O pass independent FP64. Its full phone graph is not qualified. |
-| Q4 stock4x1 specialization | Reuses stock helper arithmetic; layer 0, N=1. Two histories pass all 32 Q FP64 checks and same-build stock residual/logit parity with ActQuant OFF and ON. New ON paired operator reduction is 2.61%-2.68%; ON whole-decode performance is unmeasured. |
+| Q4 stock4x1 specialization | Reuses stock helper arithmetic; layer 0, N=1. Two histories pass all 32 Q FP64 checks and same-build stock residual/logit parity with ActQuant OFF and ON. Earlier ON paired operator reduction is 2.61%-2.68%; the current package measures 2.51%-2.78% locally in the fair cohort. Current integrated ON decode is slower than stock. |
 | V2 F32 ActQuant repair | New CPU/Metal quantizer, not a matmul replacement. A16 same-input official-F32 checks pass; complete source-F32-ON layers/logits fail, strict exit 1. Combined Q4 passes its stock-ON compatibility scope, not trusted-model fidelity. |
 
 The original 4x2 PoC now passes fresh physical-iPhone sample-I/O qualification: five input cases, three routes and 38,400 checked values. Q4 alone retains the fresh two-history real-graph acceptance. These prove supplied-input arithmetic and stock compatibility in their stated scopes; neither proves the public model executes Microsoft activation semantics. [E3][E4][E7]
@@ -126,7 +126,7 @@ The original authored PoC loads eight X values per lane/block, decodes the packe
 
 Stock and Q4 both launch 640 SIMD groups and 20,480 threads in total. Q4 changes threadgroup grouping from two SIMD groups to one; it does not increase per-SIMD activation reuse.
 
-All configurations use 32-lane SIMD groups on the measured Apple devices. Earlier phone binaries used a shared entry containing `c8x2`. The current revision uses distinct versioned entries: Q4 is `tq2_0_matvec_stock4x1_v1`, with an exact 4x1 host/shader contract; C8 accepts only its declared 8x2 contract. Host geometry alone cannot make a different compiled shader compatible. New A16 runtime checks are pending. [E14]
+All configurations use 32-lane SIMD groups on the measured Apple devices. Earlier phone binaries used a shared entry containing `c8x2`. The current revision uses distinct versioned entries: Q4 is `tq2_0_matvec_stock4x1_v1`, with an exact 4x1 host/shader contract; C8 accepts only its declared 8x2 contract. Host geometry alone cannot make a different compiled shader compatible. Current A16 contract/cache checks pass 18/18 cases in each of two processes; both-history live graph qualification passes the declared scope. [E14][E15]
 
 ### Hand computable input and output
 
@@ -160,7 +160,7 @@ The last four rows live under the GGML include or Metal backend directories. Tog
 
 The Q guard requires the exact MUL_MAT node and layer-0 Q weight, N=1, TQ2_0/F32/F32, audited ne/nb, no view, add=0, norm=0, compatible pipeline and launch, aligned live offsets and complete byte-range bounds. X and Y may share a Metal buffer only when their byte intervals are disjoint. W/Y overlap is rejected. Other layers, prefill, incompatible contracts and failed library/geometry selection return to stock before custom writes.
 
-The new default-off `LLAMA_BITNET_ACTQUANT_Q4=1` permission is restricted to ActQuant ON, layer-0 Q, rows=4 and SIMD groups=1; it checks the live quantizer producer and does not authorize C8 or FFN. Its two-history joint phone qualification passes the declared stock-ON scope; trusted-reference failure remains separate. [E12] Historical phone controls prove missing-library and unsupported-geometry fallback. Normal-run strides are checked; a malformed real graph stride was not injected. That historical cache used a function-name key. The current cache binds canonical path, versioned entry, launch contract and current file identity before lookup; same-process wrong-library, deletion and replacement controls are covered on Mac. New source-bound A16 checks remain pending. [E14]
+The new default-off `LLAMA_BITNET_ACTQUANT_Q4=1` permission is restricted to ActQuant ON, layer-0 Q, rows=4 and SIMD groups=1; it checks the live quantizer producer and does not authorize C8 or FFN. Its two-history joint phone qualification passes the declared stock-ON scope; trusted-reference failure remains separate. [E12] Historical phone controls prove missing-library and unsupported-geometry fallback. Normal-run strides are checked; a malformed real graph stride was not injected. That historical cache used a function-name key. The current cache binds canonical path, versioned entry, launch contract and current file identity before lookup; same-process wrong-library, deletion and replacement controls are covered on Mac. The current source-bound A16 cold and second-process contract checks each pass 18/18 cases; both-history graph checks also pass. [E14][E15]
 
 Current contract headers are `ggml-metal-bitnet-q-config.h` and `ggml-metal-bitnet-q-contract.h`; the Python configuration reader is `bitnet/q_kernel_contract.py`. This additive safety revision preserves shader arithmetic and stock defaults. [E14]
 
@@ -331,30 +331,109 @@ A fresh A16 step-16 W/X capture from the joint graph supplies this direct stock/
 | 2 | 224.7500 / 228.8750 | 218.2917 / 223.9583 | -5.9583 | 197/201 |
 | 3 | 224.5000 / 228.6250 | 217.9583 / 222.5000 | -5.8750 | 196/201 |
 
-The medians of per-pair relative changes are -2.6089%, -2.6754% and -2.6509%; these are not ratios of marginal medians. Both execution-order groups and all three chronological blocks per round favor Q4. A/A paired medians are -0.4167/-0.2500/-0.2083 us. All 18 campaign thermal endpoints are nominal, charging at 100%, low-power mode off; the approximately 2.90-second campaign is not a sustained-load study. This establishes a small isolated-operator benefit on actual post-ActQuant X. New ActQuant-ON full-decode performance remains UNMEASURED.
+The medians of per-pair relative changes are -2.6089%, -2.6754% and -2.6509%; these are not ratios of marginal medians. Both execution-order groups and all three chronological blocks per round favor Q4. A/A paired medians are -0.4167/-0.2500/-0.2083 us. All 18 campaign thermal endpoints are nominal, charging at 100%, low-power mode off; the approximately 2.90-second campaign is not a sustained-load study. This establishes a small isolated-operator benefit on actual post-ActQuant X. Full-decode performance of that earlier ActQuant-ON binary was UNMEASURED; the current package is evaluated separately below.
 
 <!-- page -->
-### Pending A16 validation results
+### Current A16 package qualification
 
-The current contract/cache package from `14a9f103` is **UNVERIFIED on the phone**. The earlier `edbd109` A16 passes remain valid only for that older implementation; they do not qualify the current package. This page is a results template, with measurement cells deliberately blank. [E14]
+The signed package from native source `14a9f103` has now passed the scoped physical iPhone 14 Pro/A16 correctness gates on iOS 27.2.1. This is new package-specific evidence, separate from the earlier `edbd109` results. No native code or shader arithmetic was changed to repair the host controller's import environment. The completed build-bound gate and independent CPU audits are recorded in [E15].
 
-Use iPhone 14 Pro/A16, the frozen GGUF and both histories, ActQuant ON, F16 KV, the 27-token prefill and 32 fixed continuation tokens. Confirm signing/build identity and operator/cache prerequisites before timing.
+Cold and second-process contract/cache checks each pass 18/18 cases. The 20-case ActQuant prerequisite checks 386,567 outputs: zero official-F32 bitwise differences, recovered-code mismatches or frozen-tolerance failures, with canaries intact. Recovered codes are reconstructed from exported F32 outputs and the reference scale; internal integer registers were not observed.
 
-| Check | Required scope / metric | New result | Status |
-| --- | --- | --- | --- |
-| S correctness | All 32 actual Q outputs against FP64; 33 logits and recorded boundaries | | PENDING |
-| QB control | 32 full guard hits, 0 custom dispatches; same stock PSO/ABI/bindings and stock output parity | | PENDING |
-| Q4 correctness | 32 custom dispatches and GPU completions; all 2,560 output rows per call; FP64 and stock/model-output scope reported separately | | PENDING |
-| AA wall | p50/p95, paired difference, wins, execution-order/time trend | | PENDING |
-| SQB wall | p50/p95, paired difference, wins, execution-order/time trend | | PENDING |
-| SQ4 wall | p50/p95, paired difference, wins, execution-order/time trend | | PENDING |
-| CPU checks and encoding | Guard/getter/cache/encoding intervals; calibrated clock and instrumentation-overhead control | | PENDING |
-| Natural CB evidence | Actual existing CB count, completion and intervals; no inferred per-operator GPU duration | | PENDING |
-| Local stock/Q4 operator | Same phone W/X; 30 warmups/path, 201 alternating pairs/round, 3 rounds; single-dispatch CB elapsed | | PENDING |
+Both histories use the frozen public GGUF, ActQuant ON, F16 KV, 27-token prefill and 32 fixed continuations. Each history checks 163,840 single-token S/Q4 values against the independently unpacked FP64 reference, with zero failures. Prefill is parity-only; this is not a full Transformer-block FP64 check. Maximum absolute error is 1.267947e-5 for primary and 1.267150e-5 for independent. All 33 logits vectors match stock-ON bitwise; saved boundaries, capture/plain neutrality and missing-library fallback also pass.
 
-The wall protocol uses 2 full-replay warmups/route and 3 rounds of 21 balanced pairs per contrast, restoring the same prefix outside timing. Capture, readback and metrics are OFF for formal wall samples. Record power/thermal state and keep order/time strata. Report local Q timing separately from complete decode; preserve failures and unavailable fields.
+| Check | Current result | Status |
+| --- | --- | --- |
+| S correctness | Both histories: all 32 eligible Q calls pass FP64; all 33 logits vectors retain stock parity | PASS |
+| QB control | Both histories: 32 full guard passes, 0 custom dispatches; same actual stock PSO, ABI and live bindings | PASS |
+| Q4 correctness | Both histories: 32 custom dispatches/GPU completions; all 2,560 rows per call pass FP64; stock/residual/logit scope passes | PASS |
+| AA wall | Both histories: paired medians change sign; retain order/time and thermal strata | MEASURED CONTROL |
+| SQB wall | Both histories: all formal rounds slower than the paired stock route | MEASURED REGRESSION |
+| SQ4 wall | Both histories: all formal rounds slower than the paired stock route | MEASURED REGRESSION |
+| CPU checks and encoding | Nested guard/getter/snapshot regions measured in separate diagnostics | PASS, diagnostic scope |
+| Natural CB evidence | Completed native intervals retained; selected-Q GPU share remains unknown | PASS, diagnostic scope |
+| Local stock/Q4 operator | Three new direct rounds pass the declared numerical and measurement gates; detailed results follow | PASS, local scope |
 
-The original trusted-reference model comparison remains a completed **FAIL**, strict exit `1`. A new stock/Q4 compatibility pass would not repair that result or establish model quality. Fill this page only from the new package's actual device logs and independent analysis. [E14]
+The wall protocol uses 2 complete-replay warmups per route and 3 rounds of 21 balanced pairs per contrast, restoring the same prefix outside timing. Formal wall samples disable capture, readback and metrics; power/thermal and order/time strata remain part of the analysis. The completed formal and diagnostic results are reported below with their respective scopes. Passing native processes alone do not establish these measurements. The original trusted-reference model comparison remains a completed **FAIL**, strict exit `1`; neither this stock-relative qualification nor the new local timing repairs that result or establishes language quality. The first auditor's incorrect scale-offset assumption was preserved and corrected on CPU; it did not change the fixture, native binary or frozen acceptance. [E15]
+
+<!-- page -->
+
+### Current A16 single-operator timing
+
+The new accepted phone run supplies fresh step-16 pre-RoPE W/X. The selected `tq2_0_matvec_stock4x1_v1` library matches the qualified real graph. S/Q4 qualification on steps 1/16/32 has zero FP64 failures and zero stock-bitwise differences. An additional C8 comparison is isolated research, not new C8 model acceptance. [E15]
+
+Each path receives 30 warmups, followed by 201 alternating pairs per round for 3 rounds. The following table reports only direct S/Q4 groups, with a single dispatch per command buffer. Read `GPUEndTime - GPUStartTime` after completion and convert seconds to microseconds. Capture, tensor readback and diagnostics are disabled during timing. ActQuant preparation, guard/cache checks, CPU encoding and model scheduling are excluded.
+
+| Round | Stock p50 / p95 us | Q4 p50 / p95 us | Paired Q4 minus S us | Paired change | Q4 wins |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 225.333 / 229.583 | 219.250 / 222.875 | -5.667 | -2.509% | 196/201 |
+| 2 | 225.083 / 229.375 | 219.333 / 222.875 | -5.833 | -2.596% | 200/201 |
+| 3 | 225.125 / 229.000 | 218.625 / 222.250 | -6.250 | -2.775% | 199/201 |
+
+Percent changes are medians of per-pair relative changes, not ratios of marginal medians. Both AB/BA groups and all three chronological blocks per round favor Q4. A/A paired medians are +0.333/+0.458/+0.083 us; they are a control and are not subtracted as a universal correction.
+
+All 18 group endpoints report **fair**, charging at 50%, with low-power mode off. The approximately 2.90-second campaign is a short observation of this condition, not a nominal-temperature or sustained-load study. The new result supports a small local GPU command-buffer benefit on actual post-ActQuant input. Full-decode benefit, energy and a hardware bottleneck cause are not established by this measurement. Keep its numbers separate from the earlier nominal campaign. [E15]
+
+**Post-model serious-state repeat**
+
+After the model campaign, the same fixture, build and single-dispatch protocol give the following separate cohort. All 18 endpoints are serious, charging at 70%, low-power mode off. It is not pooled with the fair cohort.
+
+| Round | Stock p50 / p95 us | Q4 p50 / p95 us | Paired Q4 minus S us | Paired change | Q4 wins |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 226.125 / 230.375 | 220.125 / 224.125 | -5.375 | -2.377% | 198/201 |
+| 2 | 226.042 / 230.000 | 221.000 / 225.292 | -4.917 | -2.184% | 184/201 |
+| 3 | 225.250 / 229.458 | 219.375 / 224.458 | -5.458 | -2.441% | 194/201 |
+
+A/A paired medians are -0.292/+0.333/0.000 us. Both AB/BA groups and chronological blocks favor Q4. This approximately 2.91-second repeat retains a local benefit under the observed serious state; it is not a sustained operator-throughput or energy study. [E15]
+
+<!-- page -->
+### Current A16 fixed-replay wall time
+
+Each history uses 2 complete-replay warmups per route and 3 rounds of 21 balanced pairs per contrast. KV reset, prefill and prefix restoration are outside the fixed 32-token decode wall interval. The graph includes ActQuant preparation. Capture, tensor readback and metrics are OFF. Both histories pass measurement-integrity checks: 378 pairs and 24,192 token rows in total. All formal pairs belong to the serious thermal stratum with low-power mode off; they are not pooled with the fair isolated-operator campaign. [E15]
+
+Every row below uses its own directly paired S baseline; different time blocks do not share a stock baseline. Differences are medians of pairwise candidate minus S wall times, not differences between marginal medians. Wins count pairs with a lower candidate wall time.
+
+**Same-stock guarded path, QB versus S**
+
+| History / round | S p50 / p95 ms | QB p50 / p95 ms | Paired difference ms | Wins |
+| --- | --- | --- | --- | --- |
+| primary 1 | 2525.289 / 2568.726 | 2616.669 / 2646.383 | +68.2942 | 0/21 |
+| primary 2 | 2367.436 / 2426.333 | 2464.360 / 2493.558 | +87.8339 | 0/21 |
+| primary 3 | 2420.879 / 2491.471 | 2513.408 / 2545.520 | +67.9627 | 0/21 |
+| independent 1 | 2603.999 / 2685.455 | 2697.339 / 2730.913 | +94.3445 | 1/21 |
+| independent 2 | 2667.072 / 2743.613 | 2760.507 / 2872.998 | +84.3861 | 1/21 |
+| independent 3 | 2654.335 / 2714.620 | 2748.812 / 2802.862 | +76.8223 | 1/21 |
+
+**Custom Q4 path versus S**
+
+| History / round | S p50 / p95 ms | Q4 p50 / p95 ms | Paired difference ms | Wins |
+| --- | --- | --- | --- | --- |
+| primary 1 | 2456.068 / 2509.500 | 2527.487 / 2578.849 | +68.8445 | 1/21 |
+| primary 2 | 2324.828 / 2409.873 | 2415.522 / 2487.857 | +87.1295 | 1/21 |
+| primary 3 | 2311.729 / 2341.017 | 2381.225 / 2437.982 | +80.4810 | 0/21 |
+| independent 1 | 2633.823 / 2683.142 | 2725.204 / 2769.471 | +76.6339 | 0/21 |
+| independent 2 | 2646.690 / 2822.090 | 2734.978 / 2811.872 | +87.7017 | 2/21 |
+| independent 3 | 2690.501 / 2767.316 | 2769.761 / 2903.330 | +76.7903 | 1/21 |
+
+A/A paired medians are -7.101/+2.191/+4.961 ms for primary and -3.167/-3.152/+3.312 ms for independent. All QB/S and Q4/S AB/BA groups and chronological blocks retain positive differences. The selected Q4 operator is locally faster, while this integrated package is slower in all formal rounds. A same-stock guarded path is already slower, so a shader change is not required to produce the observed integration regression. This does not isolate a pure guard-only cost or fully explain the wall gap. A/A and metrics-overhead controls are retained, not subtracted as universal corrections. [E15]
+
+<!-- page -->
+### Current A16 host-cost diagnostic
+
+Separate instrumented replays record nested host elapsed regions; these are not the formal wall samples. Each QB/Q4 row contains 32 warm cache hits and 0 loads. The table shows sums across the replay, in ms. All native encoding is the broader encoder-worker total, not selected-Q encoding alone. [E15]
+
+| History / route | Guard ms | Getter ms | Snapshot/key ms | All native encoding ms |
+| --- | --- | --- | --- | --- |
+| primary / QB | 96.083 | 95.621 | 95.245 | 277.873 |
+| primary / Q4 | 68.328 | 68.003 | 67.691 | 204.845 |
+| independent / QB | 95.828 | 95.385 | 95.032 | 282.664 |
+| independent / Q4 | 95.698 | 95.270 | 94.931 | 265.488 |
+
+The warm snapshot/key region includes realpath, stat, file-identity extraction and key formatting. It occupies most of the getter region in these observations. This is concrete evidence for investigating repeated validation/key construction, not a measurement of pure realpath cost, CPU cycles or hardware stalls. Getter and snapshot/key are nested inside the guard; these totals must not be added. Their sums cannot be subtracted from whole decode to derive a GPU remainder.
+
+Each diagnostic replay retains 64 tasks and 64 natural command buffers, with 32 actual target Q calls and 960 Q identities. QB has 32 guard passes, 0 custom dispatches and stock target execution; Q4 has 32 guard passes and 32 custom dispatches. Completion and interval checks pass. Natural command-buffer timing does not expose selected-Q GPU time or normal critical-path share; host and GPU timestamps use separate domains.
+
+One bounded Metal System Trace attempt returned CLI exit 0 but reported device disconnection before recording; the wrapper refused to launch the model. It supplies no usable GPU attribution or hardware counters. The diagnostic-instrumentation wall differences change sign, so no universal instrumentation correction is applied. Historical +10 to +13 ms results came from a different source/campaign and are not attributed by these data. Preserve stock as the default. Before promoting integrated Q4, test a minimal reduction of repeated warm identity/key work while retaining wrong-library, deletion and replacement safety checks; then repeat stock-relative correctness and direct wall pairs. Trusted-reference strict exit 1 remains unchanged. [E15]
 
 <!-- page -->
 ### Historical ActQuant-OFF comparisons
@@ -466,12 +545,12 @@ The numerical threshold is frozen; performance targets below are proposed engine
 | Area | Proposed acceptance or target | Status at cutoff |
 |---|---|---|
 | Functional inference | Load and generate with verified mobile GPU offload; no unexpected fallback/crash | Public 2B A16 pass; team and Android pending |
-| Operator correctness | All required outputs finite, covered and within frozen FP64 bound; stock differences reported | Original host/phone samples; earlier A16 Q4 pass; new package PENDING |
+| Operator correctness | All required outputs finite, covered and within frozen FP64 bound; stock differences reported | Original host/phone samples; current A16 Q4 two-history all-call FP64 and stock parity PASS |
 | Model semantics | Align conversion, ActQuant, selected intermediates and teacher-forced logits to trusted source | A16 same-input quantizer passes; completed full-model layer/logit comparison FAILS, strict exit 1; faithful-model acceptance remains unresolved |
 | Language quality | Predeclared held-out NLL/PPL and task budgets, matched tokenizer and document uncertainty | 128-token test-split smoke measured; product acceptance unverified |
-| Layer compatibility | Required Q/residual/logit gates pass on two histories; preserve strict failures | A16: earlier Q4 layer-0 OFF/ON pass; new package PENDING; fidelity/quality separate |
-| Operator optimization | Seek at least 5% median paired reduction versus actual stock in 3 rounds with order checks | A16: earlier ON Q4 2.61%-2.68%, OFF 2.68%-3.11%; below goal; new package PENDING |
-| Model promotion | Direct steady decode improvement distinguishable from A/A and drift; preserve p95 | A16: old OFF Q4 no gain; current ON decode PENDING |
+| Layer compatibility | Required Q/residual/logit gates pass on two histories; preserve strict failures | A16: current Q4 layer-0 ON scope PASS on both histories; trusted fidelity/quality remain separate |
+| Operator optimization | Seek at least 5% median paired reduction versus actual stock in 3 rounds with order checks | A16: current fair ON Q4 2.51%-2.78%; earlier ON 2.61%-2.68%, OFF 2.68%-3.11%; below goal |
+| Model promotion | Direct steady decode improvement distinguishable from A/A and drift; preserve p95 | A16: old OFF Q4 no gain; current ON integrated decode is slower |
 | Memory and sustained operation | No OOM; measured peak footprint/scratch; at least 10-minute controlled thermal study | Peak/controlled sustained protocol pending |
 | Power | Supported energy signal and matched work; seek at least 5% lower J/token without a correctness/latency loss | Unmeasured |
 
@@ -479,7 +558,7 @@ Use a benchmark matrix rather than one advertised tok/s number: hand-known and d
 
 Report loading separately from time to first token. Measure prefill latency/tok/s, steady decode wall latency/tok/s, per-token p50/p95, peak process/GPU allocations and observed offload. Isolated GPU timings, full FFN intervals, complete Transformer layers and application decode are distinct units. An instrumented layer slice may change scheduling; mark that diagnostic scope.
 
-Power tests require a supported signal or external instrument synchronized to identical work. State the energy boundary, charging/display/thermal controls and idle uncertainty. Separate device energy from estimated GPU energy. Battery percentage or Instruments energy impact is not joules/token. Arithmetic accuracy does not establish model quality; agree separate held-out criteria with the team.
+Measure energy over matched work with a supported signal or external instrument. Declare the boundary and charging/display/thermal/idle controls. Separate device from estimated GPU energy; battery percentage and Instruments impact are not joules/token. Agree held-out quality criteria separately.
 
 <!-- page -->
 ## 13 Ten day phased schedule
@@ -503,7 +582,7 @@ Optional FFN/fusion exploration follows the primary kernel qualification and mus
 
 If a candidate fails, retain the failure and continue independent work such as reference checks, build portability or documentation. Do not spend the remaining schedule generating similar variants without a distinguishing hypothesis. Signing or physical-device access problems should produce a minimal reproducer while CPU/source tasks continue.
 
-ActQuant same-input qualification on the earlier A16 build is complete; full-model reference comparison was performed and failed, strict exit 1. The joint ActQuant/Q4 stock-ON compatibility gate also passes on both histories; full-model fidelity is not inferred. Prioritize the declared same-input and model-output gates, exact submitted-source reproduction and remaining trusted-reference propagation before optional optimization campaigns. Small upstream differences can cross INT8 rounding boundaries despite a correct quantizer. Count quantizer preparation in future performance. The same-stock guard control in [E9] supports framework attribution; operator-family critical-path measurements are still needed before selecting the next performance target.
+ActQuant same-input qualification on the earlier A16 build is complete; full-model reference comparison was performed and failed, strict exit 1. The joint ActQuant/Q4 stock-ON compatibility gate also passes on both histories, including fresh source-bound A16 qualification; full-model fidelity is not inferred. Prioritize the declared same-input and model-output gates, exact submitted-source reproduction and remaining trusted-reference propagation before optional optimization campaigns. Small upstream differences can cross INT8 rounding boundaries despite a correct quantizer. Count quantizer preparation in future performance. The same-stock guard control in [E9] supports framework attribution; operator-family critical-path measurements are still needed before selecting the next performance target.
 
 <!-- page -->
 ## 14 Risks assumptions and contingencies
@@ -604,7 +683,9 @@ Workspace experiment names below are under `outputs/experiments/`. Package analy
 
 - [E13] Package `bitnet/analysis/mac-qcur0-value-2026-11-16/`: Mac selected-Q controls; source `5a8b534`, analysis `1bae1cd`. Optional probe `6c775b38` remains separate.
 
-- [E14] Package `bitnet/docs/Q_KERNEL_CONTRACT_FIX.md`, `bitnet/docs/IPHONE_TEST_PLAN_2026-11-16.md` and `bitnet/analysis/iphone-attribution-preparation-2026-11-16/`: safety source `8ebcdb7`, prepared source `14a9f103`; new phone runtime pending.
+- [E14] Package `bitnet/docs/Q_KERNEL_CONTRACT_FIX.md`, `bitnet/docs/IPHONE_TEST_PLAN_2026-11-16.md` and `bitnet/analysis/iphone-attribution-preparation-2026-11-16/`: safety source `8ebcdb7`, prepared source `14a9f103`; current phone runtime qualification is recorded separately in [E15].
+
+- [E15] Local experiment `outputs/experiments/iphone-evening-2026-11-16_185231+0900/`: actual `14a9f103` package qualification, build-bound gate, independent correctness/timing audits and current A16 operator comparison. Controller import repair `a4f5433` changes Python only. Derived analysis index: `bitnet/analysis/iphone-qcur0-attribution-2026-11-16/`; raw arrays, CSV, logs and signed products remain local.
 
 <!-- page -->
 ### Public primary sources

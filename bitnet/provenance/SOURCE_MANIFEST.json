@@ -114,8 +114,8 @@
     },
     {
       "path": "bitnet/actquant/run_phone.py",
-      "bytes": 31172,
-      "sha256": "102f325bd24f21f7d9fb6e4fac463daa38bce92b54b2ae6c2801cdcb92587217"
+      "bytes": 31247,
+      "sha256": "bc5b04af20cad1975008baf0b9bb7d80144634c296652f04dfe3c987a77f9d72"
     },
     {
       "path": "bitnet/actquant/runner.cpp",
@@ -291,6 +291,26 @@
       "path": "bitnet/analysis/iphone-attribution-preparation-2026-11-16/SUMMARY.json",
       "bytes": 4271,
       "sha256": "fb3946bbb35775f9b0b796043eb5275d9da7bc398600cc8b79131f85834a5bc5"
+    },
+    {
+      "path": "bitnet/analysis/iphone-qcur0-attribution-2026-11-16/README.md",
+      "bytes": 10769,
+      "sha256": "a4f41625a29cc3e03036e3a2844fcd5af2799188246596f19c5387b322ac829e"
+    },
+    {
+      "path": "bitnet/analysis/iphone-qcur0-attribution-2026-11-16/README_ZH.md",
+      "bytes": 1417,
+      "sha256": "80714fbc2762468f78eae0cbebad827f084615614aaaecc42c83ebcfcfedf867"
+    },
+    {
+      "path": "bitnet/analysis/iphone-qcur0-attribution-2026-11-16/SUMMARY.json",
+      "bytes": 142999,
+      "sha256": "f7f3f5875d8b01d577ef50551b654fa374bfc08aafd677d56bee899f54927849"
+    },
+    {
+      "path": "bitnet/analysis/iphone-qcur0-attribution-2026-11-16/TRACE_OUTCOME.json",
+      "bytes": 332,
+      "sha256": "8660cd9a41b6e41cf13fd4bbef504bb3efa1af5ccacbe9f5b4b519930eb74a7c"
     },
     {
       "path": "bitnet/analysis/mac-qcur0-value-2026-11-16/README.md",
@@ -664,68 +684,68 @@
     },
     {
       "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal.docx",
-      "bytes": 133686,
-      "sha256": "426bb80dd88ed0126734f3f4aed28feea4d96de129b59cbd83aadbfbc64dc40e"
+      "bytes": 139332,
+      "sha256": "97a723d6b33cd73ad1ead4331f56d3854a043845a387f8952ecd90ccc93bc428"
     },
     {
       "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal.pdf",
-      "bytes": 242155,
-      "sha256": "c5101044c0e7450687d585ae00b9724bb75062f0c56703ac086077b67d379167"
+      "bytes": 252152,
+      "sha256": "5d78d44ab021a2f26d35c988290f99495e3821e7cf2424b8c52a044bc08b94d8"
     },
     {
       "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal_ZH.docx",
-      "bytes": 142728,
-      "sha256": "4dd19a3cc3a0b0ae9096d561999113f264d8bc0f4d6a148b25e9aedcf9dee879"
+      "bytes": 148942,
+      "sha256": "d24f3965d06993080b49e33114e41c94320f9a82ef8caa1fd709f73c93c9eb66"
     },
     {
       "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal_ZH.pdf",
-      "bytes": 614312,
-      "sha256": "04c843662d1e189f780458c9e00691b23cc63ea9df539516f3ed09c93e421953"
+      "bytes": 628415,
+      "sha256": "83dfd98bc788214f4f059cc804950db5b402ec1929698b5b0da455ca9bddd60e"
     },
     {
       "path": "bitnet/proposal/MANIFEST.json",
-      "bytes": 3781,
-      "sha256": "b38081ea83292a345c04bde0c2334ae98a6a0e43cacc85c918c626c42f05cad0"
+      "bytes": 4457,
+      "sha256": "13dd583717edbdf34a4417b3888d4426e6b6a1f5e0740fa7c487350957daef44"
     },
     {
       "path": "bitnet/proposal/MANIFEST_ZH.json",
-      "bytes": 2185,
-      "sha256": "4f8d579a850b7e3bfce2104329e5287fc2cfafc1b635295e34a89c3a4e0ab6ec"
+      "bytes": 2790,
+      "sha256": "73ee66b1f3998ea4dbea4c359a7fbc9bf02254024a8b381479cbaf3d33703f4e"
     },
     {
       "path": "bitnet/proposal/OUTLINE.md",
-      "bytes": 2895,
-      "sha256": "90564119f8abddbf1c9e84e1d0622ec55e08a35a5b59a839d28cecf005ef9074"
+      "bytes": 3359,
+      "sha256": "39e6bb325896dd240825dc81b85445e09029accec8c2de0078a8264c1e5dd0f6"
     },
     {
       "path": "bitnet/proposal/PENDING_A16_RESULTS.json",
-      "bytes": 1564,
-      "sha256": "b94824d891684cf44b2c0ede052e38a5f03196f2309536bad6ea61865b8f6285"
+      "bytes": 50256,
+      "sha256": "27809e89b8a2c2a9647309d206d8fe72554257fbfd00b6945ddf7876d1f5b462"
     },
     {
       "path": "bitnet/proposal/PROPOSAL.md",
-      "bytes": 70464,
-      "sha256": "e8c135c688313b47e8e6fa54b3b1dc877d38448fadb59d8ac625f235d3c58d3f"
+      "bytes": 80301,
+      "sha256": "e66c04bf034c6488a926b7f7eb5b9dcb0468eab43323001f88348c0a3a10ed0f"
     },
     {
       "path": "bitnet/proposal/PROPOSAL_ZH.md",
-      "bytes": 68282,
-      "sha256": "5a936ad8187960526acba2670d3f20dc1ca5d9ff0ba48942bbc6c8357e136e10"
+      "bytes": 77541,
+      "sha256": "e5026993c429de7708a6ea45253d0584908a5facf72d957b91ed5d276192b76b"
     },
     {
       "path": "bitnet/proposal/README.md",
-      "bytes": 4256,
-      "sha256": "0b10d57be163f49787af0d82d318046c7da84a2a0c37decd01c3f33b60ea464c"
+      "bytes": 4827,
+      "sha256": "6a6b9e453864ebff258dc60eab4e255068bed9b89e21992915953b268f35a5e2"
     },
     {
       "path": "bitnet/proposal/README_ZH.md",
-      "bytes": 3284,
-      "sha256": "1822eff6e5cb350f64d3e3aeccb8059408e41d076ccc0a1bbc777190a6f3aaed"
+      "bytes": 3669,
+      "sha256": "96098c955bd63723572d7812b2eec9ae716e1220e2b961a7be7585eb00f6f446"
     },
     {
       "path": "bitnet/proposal/TRANSLATION_CHECK.json",
-      "bytes": 1203,
-      "sha256": "fd90c4fc663bc68a1ecc55a5f9465e1529c322c15885e09dfa2872a7d4e4c435"
+      "bytes": 1205,
+      "sha256": "653c8bab53b1f67a42c8dbffd0402e9d92c1ae3c3dfd3b40b88bb7c90ed59b16"
     },
     {
       "path": "bitnet/proposal/assets/execution-flow.png",
@@ -1018,9 +1038,19 @@
       "sha256": "7bae73780c960dbf6aa0d661fc5ee3ea42bd85630e7914a5b9dc02c1d62d253d"
     },
     {
+      "path": "bitnet/tests/summarize_iphone_q_attribution.py",
+      "bytes": 27560,
+      "sha256": "4b02e043a0423afdeec8ec0faee2aad5a21ed4a9e4e93884a2d0430f6fd1d9c7"
+    },
+    {
       "path": "bitnet/tests/summarize_q_attribution_cpu.py",
       "bytes": 9464,
       "sha256": "95a0b2a9c8937b437e1cfb0adba876647416c6ed9d98f77c2f76353049dcc343"
+    },
+    {
+      "path": "bitnet/tests/test_actquant_phone_imports.py",
+      "bytes": 1572,
+      "sha256": "6fe7846ad14b58fdaba85c01f67c166f38432ae57baa9ec9219642e0368a2a20"
     },
     {
       "path": "bitnet/tests/test_actquant_q_backend.py",
@@ -1041,6 +1071,11 @@
       "path": "bitnet/tests/test_inventory_metal_graph.py",
       "bytes": 6104,
       "sha256": "4233817b696a9c51da0723abdfd50187911e8a201a01aa66228c3cdec84da95f"
+    },
+    {
+      "path": "bitnet/tests/test_iphone_q_summary.py",
+      "bytes": 4988,
+      "sha256": "909765208f36e8b5ebb41580ebae4decaee48d3e5114768be8551001f5012e7e"
     },
     {
       "path": "bitnet/tests/test_mac_q_encoder_probe.py",
@@ -1320,5 +1355,7 @@
   "Q_contract_fix_scope": "Unique entries and canonical geometry; file-aware optional cache; preserves stock baseline and trusted-model strict1 failure",
   "attribution_preparation_source_commit": "14a9f103c23b5a24bd0da1e0dbc5a0d5a37ade3a",
   "attribution_preparation_phone_pass": null,
-  "attribution_preparation_performance_claim": false
+  "attribution_preparation_performance_claim": false,
+  "evidence_cutoff": "2026-11-16 Asia/Tokyo",
+  "raw_experiment_data_included": false
 }
