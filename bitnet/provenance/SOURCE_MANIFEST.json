@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "scope": "All added bitnet files plus explicitly changed root/upstream files. This manifest excludes itself. The upstream source baseline and CI exclusions are bound separately.",
+  "scope": "All retained BitNet additions plus explicitly changed inherited files. Excludes itself; upstream baseline and original exclusions are bound separately.",
   "files": [
     {
       "path": ".gitattributes",
@@ -9,13 +9,13 @@
     },
     {
       "path": ".gitignore",
-      "bytes": 2370,
-      "sha256": "191133c5fa64f066f369513c9f2052c95b697167eab420d46ac580500fec8e8c"
+      "bytes": 2611,
+      "sha256": "bf9f3b31e52fbf05de4a85a2c41f4cbfac317786b2f30ed488dd182b76869d3a"
     },
     {
       "path": "README.md",
-      "bytes": 9054,
-      "sha256": "40e8a7dc1100c6934b3e70b00580966578e4b124c68875f0a969f99300c6284a"
+      "bytes": 6303,
+      "sha256": "5fffa01b0d780173cad23499086d4fef1fa869bf46e9f33d7e7f281e90807bb6"
     },
     {
       "path": "README.upstream.md",
@@ -91,11 +91,6 @@
       "path": "bitnet/actquant/prepare_q_fixture.py",
       "bytes": 8219,
       "sha256": "d1445dec8ee2f895df1cb3047cefcaf14a6e5ec3e769b4f5b3d23d8c6f9be358"
-    },
-    {
-      "path": "bitnet/actquant/probe_layer0.py",
-      "bytes": 9680,
-      "sha256": "bf99df8d4405717c1357d36e0214f4556ac35ba1c3084901c7f272fa4236d476"
     },
     {
       "path": "bitnet/actquant/q4_contract.py",
@@ -233,11 +228,6 @@
       "sha256": "7d82c30d37207793c9299a5de76bff71445d1138740accd0c622f1f95d492b08"
     },
     {
-      "path": "bitnet/analysis/actquant-2026-11-16/SUMMARY_ZH.md",
-      "bytes": 10827,
-      "sha256": "2fc48fcf6f52a4937d9e1ea9b9a128b72c972858badcb874568c381406c0a31a"
-    },
-    {
       "path": "bitnet/analysis/actquant-iphone-2026-11-16/README.md",
       "bytes": 9429,
       "sha256": "629abc0f5cb3b11d2a517057fb4bb04207030cce479f01f618553878b861571f"
@@ -246,11 +236,6 @@
       "path": "bitnet/analysis/actquant-iphone-2026-11-16/SUMMARY.json",
       "bytes": 26032,
       "sha256": "710044a1895d332bf9ed30a6b3464618adef40dd767ef7ed5901725b1a5d0fbb"
-    },
-    {
-      "path": "bitnet/analysis/actquant-iphone-2026-11-16/SUMMARY_ZH.md",
-      "bytes": 8663,
-      "sha256": "b2816eaf62eeb674b1dbbcff6d5d87283476bdf19fdce7996000859d476de428"
     },
     {
       "path": "bitnet/analysis/actquant-q4-joint-2026-11-16/README.md",
@@ -263,11 +248,6 @@
       "sha256": "53589adf0bbbe8a98d55d87a293a6d72dba491647f54df7a6d319a44fa048f6f"
     },
     {
-      "path": "bitnet/analysis/actquant-q4-joint-2026-11-16/SUMMARY_ZH.md",
-      "bytes": 8245,
-      "sha256": "506f441976fb9a5ab175f303315256e42aa94493067141323ca0cf87ababc9c4"
-    },
-    {
       "path": "bitnet/analysis/ffn-performance-exploration/README.md",
       "bytes": 13816,
       "sha256": "5cbb8fb800e3829979d57edbc543df0b31d02623cc4989222520adfb4b247527"
@@ -278,29 +258,9 @@
       "sha256": "55b4ad83085ab02bf117a2e5124bfd2efa242447f2ded6a39b8a588af1902122"
     },
     {
-      "path": "bitnet/analysis/iphone-attribution-preparation-2026-11-16/PLAN_ZH.md",
-      "bytes": 3206,
-      "sha256": "1dcab3fb7cc5ac31bbc1ceb90909e672179c334226527ce4810a2aabe904b9f5"
-    },
-    {
-      "path": "bitnet/analysis/iphone-attribution-preparation-2026-11-16/README.md",
-      "bytes": 2489,
-      "sha256": "8cd99029dc2221ba11e744a17e5abc3fc3e684078e70eed51112df8d279917c5"
-    },
-    {
-      "path": "bitnet/analysis/iphone-attribution-preparation-2026-11-16/SUMMARY.json",
-      "bytes": 4271,
-      "sha256": "fb3946bbb35775f9b0b796043eb5275d9da7bc398600cc8b79131f85834a5bc5"
-    },
-    {
       "path": "bitnet/analysis/iphone-qcur0-attribution-2026-11-16/README.md",
       "bytes": 10768,
       "sha256": "377c8a08b597be4831eb3684146dbf889cee626a396069efe28ef23cfb98d827"
-    },
-    {
-      "path": "bitnet/analysis/iphone-qcur0-attribution-2026-11-16/README_ZH.md",
-      "bytes": 1417,
-      "sha256": "80714fbc2762468f78eae0cbebad827f084615614aaaecc42c83ebcfcfedf867"
     },
     {
       "path": "bitnet/analysis/iphone-qcur0-attribution-2026-11-16/SUMMARY.json",
@@ -314,18 +274,13 @@
     },
     {
       "path": "bitnet/analysis/mac-qcur0-value-2026-11-16/README.md",
-      "bytes": 18251,
-      "sha256": "151abe351ab50fa638a5072703e4182d81425f02df99467e4b609369a6e588d3"
+      "bytes": 17444,
+      "sha256": "d55ea849783ec7b2d018c03f83cb418761b3b416062ee30084c2bd34a8f2fa75"
     },
     {
       "path": "bitnet/analysis/mac-qcur0-value-2026-11-16/SUMMARY.json",
       "bytes": 41227,
       "sha256": "418a5b8bcd177ed3df30e0c2c899c6a292214e6577d9ab5e38cb826d101376c9"
-    },
-    {
-      "path": "bitnet/analysis/mac-qcur0-value-2026-11-16/SUMMARY_ZH.md",
-      "bytes": 7108,
-      "sha256": "71de4e30fd162fda3cdfdebd5a8842c7797ce11c998fdc461c48e2a5a2178ef0"
     },
     {
       "path": "bitnet/analysis/q-contract-fix-2026-11-16/README.md",
@@ -336,11 +291,6 @@
       "path": "bitnet/analysis/q-contract-fix-2026-11-16/SUMMARY.json",
       "bytes": 58243,
       "sha256": "f1baf78325ee47fe1accb015e8c3922386c3c516cd196af7060b9e40443129e7"
-    },
-    {
-      "path": "bitnet/analysis/q-contract-fix-2026-11-16/SUMMARY_ZH.md",
-      "bytes": 7016,
-      "sha256": "985c4d1c9352e949945012be116a74426215f46555baa58f078c8096c6143c45"
     },
     {
       "path": "bitnet/analysis/review-2026-11-15/ORIGINAL_POC_PHONE.md",
@@ -369,13 +319,13 @@
     },
     {
       "path": "bitnet/analysis/review-2026-11-15/REVIEW_SEMANTICS.json",
-      "bytes": 7453,
-      "sha256": "63c9ac402421aeeec0e0c5e99ef0a2f0ed01fc06e1a61e5e9860e4118162ca7a"
+      "bytes": 7631,
+      "sha256": "83236f46c158a8f3bdf672e1d43c57abe7baadaa517519fecf0327b55e82c5ea"
     },
     {
       "path": "bitnet/analysis/review-2026-11-15/REVIEW_SEMANTICS.md",
-      "bytes": 6444,
-      "sha256": "daabee6e331343e7e3affb1cbe8c2f582a40584d44f5d06d6b97fb1f63757d6b"
+      "bytes": 6422,
+      "sha256": "d4bd8a2d937dd2fbe7ade807b3a25441546d9ef4641a7d53dd4287d1dfaf602f"
     },
     {
       "path": "bitnet/analysis/review-2026-11-15/analyze-guard-control.py",
@@ -409,13 +359,8 @@
     },
     {
       "path": "bitnet/docs/CHANGES_FROM_QVAC.md",
-      "bytes": 11019,
-      "sha256": "0936fdc2800a6cadebd084fe0f947e8786551c5c4ef915b8f1394ab24c013118"
-    },
-    {
-      "path": "bitnet/docs/IPHONE_ATTRIBUTION_PLAN.md",
-      "bytes": 5843,
-      "sha256": "4424d227402f382fd045e1024a747091b9082df8e0cb310e73ecd57e4c366131"
+      "bytes": 11896,
+      "sha256": "f61f8a4eb5887fe0d54fc56999e82ff81cc0662df4b040370743f01c712e436c"
     },
     {
       "path": "bitnet/docs/IPHONE_Q4_COMPLETE_2026-11-15.md",
@@ -429,18 +374,13 @@
     },
     {
       "path": "bitnet/docs/IPHONE_TEST_PLAN_2026-11-16.md",
-      "bytes": 17979,
-      "sha256": "7253efd23fef2e909f468bd3464b2cce4cf5dbb73299efc6a7f76e763a777681"
+      "bytes": 16916,
+      "sha256": "ed9b347b02bbf647bb9e1cb45c2a1942b6f0d806964105b2076e0f3a25059ab8"
     },
     {
       "path": "bitnet/docs/LIMITATIONS.md",
-      "bytes": 4271,
-      "sha256": "a3c916bd39be2f885668b5d8986a7fab19c4bf04a0a71ad418acb263a0411902"
-    },
-    {
-      "path": "bitnet/docs/MAC_QCUR0_DIAGNOSTIC.md",
-      "bytes": 5765,
-      "sha256": "66a3a72299c41338b590ddc95bdca96772b10eae9943d1ee318842e0f2aa53a2"
+      "bytes": 5018,
+      "sha256": "4bc5e3dbe027482bd3433d6924c074695d95d03d8fc61abbc46f6a6a8dab2847"
     },
     {
       "path": "bitnet/docs/PHONE_GUARD_CONTROL_2026-11-15.md",
@@ -454,13 +394,18 @@
     },
     {
       "path": "bitnet/docs/Q_KERNEL_CONTRACT_FIX.md",
-      "bytes": 13632,
-      "sha256": "2fae6a20d61c1e71500a926403897070f82c44ee47a85d8a94cdea1fbb88cea0"
+      "bytes": 14979,
+      "sha256": "0d574ff0395af35d1034bec54bd680a0a9dbcc3d8f7234e2f0190187c766da44"
     },
     {
       "path": "bitnet/docs/SOURCE_WALKTHROUGH.md",
       "bytes": 5329,
       "sha256": "6ed64098c0a96d069bf9d77215e1546a32d21b4af22e263d7399d8642af68db1"
+    },
+    {
+      "path": "bitnet/docs/SUBMISSION_SCOPE.md",
+      "bytes": 3920,
+      "sha256": "afb008c28438381bac0007eb0b77d3193fa0027a8e7617065ea1d893fae45bd6"
     },
     {
       "path": "bitnet/docs/VALIDATION.md",
@@ -653,11 +598,6 @@
       "sha256": "34e2532a8e18cd42f2540ff1934a3e5e29958a57b7d7b58f1f19ccff73a9455a"
     },
     {
-      "path": "bitnet/patches/mac-qcur0-encoder-diagnostic.patch",
-      "bytes": 31322,
-      "sha256": "d140f98f968fb58e93e3c4efcf75f9ba02f03ee78c0457447540c552c39e4ebd"
-    },
-    {
       "path": "bitnet/patches/pinned-to-iphone.patch",
       "bytes": 117151,
       "sha256": "62e92bb1e35cd6671257c49509ee3c1b6a9abaa423d40a656adcc53fd72f73b8"
@@ -683,69 +623,24 @@
       "sha256": "5c44ac2e6f6c408dafc51b89d23cbbe9413ac68be556ce87fbd6bbec1816d2b2"
     },
     {
-      "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal.docx",
-      "bytes": 139332,
-      "sha256": "97a723d6b33cd73ad1ead4331f56d3854a043845a387f8952ecd90ccc93bc428"
-    },
-    {
       "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal.pdf",
-      "bytes": 252152,
-      "sha256": "5d78d44ab021a2f26d35c988290f99495e3821e7cf2424b8c52a044bc08b94d8"
-    },
-    {
-      "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal_ZH.docx",
-      "bytes": 148942,
-      "sha256": "d24f3965d06993080b49e33114e41c94320f9a82ef8caa1fd709f73c93c9eb66"
-    },
-    {
-      "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal_ZH.pdf",
-      "bytes": 628415,
-      "sha256": "83dfd98bc788214f4f059cc804950db5b402ec1929698b5b0da455ca9bddd60e"
+      "bytes": 252183,
+      "sha256": "e1b5b042ec8e094bc8a9ce8acdbeb6124c9e876e88a8c27439dab1277a14432a"
     },
     {
       "path": "bitnet/proposal/MANIFEST.json",
-      "bytes": 4457,
-      "sha256": "13dd583717edbdf34a4417b3888d4426e6b6a1f5e0740fa7c487350957daef44"
-    },
-    {
-      "path": "bitnet/proposal/MANIFEST_ZH.json",
-      "bytes": 2790,
-      "sha256": "73ee66b1f3998ea4dbea4c359a7fbc9bf02254024a8b381479cbaf3d33703f4e"
-    },
-    {
-      "path": "bitnet/proposal/OUTLINE.md",
-      "bytes": 3359,
-      "sha256": "39e6bb325896dd240825dc81b85445e09029accec8c2de0078a8264c1e5dd0f6"
-    },
-    {
-      "path": "bitnet/proposal/PENDING_A16_RESULTS.json",
-      "bytes": 50256,
-      "sha256": "27809e89b8a2c2a9647309d206d8fe72554257fbfd00b6945ddf7876d1f5b462"
+      "bytes": 3956,
+      "sha256": "8ae8daa2bded86cbf3792815959183a0e24d42b609c3daa7399aade1950cbda7"
     },
     {
       "path": "bitnet/proposal/PROPOSAL.md",
-      "bytes": 80301,
-      "sha256": "e66c04bf034c6488a926b7f7eb5b9dcb0468eab43323001f88348c0a3a10ed0f"
-    },
-    {
-      "path": "bitnet/proposal/PROPOSAL_ZH.md",
-      "bytes": 77541,
-      "sha256": "e5026993c429de7708a6ea45253d0584908a5facf72d957b91ed5d276192b76b"
+      "bytes": 80341,
+      "sha256": "15eb5e7e4cf8560915c064078d17a760476a24c91f5b3e0278cb3472c8233d47"
     },
     {
       "path": "bitnet/proposal/README.md",
-      "bytes": 4827,
-      "sha256": "6a6b9e453864ebff258dc60eab4e255068bed9b89e21992915953b268f35a5e2"
-    },
-    {
-      "path": "bitnet/proposal/README_ZH.md",
-      "bytes": 3669,
-      "sha256": "96098c955bd63723572d7812b2eec9ae716e1220e2b961a7be7585eb00f6f446"
-    },
-    {
-      "path": "bitnet/proposal/TRANSLATION_CHECK.json",
-      "bytes": 1205,
-      "sha256": "653c8bab53b1f67a42c8dbffd0402e9d92c1ae3c3dfd3b40b88bb7c90ed59b16"
+      "bytes": 1998,
+      "sha256": "2d046e2c5be5374d70b55ba3c543c6de7e9c5f6f8a276b33c81ec859e52aae83"
     },
     {
       "path": "bitnet/proposal/assets/execution-flow.png",
@@ -758,19 +653,9 @@
       "sha256": "4a5e332bd79d11440a683126d733414fbd900397b32e4c423b2cc57223a64e9e"
     },
     {
-      "path": "bitnet/proposal/check_translation.py",
-      "bytes": 4072,
-      "sha256": "7cdc34d47a961a2bdc4350536eeabf27f520aa495317f34ea28e07b17b15a966"
-    },
-    {
       "path": "bitnet/proposal/render_proposal.py",
       "bytes": 16633,
       "sha256": "218900d2ef2f30551c6038a7ebda6dee9994c363ff0993271a5341df84effbfc"
-    },
-    {
-      "path": "bitnet/proposal/render_proposal_zh.py",
-      "bytes": 8871,
-      "sha256": "fa4cd6813a134568e0bbcec8149ce1a9fc650c01ea53cdd23be287998debcb81"
     },
     {
       "path": "bitnet/proposal/requirements-docs.txt",
@@ -788,6 +673,11 @@
       "sha256": "fbbb83397247888b69f2c598c6ee3cf2731965a7fa0b7c9e1d67b681784ab79f"
     },
     {
+      "path": "bitnet/provenance/FILE_REVIEW.json",
+      "bytes": 64407,
+      "sha256": "80a57c9307ff0902717e7d8fcb8507ee3e1173b913264e47e11df18469f26ba4"
+    },
+    {
       "path": "bitnet/provenance/PUBLIC_MODEL.json",
       "bytes": 733,
       "sha256": "7f4390411f2b6b388a3d12f34c080956754c9c12c0fe45e71afdb8f61256278d"
@@ -799,8 +689,8 @@
     },
     {
       "path": "bitnet/reference/README.md",
-      "bytes": 5466,
-      "sha256": "6b634603482e1e836790b61c4c007c25731a6e9aaf645074f4c777251e99811e"
+      "bytes": 5670,
+      "sha256": "5ff132b62375d5eea4e018c2cd6088bff0eb1451016f53912e30c4cc5b130e1c"
     },
     {
       "path": "bitnet/reference/RERUN.md",
@@ -809,8 +699,8 @@
     },
     {
       "path": "bitnet/reference/SOURCE_PROVENANCE.json",
-      "bytes": 2539,
-      "sha256": "4c9772039f23504070b6492afa083fde18c403477b71ed376f540f5c2c1e3b7b"
+      "bytes": 3353,
+      "sha256": "1c833a6085a8b12e155f116940f01b8d944d76c806c82ebb5ad76358ed03c718"
     },
     {
       "path": "bitnet/reference/TRANSFORMERS_LICENSE",
@@ -853,11 +743,6 @@
       "sha256": "8b2325836ebad847703e7492aa77e414844b7f00568cb928baad7782a04e656c"
     },
     {
-      "path": "bitnet/reference/repair_rankings.py",
-      "bytes": 1631,
-      "sha256": "00fe3b6b1069fac104ad9d4cac621bab271cc54724ef19c2a908b647403f47b1"
-    },
-    {
       "path": "bitnet/reference/requirements.txt",
       "bytes": 81,
       "sha256": "88f18207ea53e9247d03ccbea3590b0393d90e78cd8c4bed4d78e660bc1e3a19"
@@ -889,8 +774,8 @@
     },
     {
       "path": "bitnet/shaders/README.md",
-      "bytes": 3000,
-      "sha256": "b9d75cc135370a890a233d096011496257c0e53855f6a58f33d283c274bbba6e"
+      "bytes": 4115,
+      "sha256": "2d1530e14eab8e50948306c182dd7bb858131d9f96927561ea63c32a6722603c"
     },
     {
       "path": "bitnet/shaders/SOURCES.json",
@@ -958,21 +843,6 @@
       "sha256": "a1c98b8e40f116c06946b169aad73f1ce79899b4399a3825325f60b6922a4772"
     },
     {
-      "path": "bitnet/tests/analyze_mac_q_encoder_probe.py",
-      "bytes": 14081,
-      "sha256": "5d4bd7cca513e7929f3b164c1b5cfdbe957e79e729a44f4e638c33f8d1c6c0d8"
-    },
-    {
-      "path": "bitnet/tests/analyze_mac_q_operator.py",
-      "bytes": 12321,
-      "sha256": "ef561e63e4f52d8d583432c576e5dcc820b54a2d6c46059dd2f16ba82deab9ed"
-    },
-    {
-      "path": "bitnet/tests/analyze_mac_q_value.py",
-      "bytes": 7381,
-      "sha256": "5624d5724551ad397e866e100b8ca291956a45827e2be9690e5a758e28968bb3"
-    },
-    {
       "path": "bitnet/tests/analyze_q_graph_contract.py",
       "bytes": 7947,
       "sha256": "3206d930fabd03451c5e885ab585693f11f44b0b8f3341ff4159775824519eb0"
@@ -993,11 +863,6 @@
       "sha256": "3d994e539ada64b869be0414801819611705eaef7976387848ed657051d281e4"
     },
     {
-      "path": "bitnet/tests/mac_q_operator.mm",
-      "bytes": 13766,
-      "sha256": "bcde617ec2f1ddde984e1541aed6c3233960ff223402c4b6751207b3cc46f530"
-    },
-    {
       "path": "bitnet/tests/q_graph_contract.cpp",
       "bytes": 18094,
       "sha256": "4f432604c2cc67d74e149f15c8cb19c331bdccea1a351dc7ce3974b79c33b059"
@@ -1011,16 +876,6 @@
       "path": "bitnet/tests/run_iphone_attribution.py",
       "bytes": 11271,
       "sha256": "3c40c3b5d043f7d82478e8f64ef29cc8cc13d11995661af3fe839a61825611ce"
-    },
-    {
-      "path": "bitnet/tests/run_mac_q_operator.py",
-      "bytes": 6222,
-      "sha256": "a2d6c66f1e99e407478695c78e31f4e324f3ab49bd5ad304198c5db4bf6d52d7"
-    },
-    {
-      "path": "bitnet/tests/run_mac_q_value.py",
-      "bytes": 12597,
-      "sha256": "93530b9da1a1fb37802080e657c6c6c612683196cbd7f5d44f7848742540d0c5"
     },
     {
       "path": "bitnet/tests/run_q_contract_cpu.py",
@@ -1076,16 +931,6 @@
       "path": "bitnet/tests/test_iphone_q_summary.py",
       "bytes": 4988,
       "sha256": "909765208f36e8b5ebb41580ebae4decaee48d3e5114768be8551001f5012e7e"
-    },
-    {
-      "path": "bitnet/tests/test_mac_q_encoder_probe.py",
-      "bytes": 5129,
-      "sha256": "93969bfc6039ff7438b499ba6a0fa59abd73e55d7bb33f1b583f9bf8f01a3231"
-    },
-    {
-      "path": "bitnet/tests/test_mac_q_value.py",
-      "bytes": 4998,
-      "sha256": "369d2f0292506b82d166528739101a08b12bc06292264aea6fcdabd68c656aa7"
     },
     {
       "path": "bitnet/tests/test_q_graph_evidence.py",
@@ -1357,5 +1202,6 @@
   "attribution_preparation_phone_pass": null,
   "attribution_preparation_performance_claim": false,
   "evidence_cutoff": "2026-11-16 Asia/Tokyo",
-  "raw_experiment_data_included": false
+  "raw_experiment_data_included": false,
+  "submission_language": "English"
 }

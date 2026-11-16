@@ -93,7 +93,7 @@ Primary QB snapshot/key p50/p95 is 34.292/45.948 µs; lock-wait totals 0.333 µs
 
 The separate metrics OFF/ON campaign is intrusive: all 18 route/round medians increase by 0.498–6.814 ms. Formal results therefore use metrics OFF. Each token has two natural CBs in the diagnostic; interval-union analysis avoids overlap double-counting. Host encoding and GPU timelines use distinct clock domains. Existing CB timing does not isolate the selected dispatch or prove its normal-schedule critical-path contribution. The old pre-hardening same-shader “no measurable overhead” result remains historical; current file-aware getter code has a different measured cost.
 
-The historical phone guard-control difference of roughly 10-13 ms remains a separate observation. Today's Mac source profile, host diagnostics and thermal evidence do not retrospectively decompose that earlier phone result. The prepared same-profile A16 controls still need device execution.
+The historical phone guard-control difference of roughly 10-13 ms remains a separate observation. This Mac source profile, host diagnostics and thermal evidence do not retrospectively decompose that earlier phone result. At this campaign's cutoff, the prepared same-profile A16 controls had not run. Their later physical-device results are reported separately in the [current A16 analysis](../iphone-qcur0-attribution-2026-11-16/README.md).
 
 ## Separate selected-encoder timestamp probe
 
@@ -124,11 +124,11 @@ These sequential campaigns share the same probe build but do not directly pair s
 
 Keep stock as the default. Retain Q4 and its correctness proof as the scoped PoC optimization. Do not claim end-to-end, power, A16, full-model semantic equivalence or a hardware bandwidth/occupancy bottleneck. No new algorithm was selected or implemented in this campaign.
 
-The next justified implementation question is whether immutable, session-bound pipeline planning can avoid repeated warm file-identity snapshot work while preserving the existing path-change/wrong-library/geometry/cache-invalidation safety tests. That is a proposed optimization, not a result here. First reproduce the current same-build scoped gate and measurement on A16 in the separately prepared evening sequence; do not carry the Mac gain over as a phone result.
+The next justified implementation question is whether immutable, session-bound pipeline planning can avoid repeated warm file-identity snapshot work while preserving the existing path-change/wrong-library/geometry/cache-invalidation safety tests. That is a proposed optimization, not a result here. The later [A16 qualification and measurement](../iphone-qcur0-attribution-2026-11-16/README.md) has its own actual results; the Mac gain is not carried over as a phone result.
 
-[中文结果](SUMMARY_ZH.md) and [optional diagnostic patch](../../docs/MAC_QCUR0_DIAGNOSTIC.md) provide companion material. Supplemental controller code commit: `5a8b534a289c294a50ad2f2718f5d07fe2a2f78f`. The optional probe source commit is `6c775b38cc0283ba126da3dc1890bfd9a2a6b864`; its patch SHA-256 is `d140f98f968fb58e93e3c4efcf75f9ba02f03ee78c0457447540c552c39e4ebd`.
+Historical supplemental controller commit: `5a8b534a289c294a50ad2f2718f5d07fe2a2f78f`. The separate probe source commit is `6c775b38cc0283ba126da3dc1890bfd9a2a6b864`; its patch SHA-256 is `d140f98f968fb58e93e3c4efcf75f9ba02f03ee78c0457447540c552c39e4ebd`. The Mac-specific controllers, probe patch and detailed probe instructions are retained in the author's local archive, rather than the focused phone submission. The probe was never part of the normal or iPhone native build.
 
-## Local evidence and rerun
+## Historical evidence and local archive
 
 Raw logs, tensors and per-pair/per-step/per-row data remain local. This directory publishes only code-linked analysis and compact aggregates. Artifact names below are relative to local experiment `mac-qcur0-value-2026-11-16_152746+0900`; they are not bundled in Git. Their hashes are indexed in `SUMMARY.json`.
 
@@ -142,31 +142,8 @@ Raw logs, tensors and per-pair/per-step/per-row data remain local. This director
 | Structural projection counts | `SELECTED_KERNEL_REUSE.json` |
 | Separate encoder probe | `profiling-feasibility/encoder-probe/{SOURCE-v2.json,PROBE_FINDINGS.json}`, its `runtime/` and `followup/` |
 
-Supplemental scripts require Python 3.10+ and NumPy; the recorded runs use the existing project analysis venv. The small controller failure-status fix was verified by a CPU-only negative control after the successful campaign; it changes no native binary, shader, successful command or metric.
+The historical supplemental controllers required Python 3.10+ and NumPy and used the original project analysis environment. The controller failure-status correction was checked by a CPU-only negative control after the successful campaign; it changed no native binary, shader, successful command or metric.
 
-Commands run from the repository root; set each variable to a local retained artifact or a fresh output path. Analysis commands are CPU-only; `--run` explicitly starts Mac GPU work. The local-state JSON binds prepared build/model/library/readiness artifacts; absent fixtures are a missing prerequisite, not an implicit pass.
+Those Mac-only controllers and the intrusive encoder-probe tooling are deliberately not part of this focused submission. Exact original commands, their source snapshots and raw evidence remain in the author's local archive under the experiment identity above. The entries in `SUMMARY.json` identify historical evidence and hashes; they are not dependencies that the current phone runner loads. No executable command in this document requires a removed Mac controller.
 
-```sh
-python3 -m venv "$ANALYSIS_VENV"
-"$ANALYSIS_VENV/bin/python" -m pip install numpy
-export PATH="$ANALYSIS_VENV/bin:$PATH"
-python3 -m unittest discover -s bitnet/tests -p "test_mac_q*.py"
-python3 bitnet/tests/run_mac_q_value.py \
-  --state "$LOCAL_STATE" --plan --through formal --output "$NEW_PLAN"
-python3 bitnet/tests/run_mac_q_value.py \
-  --state "$LOCAL_STATE" --run --through formal --output "$NEW_CAMPAIGN"
-python3 bitnet/tests/analyze_mac_q_value.py \
-  --run "$LOCAL_FORMAL_RUN" --gate "$LOCAL_MAC_GATE" --output "$NEW_ANALYSIS"
-python3 bitnet/tests/summarize_q_attribution_cpu.py \
-  --run "$LOCAL_DIAGNOSTIC_RUN" --output "$NEW_CPU_ANALYSIS"
-python3 bitnet/tests/run_mac_q_operator.py --run \
-  --gate "$LOCAL_MAC_GATE" --verification-run "$LOCAL_PRIMARY_VERIFY" \
-  --developer-dir "$DEVELOPER_DIR" --output "$NEW_OPERATOR_RUN"
-python3 bitnet/tests/analyze_mac_q_operator.py \
-  --run "$LOCAL_OPERATOR_RUN" --output "$NEW_OPERATOR_ANALYSIS"
-python3 bitnet/tests/analyze_mac_q_encoder_probe.py \
-  --diagnostics "$LOCAL_PROBE_DIAGNOSTIC" --mode target \
-  --expected-cbs 64 --output "$NEW_PROBE_ANALYSIS.json"
-```
-
-Use `--mode empty` for empty-scope evidence. Omit `--expected-cbs 64` for callback-capture diagnostics, which have 256 natural CBs in the recorded primary verification. The portable analyzer does not itself enable/apply the native probe patch. Native execution 0, scoped numerical/stock acceptance 0, and historical official-model strict 1 are different outcomes.
+For the submitted phone reproduction, use the current [A16 analysis and procedure](../iphone-qcur0-attribution-2026-11-16/README.md). Native execution 0, scoped numerical/stock acceptance 0, and the historical official-model strict 1 remain distinct outcomes.

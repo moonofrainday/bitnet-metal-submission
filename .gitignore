@@ -194,3 +194,10 @@ AGENTS.local.md
 **/q-rows.csv
 **/failed-q-rows.csv
 **/reference-audit.csv
+
+# Final submission: translated companions and editable Word products stay local.
+/bitnet/**/*_ZH.*
+/bitnet/proposal/render_proposal_zh.py
+/bitnet/proposal/check_translation.py
+/bitnet/proposal/TRANSLATION_CHECK.json
+/bitnet/proposal/*.docx

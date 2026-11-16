@@ -2,7 +2,7 @@
 
 **Metal proof of concept and Vulkan portability plan**
 
-Prepared for the Tether technical assessment. Submission preparation version; pending device results are explicitly marked. Evidence cutoff 16 November 2026, Asia/Tokyo.
+Prepared for the Tether technical assessment. Technical plan and measured validation record. Unverified claims and retained failures are explicitly identified. Evidence cutoff 16 November 2026, Asia/Tokyo.
 
 ## 1 Executive proposal
 
@@ -620,7 +620,7 @@ The private source repository contains the pinned QVAC source, compatibility cha
 | `bitnet/actquant/` | Source-F32 oracle, fresh operator/model runners and strict analyzers |
 | `bitnet/analysis/` | Separate original/Q4, reference diagnostics and combined ActQuant/Q4 derived results; raw evidence stays local |
 
-The published source import omits 63 upstream CI workflow files because of the available GitHub credential scope; runtime/local build/test source is retained, and exact exclusions are documented. Baseline compatibility, activation and launch/cache changes are applied here. The optional Mac encoder diagnostic patch is not applied to the normal or phone build; inspect each patch base before use. A separate pristine upstream checkout is required for the clean standalone baseline comparison.
+The published source import omits 63 upstream CI workflow files because of the available GitHub credential scope; runtime/local build/test source is retained, and exact exclusions are documented. Baseline compatibility, activation and launch/cache changes are applied here. Independent Mac encoder-probe research tooling is archived locally and excluded from this submission build; inspect each retained patch base before use. A separate pristine upstream checkout is required for the clean standalone baseline comparison.
 
 ### Minimal numerical rebuild
 
@@ -681,9 +681,9 @@ Workspace experiment names below are under `outputs/experiments/`. Package analy
 
 - [E12] Package `bitnet/analysis/actquant-q4-joint-2026-11-16/`: earlier joint stock-ON phone qualification and operator timing.
 
-- [E13] Package `bitnet/analysis/mac-qcur0-value-2026-11-16/`: Mac selected-Q controls; source `5a8b534`, analysis `1bae1cd`. Optional probe `6c775b38` remains separate.
+- [E13] Package `bitnet/analysis/mac-qcur0-value-2026-11-16/`: Mac selected-Q controls; source `5a8b534`, analysis `1bae1cd`. Probe `6c775b38` is archived locally; its derived observations remain separate.
 
-- [E14] Package `bitnet/docs/Q_KERNEL_CONTRACT_FIX.md`, `bitnet/docs/IPHONE_TEST_PLAN_2026-11-16.md` and `bitnet/analysis/iphone-attribution-preparation-2026-11-16/`: safety source `8ebcdb7`, prepared source `14a9f103`; current phone runtime qualification is recorded separately in [E15].
+- [E14] Package `bitnet/docs/Q_KERNEL_CONTRACT_FIX.md` and `bitnet/docs/IPHONE_TEST_PLAN_2026-11-16.md`: safety source `8ebcdb7`, prepared source `14a9f103`; current phone runtime qualification is recorded separately in [E15].
 
 - [E15] Local experiment `outputs/experiments/iphone-evening-2026-11-16_185231+0900/`: actual `14a9f103` package qualification, build-bound gate, independent correctness/timing audits and current A16 operator comparison. Controller import repair `a4f5433` changes Python only. Derived analysis index: `bitnet/analysis/iphone-qcur0-attribution-2026-11-16/`; raw arrays, CSV, logs and signed products remain local.
 

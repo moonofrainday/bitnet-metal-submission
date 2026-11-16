@@ -1,9 +1,6 @@
-# iPhone 14 Pro: staged Qcur-0 verification and performance plan
+# iPhone 14 Pro physical Qcur-0 validation protocol
 
-Status at preparation: **the current canonical-contract attribution package has
-not yet been qualified on the phone**. This document records an executable plan,
-not completed measurements. No phone, signing, build or GPU command was executed
-to prepare this plan.
+The source-bound `14a9f103` A16 package completed the prescribed correctness and measurement gates on 16 November 2026. See [the actual derived results](../analysis/iphone-qcur0-attribution-2026-11-16/README.md). This file specifies the reproducible protocol for a fresh package or run; planning commands by themselves execute no device work. Historical earlier-package results do not replace a new package's qualification.
 
 The scope is the existing layer-0 `Qcur-0` candidate on A16: actual stock (S),
 full guards followed by actual stock (QB), and stock4×1 (Q4). There is no new
@@ -17,7 +14,7 @@ this iPhone build.
 | --- | --- |
 | QVAC base | `2db8b046d555316019ae75d1be90484adc8b9330` plus the recorded compatibility, ActQuant and canonical-contract patches |
 | Prepared native attribution source | `14a9f103c23b5a24bd0da1e0dbc5a0d5a37ade3a`; bind actual source/product hashes, not only embedded Git metadata |
-| Prepared phone package | The source-bound `ios-signed-v2` package; build success is recorded, new phone runtime is PENDING |
+| Prepared phone package | The source-bound `ios-signed-v2` package; fresh A16 correctness and measurements are recorded in the linked current analysis |
 | Earlier qualified phone version | `edbd109`; retain its results separately, never relabel them as current-package results |
 | Model | Public Microsoft BitNet 2B converted TQ2_0 checkpoint; not the team's private checkpoint |
 | GGUF SHA-256 | `52257df879ab4366d97228e7bda94a9a3c6a9065ec44e7879a8b87d54e568cd2` |
@@ -51,7 +48,7 @@ stock-fallback run. The supported missing-library control must actually reach
 the guarded route and then use stock safely. A QB run that skips full checks is
 not a valid same-shader control. C8 may appear in the fixed 18-case loader safety
 tests and the preserved operator harness; it is not a new optimization candidate
-or the main performance contrast tonight.
+or the main performance contrast.
 
 If a required correctness check is false, stop performance for that package.
 Missing evidence, device disconnection or environment failure remains
@@ -204,11 +201,11 @@ Do not claim that extra canary coverage for this phone run.
   encoding, launch and scheduling; it is not pure shader cost. Previous Mac
   results motivate this test but are not A16 results.
 
-## Pending result ledger
+## Fresh-run result template
 
-Fill only from the actual artifacts. `PENDING` is intentionally not a pass.
+These cells are a template for a new run, not the completed `14a9f103` campaign. Fill them only from that new run's artifacts. Current completed measurements are linked at the top of this protocol; `PENDING` is intentionally not a pass.
 
-| Current-package field | Result/evidence to fill |
+| Fresh-run field | Result/evidence to fill |
 | --- | --- |
 | Physical device model, iOS, GPU | **PENDING** |
 | App/framework/source/shader/canonical-config hashes | **PENDING** |
@@ -233,7 +230,7 @@ directories. Publish only scripts, patches and derived analysis. Keep each
 package/campaign separate from the earlier `edbd109` phone results and from the
 Mac campaign. Preserve strict numerical failures and missing evidence.
 
-## Time allocation and stop points
+## Execution duration and stop points
 
 These are planning timeboxes, not a completion promise: allow roughly 15 minutes
 for identity/cold-loader inspection, 45 minutes for correctness, 30 minutes for
@@ -248,23 +245,4 @@ restore times. The fixed protocol contains **756 timed 32-token paths**
 cooldown. Do not promise a Mac-based ETA or cut the protocol silently. If the
 evening ends early, save completed rounds and mark the remainder PENDING.
 
-## 中文执行清单
-
-1. 先核对新包、模型和输入哈希，跑两次独立进程的 18 项合约/缓存检查；旧
-   `edbd109` 的通过不能替代新包验收，首次加载失败必须保留。
-2. 同构建跑 20 例 ActQuant，两组 history 的全部 32 次 Q 和 33 份 logits；
-   补齐同进程 S/QB/Q4、真实 PSO/ABI/buffer/offset、FP64、读回中立性与回退。
-3. 正确性过关后才测。先做不切分 CB 的 CPU/cache/自然 CB 诊断，再单独测插桩
-   开销；不把嵌套 CPU 时间和 GPU 时间相加当成完整墙钟拆解。
-4. 从新手机结果提取实际 post-ActQuant W/X，做独立算子 A/A 与 stock/Q4：
-   预热 30 次，三轮各 201 对。此耗时不包含量化、接入检查和整模型调度。
-5. 再测两组 history 的整段 decode：A/A、S/QB、S/Q4，预热两次完整回放，三轮
-   各 21 对，平衡顺序。记录热状态、供电、低功耗模式和时间趋势，不混池。
-6. 可选正常 trace 只尝试一次；无法取得的 counter/逐算子占比写 unavailable。
-   不把 Mac 的 encoder/fence 探针带入手机基线。
-7. 原容差和官方参考严格失败退出码 1 均保留。局部正确、stock parity、单算子
-   加速和整模型加速分开写；未测填 PENDING。原始数据留本地，只上传代码与分析。
-
-Related source protocols: [IPHONE_ATTRIBUTION_PLAN.md](IPHONE_ATTRIBUTION_PLAN.md),
-[prepared-build scope](../analysis/iphone-attribution-preparation-2026-11-16/README.md),
-and [Mac scope and limits](../analysis/mac-qcur0-value-2026-11-16/README.md).
+Related retained documents: [current results](../analysis/iphone-qcur0-attribution-2026-11-16/README.md), [build and run](BUILD_AND_RUN.md), and [canonical kernel contract](Q_KERNEL_CONTRACT_FIX.md).

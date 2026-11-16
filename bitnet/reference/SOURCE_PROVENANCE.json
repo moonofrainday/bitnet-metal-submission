@@ -32,5 +32,14 @@
     "analyze_reference.py": "35152192f2f7194360ade2eeffb6b2227000b89d171780e3b7e129713e937da5",
     "q_activation_semantics.py": "8b2325836ebad847703e7492aa77e414844b7f00568cb928baad7782a04e656c"
   },
-  "packaging_note": "Portable dataset/source/dependency path arguments and corpus-description labels added to streamed driver; reference arithmetic unchanged. Old local raw results and serialization-repair audit are preserved."
+  "reference_scripts_hash_scope": "Historical source identities. The archived_local_scripts entries below are intentionally not bundled and are not required by a fresh canonical reference run.",
+  "archived_local_scripts": {
+    "repair_rankings.py": {
+      "sha256": "00fe3b6b1069fac104ad9d4cac621bab271cc54724ef19c2a908b647403f47b1",
+      "included_in_submission": false,
+      "required_for_fresh_canonical_run": false,
+      "purpose": "One-off JSON ranking repair for the initial historical run; current streamed_reference.py already includes the serialization fix. Original summaries and repair audit remain in the local research archive."
+    }
+  },
+  "packaging_note": "Portable dataset/source/dependency path arguments and corpus-description labels added to streamed driver; reference arithmetic unchanged. Old local raw results and serialization-repair audit are preserved. Submission cleanup archives the one-off repair script without changing historical source hashes, reference arithmetic or strict model-comparison failures."
 }

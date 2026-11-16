@@ -1,0 +1,1452 @@
+{
+  "schema": 1,
+  "scope": "Submission-only current tree; reviewed authored additions and modified framework files; coherent pinned upstream base retained.",
+  "before_cleanup_tracked_files": 4451,
+  "baseline_files_retained": 4205,
+  "baseline_paths_removed": 0,
+  "current_files": 4420,
+  "retained_overlay_records": 238,
+  "archived_local_only_files": 33,
+  "source_and_phone_harness_arithmetic_changed": false,
+  "actual_iOS_source_identity_native_files_unchanged": 1070,
+  "actual_iOS_source_identity_package_files_unchanged": 30,
+  "CPU_regression_tests_passed": 100,
+  "policy": {
+    "primary_deliverables": "English PDF plus source scripts and sample-I/O harness",
+    "upstream_base": "Retained with build/vendor/SwiftUI/test/license resources and declared original CI exclusions.",
+    "optional_compiled_helpers": "Retained where the tested iOS builder/router requires them; inactive research and attribution documented.",
+    "Chinese_and_Word": "Local archive only in current submission tree.",
+    "raw_experiment_data": "Local only; aggregate evidence may be included.",
+    "upstream_Unicode_fixtures": "Preserved functional tokenizer/parser test assets."
+  },
+  "files": [
+    {
+      "path": ".gitattributes",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": ".gitignore",
+      "origin": "modified_baseline",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "README.md",
+      "origin": "modified_baseline",
+      "keep": true,
+      "purpose": "Rewrite current-state landing page: remove obsolete unqualified/unmeasured claims and Chinese links, point to actual current A16 results and English deliverables."
+    },
+    {
+      "path": "README.upstream.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "bitnet/actquant/ACCEPTANCE.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "English build/reference/acceptance/provenance/dependency documentation for retained source; retain and update stale links if archival is adopted."
+    },
+    {
+      "path": "bitnet/actquant/CMakeLists.txt",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "English build/reference/acceptance/provenance/dependency documentation for retained source; retain and update stale links if archival is adopted."
+    },
+    {
+      "path": "bitnet/actquant/README.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "English build/reference/acceptance/provenance/dependency documentation for retained source; retain and update stale links if archival is adopted."
+    },
+    {
+      "path": "bitnet/actquant/analyze_attribution.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: CPU-only attribution archive validation and thermally separated statistics."
+    },
+    {
+      "path": "bitnet/actquant/analyze_attribution_verify.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: CPU-only same-process S/QB/Q4 verification, including observed stock PSO identity."
+    },
+    {
+      "path": "bitnet/actquant/analyze_op.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: CPU-only verification of saved F32 ActQuant outputs and integer-grid codes."
+    },
+    {
+      "path": "bitnet/actquant/analyze_q4.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: CPU-only scoped stock-ON/Q4-ON audit. Never executes a model or Metal."
+    },
+    {
+      "path": "bitnet/actquant/analyze_q_timing.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: CPU-only audit of the legacy A16 Q operator timing protocol."
+    },
+    {
+      "path": "bitnet/actquant/analyze_qb.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: CPU-only full-guard/stock QB qualification; not official-model acceptance."
+    },
+    {
+      "path": "bitnet/actquant/attribution.h",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Same-context correctness-first S/QB/Q4 measurement implementation, used directly by runner.cpp."
+    },
+    {
+      "path": "bitnet/actquant/compare_model.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Preserved strict trusted-model comparison; necessary to reproduce observed reference failure without hiding it."
+    },
+    {
+      "path": "bitnet/actquant/make_attribution_gate.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: Bind completed same-build phone correctness evidence before attribution timing."
+    },
+    {
+      "path": "bitnet/actquant/prepare_fixtures.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: Prepare local F32 ActQuant cases from the immutable Microsoft reference."
+    },
+    {
+      "path": "bitnet/actquant/prepare_q_fixture.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: CPU-only legacy Q operator fixtures from accepted fresh ActQuant-ON A16 captures."
+    },
+    {
+      "path": "bitnet/actquant/q4_contract.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Canonical stock4x1 library/source/entry provenance checks; also used by phone host runner."
+    },
+    {
+      "path": "bitnet/actquant/requirements.txt",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "English build/reference/acceptance/provenance/dependency documentation for retained source; retain and update stale links if archival is adopted."
+    },
+    {
+      "path": "bitnet/actquant/run_mac.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Fresh host numerical regression support, not the archived Mac performance campaign."
+    },
+    {
+      "path": "bitnet/actquant/run_phone.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Current gated ActQuant/Q4 attribution device launcher, with package/direct-script import repair."
+    },
+    {
+      "path": "bitnet/actquant/runner.cpp",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Shared model quantizer/teacher-forcing/diagnostic native harness compiled into iOS and Mac numerical executable."
+    },
+    {
+      "path": "bitnet/actquant/runner.h",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Header/shared ABI required by retained native source or canonical build identity."
+    },
+    {
+      "path": "bitnet/actquant/test_analyze_op.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Meaningful CPU or actual-native negative/exit/contract regression controls supporting the submitted harness; not measured GPU data."
+    },
+    {
+      "path": "bitnet/actquant/test_attribution.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Meaningful CPU or actual-native negative/exit/contract regression controls supporting the submitted harness; not measured GPU data."
+    },
+    {
+      "path": "bitnet/actquant/test_model_contract.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Meaningful CPU or actual-native negative/exit/contract regression controls supporting the submitted harness; not measured GPU data."
+    },
+    {
+      "path": "bitnet/actquant/test_q4_contract.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Meaningful CPU or actual-native negative/exit/contract regression controls supporting the submitted harness; not measured GPU data."
+    },
+    {
+      "path": "bitnet/analysis-tools/README.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "English build/reference/acceptance/provenance/dependency documentation for retained source; retain and update stale links if archival is adopted."
+    },
+    {
+      "path": "bitnet/analysis-tools/analyze-down-selected.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: Independently audit the selected A16 down outputs against logical-K math.fsum."
+    },
+    {
+      "path": "bitnet/analysis-tools/analyze-ppl-smoke.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: Independently score saved physical-phone logits; never runs a model or GPU."
+    },
+    {
+      "path": "bitnet/analysis-tools/analyze-q4-complete.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: Audit captured layer-0 Q outputs on the CPU; never launch Metal or a phone."
+    },
+    {
+      "path": "bitnet/analysis-tools/analyze-q4-timing.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: Independently recompute phone paired timings; never execute GPU/device work."
+    },
+    {
+      "path": "bitnet/analysis-tools/prepare-q4-fixture.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: Prepare a local Q operator fixture from an accepted real-phone Q capture."
+    },
+    {
+      "path": "bitnet/analysis/2026-11-15-iphone-q4/EVIDENCE_INDEX.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/2026-11-15-iphone-q4/README.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/2026-11-15-iphone-q4/SUMMARY.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/2026-11-15-iphone-q4/decode-rounds.csv",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/2026-11-15-iphone-q4/down-selected-routes.csv",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/2026-11-15-iphone-q4/down-selected-summary.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/2026-11-15-iphone-q4/operator-rounds.csv",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/IOS_RUNNER_CHECKS.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/PACKAGE_CHECKS.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/actquant-2026-11-16/README.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/actquant-2026-11-16/SUMMARY.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/actquant-iphone-2026-11-16/README.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/actquant-iphone-2026-11-16/SUMMARY.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/actquant-q4-joint-2026-11-16/README.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/actquant-q4-joint-2026-11-16/SUMMARY.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/ffn-performance-exploration/README.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/ffn-performance-exploration/SUMMARY.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/iphone-qcur0-attribution-2026-11-16/README.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/iphone-qcur0-attribution-2026-11-16/SUMMARY.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/iphone-qcur0-attribution-2026-11-16/TRACE_OUTCOME.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/mac-qcur0-value-2026-11-16/README.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/mac-qcur0-value-2026-11-16/SUMMARY.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/q-contract-fix-2026-11-16/README.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/q-contract-fix-2026-11-16/SUMMARY.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/review-2026-11-15/ORIGINAL_POC_PHONE.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/review-2026-11-15/PHONE_QUALITY_SMOKE.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/review-2026-11-15/PROFILE_NUMERICS.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/review-2026-11-15/README.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/review-2026-11-15/RERUN.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/review-2026-11-15/REVIEW_SEMANTICS.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/review-2026-11-15/REVIEW_SEMANTICS.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/review-2026-11-15/analyze-guard-control.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/review-2026-11-15/guard-control-summary.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/review-2026-11-15/original-poc-phone-summary.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/review-2026-11-15/phone-ppl-summary.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/analysis/review-2026-11-15/reanalyze-phone-poc.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Derived evidence cited by the technical report, including measured successes, failures and uncertainty; raw experiment payloads are excluded."
+    },
+    {
+      "path": "bitnet/docs/BUILD_AND_RUN.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Required complete dependency, conversion, clean build, fixture and physical-phone execution commands."
+    },
+    {
+      "path": "bitnet/docs/CHANGES_FROM_QVAC.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Update safety/preparation pending claims to current measured scope and remove archived-plan links; preserve exact original-vs-stock-derived attribution."
+    },
+    {
+      "path": "bitnet/docs/IPHONE_Q4_COMPLETE_2026-11-15.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Historical physical-device all32Q/33logit,operator/wholedecode and negativeDown evidence; explicitly older ActQuantOFF."
+    },
+    {
+      "path": "bitnet/docs/IPHONE_RESULTS.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Historical A16 tables, distinct campaigns with exact hashes; can consolidate into existing curated result folders, but preserve values if report keeps historical sections."
+    },
+    {
+      "path": "bitnet/docs/IPHONE_TEST_PLAN_2026-11-16.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retain executable protocol but promote to current English reproduction procedure: remove trailing Chinese checklist, oldPENDING/timeallocation headings and obsolete pre-test state; do not remove unique commands."
+    },
+    {
+      "path": "bitnet/docs/LIMITATIONS.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Keep honest full-reference failure; replace current-phone-unmeasured recommendations with actual scoped pass/current integrated regression; earlier edbd109 unmeasured scope remains historical."
+    },
+    {
+      "path": "bitnet/docs/PHONE_GUARD_CONTROL_2026-11-15.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Reproduction and scope of reportE9 historical same-stock-pipeline control."
+    },
+    {
+      "path": "bitnet/docs/PHONE_STOCK_QUALITY_SMOKE.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Reproduces tiny held-out diagnostic and keeps semantics/quality limits separate."
+    },
+    {
+      "path": "bitnet/docs/Q_KERNEL_CONTRACT_FIX.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Keep exact18-case safety rationale and negative tests; add current14a9A16result crosslink and distinguish older8ebcdb7 build never-run scope."
+    },
+    {
+      "path": "bitnet/docs/SOURCE_WALKTHROUGH.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Required interview/reviewer walkthrough of originalPoC,Q4,livegraph and fallback."
+    },
+    {
+      "path": "bitnet/docs/SUBMISSION_SCOPE.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Primary PoC attribution, required build dependencies and acceptance boundaries."
+    },
+    {
+      "path": "bitnet/docs/VALIDATION.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Required per-reference numerical gates, reproducibility results and preserved failures; do not hide failures to simplify submission."
+    },
+    {
+      "path": "bitnet/down-controls/README.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Supports preserved FFN/down numerical failure disclosure and related native app route; optional research but no zero-risk partial deletion."
+    },
+    {
+      "path": "bitnet/down-controls/SOURCES.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Supports preserved FFN/down numerical failure disclosure and related native app route; optional research but no zero-risk partial deletion."
+    },
+    {
+      "path": "bitnet/down-controls/build-shaders.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Supports preserved FFN/down numerical failure disclosure and related native app route; optional research but no zero-risk partial deletion."
+    },
+    {
+      "path": "bitnet/down-controls/prepare.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Supports preserved FFN/down numerical failure disclosure and related native app route; optional research but no zero-risk partial deletion."
+    },
+    {
+      "path": "bitnet/down-controls/shaders/correction-end.metal",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Supports preserved FFN/down numerical failure disclosure and related native app route; optional research but no zero-risk partial deletion."
+    },
+    {
+      "path": "bitnet/down-controls/shaders/wrap.metal",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Supports preserved FFN/down numerical failure disclosure and related native app route; optional research but no zero-risk partial deletion."
+    },
+    {
+      "path": "bitnet/ios/.gitignore",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "English build/reference/acceptance/provenance/dependency documentation for retained source; retain and update stale links if archival is adopted."
+    },
+    {
+      "path": "bitnet/ios/README.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "English build/reference/acceptance/provenance/dependency documentation for retained source; retain and update stale links if archival is adopted."
+    },
+    {
+      "path": "bitnet/ios/SOURCE_ORIGINS.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "English build/reference/acceptance/provenance/dependency documentation for retained source; retain and update stale links if archival is adopted."
+    },
+    {
+      "path": "bitnet/ios/build.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Clean source-bound arm64 framework, app, shader and provenance builder; always links the complete current native router."
+    },
+    {
+      "path": "bitnet/ios/common.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: Local artifact helpers shared by the iPhone build and runner."
+    },
+    {
+      "path": "bitnet/ios/histories/MANIFEST.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Tiny fixed prompt/continuation configuration, explicitly not tensor/performance raw data; needed to reproduce deterministic histories."
+    },
+    {
+      "path": "bitnet/ios/histories/independent/continuation.ids",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Tiny fixed prompt/continuation configuration, explicitly not tensor/performance raw data; needed to reproduce deterministic histories."
+    },
+    {
+      "path": "bitnet/ios/histories/independent/prompt.ids",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Tiny fixed prompt/continuation configuration, explicitly not tensor/performance raw data; needed to reproduce deterministic histories."
+    },
+    {
+      "path": "bitnet/ios/histories/independent/prompt.txt",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Tiny fixed prompt/continuation configuration, explicitly not tensor/performance raw data; needed to reproduce deterministic histories."
+    },
+    {
+      "path": "bitnet/ios/histories/primary/continuation.ids",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Tiny fixed prompt/continuation configuration, explicitly not tensor/performance raw data; needed to reproduce deterministic histories."
+    },
+    {
+      "path": "bitnet/ios/histories/primary/prompt.ids",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Tiny fixed prompt/continuation configuration, explicitly not tensor/performance raw data; needed to reproduce deterministic histories."
+    },
+    {
+      "path": "bitnet/ios/histories/primary/prompt.txt",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Tiny fixed prompt/continuation configuration, explicitly not tensor/performance raw data; needed to reproduce deterministic histories."
+    },
+    {
+      "path": "bitnet/ios/ppl-prepare.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: Prepare exact BOS+128 held-out IDs for a stock physical-phone quality smoke."
+    },
+    {
+      "path": "bitnet/ios/ppl-run.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: Physical-iPhone current-stock PPL smoke; exact tokens and raw logits stay local."
+    },
+    {
+      "path": "bitnet/ios/prepare-original-poc.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: Prepare actual phone W/X for original-PoC qualification; no GPU runs."
+    },
+    {
+      "path": "bitnet/ios/run.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Explicit physical-device smoke, full graph replay, sample-I/O and paired-operator launcher."
+    },
+    {
+      "path": "bitnet/ios/src/CandidateReplay.mm",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "App operation router and fixed-token/KV replay; references every linked native operation even when selecting Q only."
+    },
+    {
+      "path": "bitnet/ios/src/alias-stock-ffn.h",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Stock FFN pipeline/ABI adapter used by iphone-operator.mm."
+    },
+    {
+      "path": "bitnet/ios/src/iphone-actquant.mm",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Native phone shim directly includes the shared actquant/runner.cpp."
+    },
+    {
+      "path": "bitnet/ios/src/iphone-down-controls.h",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Header/shared ABI required by retained native source or canonical build identity."
+    },
+    {
+      "path": "bitnet/ios/src/iphone-down-controls.mm",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Selected down arithmetic research harness that remains an unconditional link dependency of current app."
+    },
+    {
+      "path": "bitnet/ios/src/iphone-operator.h",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Header/shared ABI required by retained native source or canonical build identity."
+    },
+    {
+      "path": "bitnet/ios/src/iphone-operator.mm",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Optional FFN research harness that remains an unconditional link dependency of current phone app."
+    },
+    {
+      "path": "bitnet/ios/src/iphone-original-poc.mm",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Actual authored PoC phone sample-I/O implementation; primary original-kernel qualification."
+    },
+    {
+      "path": "bitnet/ios/src/iphone-ppl.mm",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Physical-phone stock quality smoke; also an unconditional current app link dependency."
+    },
+    {
+      "path": "bitnet/ios/src/iphone-q.h",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Header/shared ABI required by retained native source or canonical build identity."
+    },
+    {
+      "path": "bitnet/ios/src/iphone-q.mm",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Actual stock/Q4/C8 standalone phone timing and correctness harness."
+    },
+    {
+      "path": "bitnet/ios/src/llama_swiftuiApp.swift",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Background initialization/foreground app lifecycle needed to avoid watchdog failure."
+    },
+    {
+      "path": "bitnet/patches/a16-q-attribution-preparation.patch",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Historical incremental source review evidence; patched source is already applied. Retain only with patch-base/applicability explanation, or replace all historical increments with a current consolidated source delta."
+    },
+    {
+      "path": "bitnet/patches/actquant-q4-joint.patch",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Historical incremental source review evidence; patched source is already applied. Retain only with patch-base/applicability explanation, or replace all historical increments with a current consolidated source delta."
+    },
+    {
+      "path": "bitnet/patches/actquant-scale-evaluation.patch",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Historical incremental source review evidence; patched source is already applied. Retain only with patch-base/applicability explanation, or replace all historical increments with a current consolidated source delta."
+    },
+    {
+      "path": "bitnet/patches/pinned-to-iphone.patch",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Historical incremental source review evidence; patched source is already applied. Retain only with patch-base/applicability explanation, or replace all historical increments with a current consolidated source delta."
+    },
+    {
+      "path": "bitnet/patches/public-2b-actquant.patch",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Historical incremental source review evidence; patched source is already applied. Retain only with patch-base/applicability explanation, or replace all historical increments with a current consolidated source delta."
+    },
+    {
+      "path": "bitnet/patches/q-guard-control-2026-11-15.patch",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Historical incremental source review evidence; patched source is already applied. Retain only with patch-base/applicability explanation, or replace all historical increments with a current consolidated source delta."
+    },
+    {
+      "path": "bitnet/patches/q-kernel-contract-fix.patch",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Historical incremental source review evidence; patched source is already applied. Retain only with patch-base/applicability explanation, or replace all historical increments with a current consolidated source delta."
+    },
+    {
+      "path": "bitnet/patches/q4-readback-additive.patch",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Historical incremental source review evidence; patched source is already applied. Retain only with patch-base/applicability explanation, or replace all historical increments with a current consolidated source delta."
+    },
+    {
+      "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal.pdf",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Required English technical-plan report."
+    },
+    {
+      "path": "bitnet/proposal/MANIFEST.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Report/output hashes and declared validation boundaries."
+    },
+    {
+      "path": "bitnet/proposal/PROPOSAL.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Editable English report content and reproducible PDF source."
+    },
+    {
+      "path": "bitnet/proposal/README.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "English report entry and rebuild instructions."
+    },
+    {
+      "path": "bitnet/proposal/assets/execution-flow.png",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Reviewed report figure asset and editable source."
+    },
+    {
+      "path": "bitnet/proposal/assets/execution-flow.svg",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Reviewed report figure asset and editable source."
+    },
+    {
+      "path": "bitnet/proposal/render_proposal.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "English PDF/report renderer."
+    },
+    {
+      "path": "bitnet/proposal/requirements-docs.txt",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Report rendering dependencies."
+    },
+    {
+      "path": "bitnet/provenance/BASELINE.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "bitnet/provenance/EVIDENCE_INDEX.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "bitnet/provenance/FILE_REVIEW.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "File-level retention rationale and final submission boundaries."
+    },
+    {
+      "path": "bitnet/provenance/PUBLIC_MODEL.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "bitnet/provenance/SOURCE_MANIFEST.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "SHA256 identity of retained authored/modified package files; excludes itself."
+    },
+    {
+      "path": "bitnet/q_kernel_contract.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Single host parser for versioned canonical Q shader identities and geometry."
+    },
+    {
+      "path": "bitnet/reference/README.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "English build/reference/acceptance/provenance/dependency documentation for retained source; retain and update stale links if archival is adopted."
+    },
+    {
+      "path": "bitnet/reference/RERUN.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "English build/reference/acceptance/provenance/dependency documentation for retained source; retain and update stale links if archival is adopted."
+    },
+    {
+      "path": "bitnet/reference/SOURCE_PROVENANCE.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "English build/reference/acceptance/provenance/dependency documentation for retained source; retain and update stale links if archival is adopted."
+    },
+    {
+      "path": "bitnet/reference/TRANSFORMERS_LICENSE",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Required third-party license for bundled official source extracts."
+    },
+    {
+      "path": "bitnet/reference/analyze_reference.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: Derived teacher-forced/activation comparisons; never updates old strict results."
+    },
+    {
+      "path": "bitnet/reference/official-activations-096f25ae.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: Copyright 2020 The HuggingFace Team. All rights reserved."
+    },
+    {
+      "path": "bitnet/reference/official-bitnet-096f25ae.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: from ..utils import is_accelerate_available, is_torch_available, logging"
+    },
+    {
+      "path": "bitnet/reference/official-modeling-bitnet-096f25ae.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: 🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨"
+    },
+    {
+      "path": "bitnet/reference/official-rope-utils-096f25ae.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: Copyright 2024 The HuggingFace Team. All rights reserved."
+    },
+    {
+      "path": "bitnet/reference/prepare_sources.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Checksum-verified immutable official source/dataset and checkpoint preparation; external caches only."
+    },
+    {
+      "path": "bitnet/reference/q_activation_semantics.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: CPU-only reference quantizer control on exact captured public BitNet Q inputs."
+    },
+    {
+      "path": "bitnet/reference/requirements.txt",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "English build/reference/acceptance/provenance/dependency documentation for retained source; retain and update stale links if archival is adopted."
+    },
+    {
+      "path": "bitnet/reference/score_logits_fp64.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: Stable independent FP64 log-sum-exp scoring of preserved reference logits."
+    },
+    {
+      "path": "bitnet/reference/streamed_reference.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Immutable-source-derived official arithmetic oracle and fixed-token/corpus reference execution."
+    },
+    {
+      "path": "bitnet/scripts/audit-conversion.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Public-checkpoint direct-scale/packing conversion audit; required to substantiate converted model identity."
+    },
+    {
+      "path": "bitnet/scripts/build-mac.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Host build/backend regression smoke; correctness/reproducibility support rather than Mac performance result."
+    },
+    {
+      "path": "bitnet/scripts/build-shaders.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Canonical shader compile plan, entry identities and exact launch contract; currently compiles every shader listed in units()."
+    },
+    {
+      "path": "bitnet/shaders/README.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Current build-shaders.py compile plan consumes this shader/include or its source-origin manifest; retain without presenting optional research as primary qualification."
+    },
+    {
+      "path": "bitnet/shaders/SOURCES.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Current build-shaders.py compile plan consumes this shader/include or its source-origin manifest; retain without presenting optional research as primary qualification."
+    },
+    {
+      "path": "bitnet/shaders/c-expand.metal",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Current build-shaders.py compile plan consumes this shader/include or its source-origin manifest; retain without presenting optional research as primary qualification."
+    },
+    {
+      "path": "bitnet/shaders/dual.metal",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Current build-shaders.py compile plan consumes this shader/include or its source-origin manifest; retain without presenting optional research as primary qualification."
+    },
+    {
+      "path": "bitnet/shaders/f8-gate-up.metal",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Current build-shaders.py compile plan consumes this shader/include or its source-origin manifest; retain without presenting optional research as primary qualification."
+    },
+    {
+      "path": "bitnet/shaders/include-expand/contract.h",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Current build-shaders.py compile plan consumes this shader/include or its source-origin manifest; retain without presenting optional research as primary qualification."
+    },
+    {
+      "path": "bitnet/shaders/k0-postnorm-inplace.metal",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Current build-shaders.py compile plan consumes this shader/include or its source-origin manifest; retain without presenting optional research as primary qualification."
+    },
+    {
+      "path": "bitnet/shaders/k0-postnorm-reference.metal",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Current build-shaders.py compile plan consumes this shader/include or its source-origin manifest; retain without presenting optional research as primary qualification."
+    },
+    {
+      "path": "bitnet/shaders/original/contract.h",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Current build-shaders.py compile plan consumes this shader/include or its source-origin manifest; retain without presenting optional research as primary qualification."
+    },
+    {
+      "path": "bitnet/shaders/original/matvec.metal",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Current build-shaders.py compile plan consumes this shader/include or its source-origin manifest; retain without presenting optional research as primary qualification."
+    },
+    {
+      "path": "bitnet/shaders/post.metal",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Current build-shaders.py compile plan consumes this shader/include or its source-origin manifest; retain without presenting optional research as primary qualification."
+    },
+    {
+      "path": "bitnet/shaders/stock4x1.metal",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Current build-shaders.py compile plan consumes this shader/include or its source-origin manifest; retain without presenting optional research as primary qualification."
+    },
+    {
+      "path": "bitnet/shaders/up-epilogue.metal",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Current build-shaders.py compile plan consumes this shader/include or its source-origin manifest; retain without presenting optional research as primary qualification."
+    },
+    {
+      "path": "bitnet/test_q_kernel_contract.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Meaningful CPU or actual-native negative/exit/contract regression controls supporting the submitted harness; not measured GPU data."
+    },
+    {
+      "path": "bitnet/tests/analyze_q_graph_contract.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: CPU-only audit of actual GGML Q guard/dispatch and saved FP64 comparisons."
+    },
+    {
+      "path": "bitnet/tests/build_q_contract.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: Clean Mac-only core build for the Q contract tests; never execute GPU work."
+    },
+    {
+      "path": "bitnet/tests/inspect_selected_q_reuse.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Portable shape reuse inventory; not proof of latency, but supports source-level optimization scope."
+    },
+    {
+      "path": "bitnet/tests/inventory_metal_graph.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Portable saved-graph operator-family inventory; explicitly does not infer GPU critical-path shares."
+    },
+    {
+      "path": "bitnet/tests/q_graph_contract.cpp",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Actual GGML buffer/stride/graph guard and fallback controls."
+    },
+    {
+      "path": "bitnet/tests/q_pipeline_contract.cpp",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Actual runtime loader/cache negative controls; compiled into the phone app and used by 18-case phone gate."
+    },
+    {
+      "path": "bitnet/tests/run_iphone_attribution.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Submission current phone test orchestration with correctness-first and immutable timing gate."
+    },
+    {
+      "path": "bitnet/tests/run_q_contract_cpu.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: Compile and run the shared launch/cache-contract CPU checks; never opens Metal."
+    },
+    {
+      "path": "bitnet/tests/run_q_fix_phone.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: Serial evening qualification of the repaired Q4 contract on a physical iPhone."
+    },
+    {
+      "path": "bitnet/tests/run_q_pipeline_contract.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: Build the actual backend cache test; --run explicitly enables Metal setup."
+    },
+    {
+      "path": "bitnet/tests/summarize_iphone_q_attribution.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Privacy-filtered CPU reanalysis of required current phone correctness/performance evidence; explicit exit rules."
+    },
+    {
+      "path": "bitnet/tests/summarize_q_attribution_cpu.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Current phone summary imports this nested-CPU-region analyzer directly; do not remove as apparently Mac-only."
+    },
+    {
+      "path": "bitnet/tests/test_actquant_phone_imports.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Meaningful CPU or actual-native negative/exit/contract regression controls supporting the submitted harness; not measured GPU data."
+    },
+    {
+      "path": "bitnet/tests/test_actquant_q_backend.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Meaningful CPU or actual-native negative/exit/contract regression controls supporting the submitted harness; not measured GPU data."
+    },
+    {
+      "path": "bitnet/tests/test_actquant_q_startup.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Meaningful CPU or actual-native negative/exit/contract regression controls supporting the submitted harness; not measured GPU data."
+    },
+    {
+      "path": "bitnet/tests/test_guard_evidence.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Meaningful CPU or actual-native negative/exit/contract regression controls supporting the submitted harness; not measured GPU data."
+    },
+    {
+      "path": "bitnet/tests/test_inventory_metal_graph.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Meaningful CPU or actual-native negative/exit/contract regression controls supporting the submitted harness; not measured GPU data."
+    },
+    {
+      "path": "bitnet/tests/test_iphone_q_summary.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Meaningful CPU or actual-native negative/exit/contract regression controls supporting the submitted harness; not measured GPU data."
+    },
+    {
+      "path": "bitnet/tests/test_q_graph_evidence.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Meaningful CPU or actual-native negative/exit/contract regression controls supporting the submitted harness; not measured GPU data."
+    },
+    {
+      "path": "bitnet/tests/test_q_kernel_contract.cpp",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Meaningful CPU or actual-native negative/exit/contract regression controls supporting the submitted harness; not measured GPU data."
+    },
+    {
+      "path": "bitnet/tests/test_q_readback_routes.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Meaningful CPU or actual-native negative/exit/contract regression controls supporting the submitted harness; not measured GPU data."
+    },
+    {
+      "path": "bitnet/tests/test_run_q_fix_phone.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Meaningful CPU or actual-native negative/exit/contract regression controls supporting the submitted harness; not measured GPU data."
+    },
+    {
+      "path": "bitnet/validation/ACCEPTANCE.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "English build/reference/acceptance/provenance/dependency documentation for retained source; retain and update stale links if archival is adopted."
+    },
+    {
+      "path": "bitnet/validation/README.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "English build/reference/acceptance/provenance/dependency documentation for retained source; retain and update stale links if archival is adopted."
+    },
+    {
+      "path": "bitnet/validation/RERUN.md",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "English build/reference/acceptance/provenance/dependency documentation for retained source; retain and update stale links if archival is adopted."
+    },
+    {
+      "path": "bitnet/validation/SOURCES.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "English build/reference/acceptance/provenance/dependency documentation for retained source; retain and update stale links if archival is adopted."
+    },
+    {
+      "path": "bitnet/validation/analysis/CPU_CHECKS.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "bitnet/validation/analysis/INPUT_PROVENANCE.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "bitnet/validation/analysis/PORTABILITY_CHECKS.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "bitnet/validation/analysis/RESULTS.csv",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "bitnet/validation/analysis/SUMMARY.json",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "bitnet/validation/analyze.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: Independently recompute operator results from new native binary readbacks."
+    },
+    {
+      "path": "bitnet/validation/bootstrap.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Minimal clean pinned-source model-free PoC reproduction entry point."
+    },
+    {
+      "path": "bitnet/validation/build.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: Build the clean fixed-shape PoC from pinned source; never execute GPU work."
+    },
+    {
+      "path": "bitnet/validation/contract.h",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Header/shared ABI required by retained native source or canonical build identity."
+    },
+    {
+      "path": "bitnet/validation/cpu-checks.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Meaningful CPU or actual-native negative/exit/contract regression controls supporting the submitted harness; not measured GPU data."
+    },
+    {
+      "path": "bitnet/validation/main.mm",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Standalone actual-stock/original/Q4 harness with complete output, finite, canary and reference checks."
+    },
+    {
+      "path": "bitnet/validation/prepare-real-inputs.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Local-only binding/extraction of accepted steps1/16/32 real inputs; summaries alone cannot regenerate them."
+    },
+    {
+      "path": "bitnet/validation/reference.cpp",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Independent logical-K unpack and FP64 dot; canonical correctness oracle."
+    },
+    {
+      "path": "bitnet/validation/reference.h",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Header/shared ABI required by retained native source or canonical build identity."
+    },
+    {
+      "path": "bitnet/validation/shaders/matvec.metal",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Primary independently authored explicit-unpack 4x2 Metal matvec PoC."
+    },
+    {
+      "path": "bitnet/validation/shaders/stock4x1.metal",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Stock-helper-derived 4x1 specialization, clearly separate from original authored algorithm."
+    },
+    {
+      "path": "bitnet/validation/smoke.py",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Retained correctness/measurement/preparation support: Clean build, CPU reference checks, and standalone Metal correctness; no benchmark."
+    },
+    {
+      "path": "bitnet/validation/stock-runtime.h",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Fresh native stock pipeline selector and ABI adapter; deliberate actual-stock comparison."
+    },
+    {
+      "path": "conversion/base.py",
+      "origin": "modified_baseline",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "conversion/bitnet.py",
+      "origin": "modified_baseline",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "docs/ops.md",
+      "origin": "modified_baseline",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "ggml/include/ggml-metal.h",
+      "origin": "modified_baseline",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "ggml/include/ggml.h",
+      "origin": "modified_baseline",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "ggml/src/ggml-cpu/ggml-cpu.c",
+      "origin": "modified_baseline",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "ggml/src/ggml-cpu/ggml-cpu.cpp",
+      "origin": "modified_baseline",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "ggml/src/ggml-cpu/ops.cpp",
+      "origin": "modified_baseline",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "ggml/src/ggml-cpu/ops.h",
+      "origin": "modified_baseline",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "ggml/src/ggml-metal/CMakeLists.txt",
+      "origin": "modified_baseline",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "ggml/src/ggml-metal/ggml-metal-bitnet-q-attribution.h",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "ggml/src/ggml-metal/ggml-metal-bitnet-q-config.h",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "ggml/src/ggml-metal/ggml-metal-bitnet-q-contract.h",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "ggml/src/ggml-metal/ggml-metal-context.m",
+      "origin": "modified_baseline",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "ggml/src/ggml-metal/ggml-metal-device.cpp",
+      "origin": "modified_baseline",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "ggml/src/ggml-metal/ggml-metal-device.h",
+      "origin": "modified_baseline",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "ggml/src/ggml-metal/ggml-metal-device.m",
+      "origin": "modified_baseline",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "ggml/src/ggml-metal/ggml-metal-impl.h",
+      "origin": "modified_baseline",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "ggml/src/ggml-metal/ggml-metal-ops.cpp",
+      "origin": "modified_baseline",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "ggml/src/ggml-metal/ggml-metal-ops.h",
+      "origin": "modified_baseline",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "ggml/src/ggml-metal/ggml-metal.cpp",
+      "origin": "modified_baseline",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "ggml/src/ggml-metal/kernels/act_quant.metal",
+      "origin": "added_overlay",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "ggml/src/ggml.c",
+      "origin": "modified_baseline",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "src/models/bitnet.cpp",
+      "origin": "modified_baseline",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    },
+    {
+      "path": "tests/test-backend-ops.cpp",
+      "origin": "modified_baseline",
+      "keep": true,
+      "purpose": "Preserved framework modification, build/attribution support or submission provenance; see source change map."
+    }
+  ]
+}

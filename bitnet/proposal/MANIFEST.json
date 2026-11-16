@@ -1,17 +1,16 @@
 {
   "schema_version": 2,
   "evidence_cutoff": "2026-11-16 Asia/Tokyo",
-  "artifact_type": "English technical proposal incorporating measured hardened A16 correctness and attribution",
-  "report_revision_base_commit": "3bc5f4f420c133ad12d9bf871adfb123eb79df3d",
+  "artifact_type": "English technical proposal and measured validation record",
+  "report_revision_base_commit": "5e84359acbc77f21e64661ffd56e619e811eafd2",
   "QVAC_commit": "2db8b046d555316019ae75d1be90484adc8b9330",
   "historical_phone_compute_commit": "edbd109bc152decbbc7274b703d21bd6099bf98c",
   "hardened_preparation_compute_commit": "14a9f103c23b5a24bd0da1e0dbc5a0d5a37ade3a",
   "pages": {
-    "PDF": 28,
-    "DOCX_render": 28
+    "PDF": 28
   },
   "all_11_brief_topics_covered": true,
-  "new_GPU_or_device_measurements_in_this_document_revision": true,
+  "new_GPU_or_device_measurements_in_this_document_revision": false,
   "native_compute_source_changed_in_this_document_revision": false,
   "existing_M2_attribution_supplement_included": true,
   "current_hardened_package_A16_runtime_pass": true,
@@ -33,23 +32,17 @@
   "raw_experiment_data_included": false,
   "model_checkpoints_or_signing_credentials_included": false,
   "original_authored_PoC_and_stock_derived_Q4_attribution_separate": true,
-  "current_phone_blank_fields_ledger": "PENDING_A16_RESULTS.json",
   "source": "PROPOSAL.md",
   "outputs": [
     {
       "path": "PROPOSAL.md",
-      "bytes": 80301,
-      "sha256": "e66c04bf034c6488a926b7f7eb5b9dcb0468eab43323001f88348c0a3a10ed0f"
-    },
-    {
-      "path": "OUTLINE.md",
-      "bytes": 3359,
-      "sha256": "39e6bb325896dd240825dc81b85445e09029accec8c2de0078a8264c1e5dd0f6"
+      "bytes": 80341,
+      "sha256": "15eb5e7e4cf8560915c064078d17a760476a24c91f5b3e0278cb3472c8233d47"
     },
     {
       "path": "README.md",
-      "bytes": 4827,
-      "sha256": "6a6b9e453864ebff258dc60eab4e255068bed9b89e21992915953b268f35a5e2"
+      "bytes": 1998,
+      "sha256": "2d046e2c5be5374d70b55ba3c543c6de7e9c5f6f8a276b33c81ec859e52aae83"
     },
     {
       "path": "render_proposal.py",
@@ -72,39 +65,31 @@
       "sha256": "4a5e332bd79d11440a683126d733414fbd900397b32e4c423b2cc57223a64e9e"
     },
     {
-      "path": "PENDING_A16_RESULTS.json",
-      "bytes": 50256,
-      "sha256": "27809e89b8a2c2a9647309d206d8fe72554257fbfd00b6945ddf7876d1f5b462"
-    },
-    {
       "path": "BitNet_Mobile_GPU_Proposal.pdf",
-      "bytes": 252152,
-      "sha256": "5d78d44ab021a2f26d35c988290f99495e3821e7cf2424b8c52a044bc08b94d8"
-    },
-    {
-      "path": "BitNet_Mobile_GPU_Proposal.docx",
-      "bytes": 139332,
-      "sha256": "97a723d6b33cd73ad1ead4331f56d3854a043845a387f8952ecd90ccc93bc428"
+      "bytes": 252183,
+      "sha256": "e1b5b042ec8e094bc8a9ce8acdbeb6124c9e876e88a8c27439dab1277a14432a"
     }
   ],
   "quality_review": {
-    "PDF_pages_visually_inspected_or_exact_identity": 28,
-    "DOCX_pages_visually_inspected_or_exact_identity": 28,
+    "PDF_pages_inspected_or_exact_identity": 28,
     "all_final_pages_covered_by_native_image_review_or_exact_pixel_identity": true,
-    "clipping_overlap_or_missing_glyphs_observed": false,
-    "unverified_fields_retained_as_null": true,
-    "no_bottleneck_elsewhere_claim": true,
-    "source_and_artifact_scope_review_pass": true,
+    "clipping_overlap_or_missing_content_observed": false,
+    "measured_tables_unchanged_by_cleanup": true,
+    "original_figure_bytes_preserved": true,
+    "no_new_numerical_or_speedup_claims": true,
     "raw_QA_images_kept_local": true
   },
   "QA_evidence_digest_only": {
-    "QA_EN_PDF.json": "4982f01e5e49a4d62f9e692ef544ad2ce212752e9f7dd4624eaa832c46429c02",
-    "QA_EN_DOCX.json": "ff12902e646a615152b222719c4f1f2b691781852fc3c09cb61036157d286f5d",
-    "QA_ZH_PDF.json": "1477441f0b90c691199cc91c67417b39501ba36f0c3a2cd1ed9e1fe5b87d4686",
-    "QA_ZH_DOCX.json": "f90effd7376ef8c60a01828708e0e124bb49544164bddde4850d04c87a53c16b"
+    "PDF_FINAL_QA.json": "22e82524be5560fa3b546ff6d3465ad58de42977765fa9e09c39916d6ebde674",
+    "REPORT_EDIT_CHECK.json": "4463117b1824241714dbedf807cf86c6765f44893e1161baebf58a5073a340d6"
   },
   "tested_package_controller_commit": "578ec123ec2f0eed01f3edf6dc09ac6dcbe6104a",
   "host_only_import_repair_commit": "a4f5433",
   "derived_analysis": "../analysis/iphone-qcur0-attribution-2026-11-16/SUMMARY.json",
-  "derived_analysis_sha256": "f7f3f5875d8b01d577ef50551b654fa374bfc08aafd677d56bee899f54927849"
+  "derived_analysis_sha256": "f7f3f5875d8b01d577ef50551b654fa374bfc08aafd677d56bee899f54927849",
+  "includes_recorded_hardened_A16_measurements": true,
+  "new_performance_measurements_in_cleanup": false,
+  "English_submission_only": true,
+  "Chinese_and_Word_companions": "Archived locally; not included in the current submission tree",
+  "current_phone_summary": "../analysis/iphone-qcur0-attribution-2026-11-16/SUMMARY.json"
 }

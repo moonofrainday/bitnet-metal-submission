@@ -214,5 +214,6 @@
     "../../reference/repair_rankings.py",
     "../../reference/prepare_sources.py",
     "../../reference/RERUN.md"
-  ]
+  ],
+  "source_entries_scope": "Historical experiment identities. The one-off repair_rankings.py utility is archived locally and is not required for fresh canonical reference runs."
 }

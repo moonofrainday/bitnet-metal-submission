@@ -1,6 +1,6 @@
 # Q kernel launch and pipeline cache contract
 
-The fix closes a real mismatch between optional host geometry and compiled Q shaders. It adds distinct versioned entries, a canonical descriptor and file-aware external-pipeline caching. Fresh Mac operator and two-history layer-0 Q4 regressions pass. New signed and unsigned iPhoneOS builds compile successfully; **this new binary has not been installed or run on the phone**. No new performance conclusion is available.
+The fix closes a real mismatch between optional host geometry and compiled Q shaders. It adds distinct versioned entries, a canonical descriptor and file-aware external-pipeline caching. Fresh Mac operator and two-history layer-0 Q4 regressions pass. The initial signed and unsigned iPhoneOS builds in this safety experiment were compile-only. The later source-bound `14a9f103` package now also passes fresh A16 scoped qualification: two independent 18/18 contract/cache runs, 20 ActQuant cases, and both histories' all-32-Q FP64 and 33-logit stock-parity checks. Its measured integration is slower in complete decode despite a local operator benefit; [current A16 results](../analysis/iphone-qcur0-attribution-2026-11-16/README.md) retain the exact scope and version boundary.
 
 The baseline is `6fa8468ec1a28bb47aa22484125ef1337dbb898b`, with QVAC pinned at `2db8b046d555316019ae75d1be90484adc8b9330`. The source fix commit is `8ebcdb78680829c5453e0c7c72770c0b8e80225a`. The binaries were built from this matching dirty source snapshot before that commit; their embedded Git metadata still names baseline `6fa8468`. Compiled source hashes, rather than the old embedded label, bind the results. The public GGUF remains SHA-256 `52257df879ab4366d97228e7bda94a9a3c6a9065ec44e7879a8b87d54e568cd2`.
 
@@ -31,7 +31,7 @@ Before every optional external lookup, the backend resolves the current canonica
 
 On a miss, the loader reads immutable bytes, checks identity around the read, compiles from a dispatch-data copy and checks identity again before insertion. The same small cache change applies to optional FFN external loaders, while their arithmetic, ABI, entries and resource requirements remain unchanged. Default stock dispatch does not use this loader.
 
-The hot path performs metadata queries, not a full-file hash. This adds unmeasured CPU filesystem/lock work to optional graph encoding. File metadata is cache invalidation, not cryptographic authentication or an atomic lock against concurrent/adversarial writers. Keep libraries frozen during a run and retain source/build/metallib hashes. Old identities remain allocated until backend teardown to protect in-flight users; a backend recreated between campaigns avoids accumulating reload history.
+The hot path performs metadata queries, not a full-file hash. In separate instrumented A16 runs, the combined warm snapshot/key region totals 67.691-95.245 ms over 32 selected-Q calls, nested within the getter and guard. All 32 calls hit the cache with no new loads. These are worker elapsed intervals including waiting and preemption, not pure CPU cycles or a complete partition of formal wall time. File metadata is cache invalidation, not cryptographic authentication or an atomic lock against concurrent/adversarial writers. Keep libraries frozen during a run and retain source/build/metallib hashes. Old identities remain allocated until backend teardown to protect in-flight users; a backend recreated between campaigns avoids accumulating reload history.
 
 ## Completed evidence and retained failure
 
@@ -43,7 +43,8 @@ The hot path performs metadata queries, not a full-file hash. This adds unmeasur
 | Actual Mac GGML graph controls | 15 cases; all 38,400 outputs finite and within FP64 bound; canaries/inputs unchanged | Valid stock/Q4/C8, unsupported geometry, wrong libraries and same-path replacement/deletion; requested dispatch/fallback audited separately |
 | Metal backend regressions | TQ2_0 MUL_MAT59/59; ACT_QUANT16/16 | M2 Pro MTL0 correctness |
 | Real ActQuant-ON model graph | Two histories; 32/32 actual Q4 dispatches/completions each; nine scoped checks pass, exit 0 | Layer 0 Q-only; all 32 decode dots FP64, stock parity, prefill/non-target stock, probe neutrality and missing-library fallback |
-| iPhoneOS builds | Fresh unsigned 0 and signed 0; source/product hashes recorded | Compilation/signing only; no phone installation or execution |
+| Initial iPhoneOS builds | Fresh unsigned 0 and signed 0; source/product hashes recorded | Original safety-experiment compilation/signing only; no device execution for those initial packages |
+| Later `14a9f103` A16 package | Cold and repeated contract/cache 18/18; ActQuant 20/20; two histories pass all 32 Q FP64 and 33-logit stock-parity checks | Actual layer-0 Q-only graph, GPU completion and fallback; no complete trusted-model or quality pass |
 
 One failure is deliberately retained: the initial actual backend cache test reached 5 cases and failed `Q4_unique_entry_load` with native exit 1. Its generic warning did not identify which internal condition failed. Adding detailed warning fields was followed by 18/18 passes in the diagnostic run and two fresh repeats; the standalone load and CPU read/identity probes also pass. **The initial failure remains UNEXPLAINED. Logging is not claimed to have fixed its root cause.** Its original result/log and binary provenance remain local.
 
@@ -97,7 +98,7 @@ Historical artifacts require an explicit analysis-only profile:
 
 That flag preserves auditable old evidence; it cannot load old entries into the new runtime or qualify a new binary. Missing required evidence remains null/exit 2, observed failure remains exit 1, and scoped pass is exit 0.
 
-## Evening iPhone gate and performance boundary
+## Physical iPhone gate and performance boundary
 
 Use a fresh source-bound signed build. The one-entry launcher plans 15 serialized stages: actual 18-case A16 cache/entry inspection, same-build 20-case ActQuant prerequisite with independent analysis, and two histories with stock/Q4 capture/plain/missing-library plus canonical scoped analysis. The saved daytime `--plan` completed without device calls.
 
@@ -109,9 +110,9 @@ Use a fresh source-bound signed build. The one-entry launcher plans 15 serialize
   --output "$ARTIFACTS/evening-plan"
 ```
 
-When the evening phone session is intentionally started, replace `--plan` with `--run` and choose another fresh output directory. No timing stage is included. Only after correctness passes should phone operator and graph timing be repeated.
+For a fresh phone session, replace `--plan` with `--run` and choose another fresh output directory. No timing stage is included. Only after the new package's correctness passes should phone operator and graph timing be repeated.
 
-The previous 2.61%-2.68% A16 operator reduction belongs to the **earlier** joint binary. It is not a performance result for this fix. No Mac performance campaign, new phone performance or new full-decode throughput was measured here. New cache metadata work must be included in any later graph/CPU timing; isolated single-dispatch timing excludes it and quantizer preparation.
+The previous 2.61%-2.68% A16 operator reduction belongs to the **earlier** `edbd109` joint binary. Its full decode was unmeasured and is not retroactively filled by another package's data. The later `14a9f103` A16 campaign measures separate isolated Q4 reductions of 2.51%-2.78% in Fair and 2.18%-2.44% in the post-model Serious cohort. Complete 32-token decode is slower in all six formal Serious-state rounds: QB by 2.71%-3.74% and Q4 by 2.86%-3.76%. The actual QB route executes all candidate checks before the same stock PSO/ABI/bindings/launch, with zero custom dispatches. That is a measured integration-path effect, not pure shader cost or a complete CPU/GPU/thermal attribution. Current graph wall timing includes quantizer preparation and cache work; isolated single-dispatch timing excludes both.
 
 [Derived results and artifact hashes](../analysis/q-contract-fix-2026-11-16/README.md) retain the exact scope, failures and source snapshot. Raw arrays, logs, CSVs, captures, models, signing identities and applications remain local.
 
