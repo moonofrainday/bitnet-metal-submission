@@ -7,6 +7,7 @@
 #include "ggml-metal-impl.h"
 #include "ggml-metal-common.h"
 #include "ggml-metal-device.h"
+#include "ggml-metal-bitnet-q-contract.h"
 #include "ggml-metal-fusion.h"
 #include "ggml-metal-tuning.h"
 
@@ -3929,21 +3930,17 @@ static bool ggml_metal_try_bitnet_poc(ggml_metal_op_t ctx, const ggml_tensor * o
     }
     const char * rows_env = std::getenv("GGML_METAL_BITNET_POC_ROWS_PER_SIMD");
     const char * simd_env = std::getenv("GGML_METAL_BITNET_POC_SIMD_PER_GROUP");
-    int rows_per_simdgroup = 8;
-    int simdgroups_per_threadgroup = 2;
-    const bool rows_valid = !rows_env || std::strcmp(rows_env, "4") == 0 || std::strcmp(rows_env, "8") == 0;
-    const bool simd_valid = !simd_env || std::strcmp(simd_env, "1") == 0 || std::strcmp(simd_env, "2") == 0 || std::strcmp(simd_env, "4") == 0;
-    if (rows_valid && rows_env) { rows_per_simdgroup = std::atoi(rows_env); }
-    if (simd_valid && simd_env) { simdgroups_per_threadgroup = std::atoi(simd_env); }
-    const bool geometry_valid = rows_valid && simd_valid &&
-        ((rows_per_simdgroup == 8 && simdgroups_per_threadgroup == 2) || rows_per_simdgroup == 4);
-    if (!geometry_valid) {
+    const char * variant_env = std::getenv("GGML_METAL_BITNET_POC_VARIANT");
+    struct ggml_metal_bitnet_q_contract contract;
+    if (!ggml_metal_bitnet_q_select(variant_env, rows_env, simd_env, &contract)) {
         if (trace) {
-            std::fprintf(stderr, "BITNET_Q_FALLBACK node=%s layer=0 reason=geometry rows=%s simd=%s\n", op->name,
-                    rows_env ? rows_env : "default8", simd_env ? simd_env : "default2");
+            std::fprintf(stderr, "BITNET_Q_FALLBACK node=%s layer=0 reason=kernel_contract variant=%s rows=%s simd=%s\n",
+                    op->name, variant_env ? variant_env : "legacy", rows_env ? rows_env : "unset", simd_env ? simd_env : "unset");
         }
         return false;
     }
+    const int rows_per_simdgroup = contract.rows;
+    const int simdgroups_per_threadgroup = contract.groups;
     const int64_t weight_ne[] = { 2560, 2560, 1, 1 };
     const size_t weight_nb[] = { 66, 660, 1689600, 1689600 };
     const int64_t vector_ne[] = { 2560, 1, 1, 1 };
@@ -3978,7 +3975,7 @@ static bool ggml_metal_try_bitnet_poc(ggml_metal_op_t ctx, const ggml_tensor * o
         return false;
     }
 
-    const auto pipeline = ggml_metal_library_get_bitnet_poc_pipeline(ctx->lib);
+    const auto pipeline = ggml_metal_library_get_bitnet_poc_pipeline(ctx->lib, &contract);
     if (!pipeline.pipeline) {
         if (trace) {
             std::fprintf(stderr, "BITNET_Q_FALLBACK node=%s layer=%d reason=pipeline\n", op->name, ggml_metal_bitnet_layer(op->name, "Qcur-"));
@@ -3987,8 +3984,7 @@ static bool ggml_metal_try_bitnet_poc(ggml_metal_op_t ctx, const ggml_tensor * o
     }
     const int execution_width = ggml_metal_pipeline_thread_execution_width(pipeline);
     const int max_threads = ggml_metal_pipeline_max_theads_per_threadgroup(pipeline);
-    if (execution_width != 32 || max_threads < 32*simdgroups_per_threadgroup ||
-            op->ne[0] % (rows_per_simdgroup*simdgroups_per_threadgroup) != 0) {
+    if (!ggml_metal_bitnet_q_launch_valid(&contract, op->ne[0], op->src[0]->ne[0], execution_width, max_threads)) {
         if (trace) {
             std::fprintf(stderr, "BITNET_Q_FALLBACK node=%s layer=0 reason=pipeline_limits width=%d max_threads=%d requested=%d\n",
                     op->name, execution_width, max_threads, 32*simdgroups_per_threadgroup);
@@ -4010,11 +4006,12 @@ static bool ggml_metal_try_bitnet_poc(ggml_metal_op_t ctx, const ggml_tensor * o
     ggml_metal_encoder_set_buffer(ctx->enc, w, 0);
     ggml_metal_encoder_set_buffer(ctx->enc, x, 1);
     ggml_metal_encoder_set_buffer(ctx->enc, y, 2);
-    const int grid_x = op->ne[0] / (rows_per_simdgroup * simdgroups_per_threadgroup);
-    ggml_metal_encoder_dispatch_threadgroups(ctx->enc, grid_x, 1, 1, 32, simdgroups_per_threadgroup, 1);
+    const int grid_x = contract.grid_x;
+    ggml_metal_encoder_dispatch_threadgroups(ctx->enc, grid_x, 1, 1, contract.threads_x, contract.groups, 1);
     if (trace) {
-        std::fprintf(stderr, "BITNET_Q_GEOMETRY node=%s rows_per_simd=%d simd_per_group=%d grid=%d threads=%d width=%d max_threads=%d checked=1\n",
-                op->name, rows_per_simdgroup, simdgroups_per_threadgroup, grid_x, 32*simdgroups_per_threadgroup, execution_width, max_threads);
+        std::fprintf(stderr, "BITNET_Q_GEOMETRY node=%s variant=%s contract=%d entry=%s rows_per_simd=%d simd_per_group=%d grid=%d threads=%d width=%d max_threads=%d checked=1\n",
+                op->name, contract.variant, contract.version, contract.entry, rows_per_simdgroup, simdgroups_per_threadgroup,
+                grid_x, contract.threads_x*contract.groups, execution_width, max_threads);
         std::fprintf(stderr,
             "BITNET_BIND node=%s weight=%s w=%p+%zu x=%p+%zu y=%p+%zu xy_disjoint=1\n",
             op->name, op->src[0]->name, w.metal, w.offs, x.metal, x.offs, y.metal, y.offs);

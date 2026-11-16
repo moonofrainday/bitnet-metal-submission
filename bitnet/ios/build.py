@@ -12,6 +12,8 @@ import subprocess
 import sys
 
 from common import ROOT, Commands, developer_environment, require, sha256, write_json
+sys.path.insert(0, str(ROOT))
+from bitnet.q_kernel_contract import load_contract
 
 HERE = Path(__file__).resolve().parent
 
@@ -31,6 +33,10 @@ def package_identity():
     files.update(ROOT / "bitnet/validation" / name for name in ("reference.cpp", "reference.h", "contract.h", "stock-runtime.h"))
     files.update(p for p in (ROOT / "bitnet/actquant").glob("*") if p.is_file() and p.suffix in {".cpp", ".h"})
     files.add(ROOT / "vendor/nlohmann/json.hpp")
+    files.add(ROOT / "ggml/src/ggml-metal/ggml-metal-bitnet-q-config.h")
+    files.add(ROOT / "bitnet/q_kernel_contract.py")
+    files.add(ROOT / "bitnet/tests/q_pipeline_contract.cpp")
+    files.add(ROOT / "ggml/src/ggml-metal/ggml-metal-bitnet-q-contract.h")
     return {str(p.relative_to(ROOT)): sha256(p) for p in sorted(files)}
 
 
@@ -100,6 +106,7 @@ def stage_project(output, xcframework):
     shutil.copytree(xcframework, destination, symlinks=True)
     bridge = project / "llama.swiftui/Bridging"
     shutil.copy2(HERE / "src/CandidateReplay.mm", bridge / "CandidateReplay.mm")
+    shutil.copy2(ROOT / "ggml/src/ggml-metal/ggml-metal-bitnet-q-config.h", bridge / "ggml-metal-bitnet-q-config.h")
     with (bridge / "FinetuneBridge.h").open("a") as handle:
         handle.write('\n#ifdef __cplusplus\nextern "C" {\n#endif\nint bitnet_candidate_run(void);\n#ifdef __cplusplus\n}\n#endif\n')
     with (bridge / "FinetuneBridge.mm").open("a") as handle:
@@ -161,6 +168,8 @@ def main():
                                  "--output", shaders, "--developer-dir", env["DEVELOPER_DIR"]])
         for original, alias in (("qcur0-c8x2.metallib", "q-c8x2.metallib"), ("stock4x1.metallib", "q-stock4x1.metallib")):
             shutil.copy2(shaders / original, shaders / alias)
+        record["q_kernel_contract"] = load_contract()
+        require(json.loads((shaders / "BUILD.json").read_text())["q_kernel_contract"] == record["q_kernel_contract"], "Shader/header contract differs")
         record["shader_build_manifest_sha256"] = sha256(shaders / "BUILD.json")
         record["shader_products_sha256"] = {path.name: sha256(path) for path in shaders.glob("*.metallib")}
         objects = []
@@ -174,6 +183,13 @@ def main():
                 command += ["-I", include]
             commands.run("compile-" + Path(source).stem, command + ["-c", HERE / "src" / source, "-o", obj])
             objects.append(obj)
+        contract_obj = output / "objects/q-pipeline-contract.o"
+        contract_command = ["xcrun", "--sdk", "iphoneos", "clang++", "-arch", "arm64", "-mios-version-min=" + args.minimum_ios,
+                            "-std=c++17", "-O2", "-fno-fast-math", "-ffp-contract=off", "-Wall", "-Wextra", "-Werror"]
+        for include in (ROOT / "include", ROOT / "ggml/include", ROOT / "ggml/src", ROOT / "ggml/src/ggml-metal", ROOT / "vendor"):
+            contract_command += ["-I", include]
+        commands.run("compile-q-pipeline-contract", contract_command + ["-c", ROOT / "bitnet/tests/q_pipeline_contract.cpp", "-o", contract_obj])
+        objects.append(contract_obj)
         project = stage_project(output, xcframework)
         command = ["xcodebuild", "-project", project / "llama.swiftui.xcodeproj", "-scheme", "llama.swiftui",
                    "-configuration", args.configuration, "-destination", "generic/platform=iOS",

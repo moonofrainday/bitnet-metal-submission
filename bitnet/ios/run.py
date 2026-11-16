@@ -12,7 +12,10 @@ import shutil
 import struct
 import sys
 
-from common import PUBLIC_MODEL_SHA256, Commands, developer_environment, require, sha256, write_json
+from common import ROOT, PUBLIC_MODEL_SHA256, Commands, developer_environment, require, sha256, write_json
+sys.path.insert(0, str(ROOT))
+from bitnet.q_kernel_contract import load_contract, variant_contract
+from bitnet.actquant.q4_contract import q4_library_identity, operator_q_contract
 
 
 def safe_component(value):
@@ -169,6 +172,7 @@ def read_q_qualification(path):
 
 def validate_q_qualification(qualification, libraries):
     require(qualification.get("local_fp64_pass") is True, "Q local FP64 qualification failed")
+    require(qualification.get("q_kernel_contract") == operator_q_contract(), "Q qualification has a legacy/wrong entry or geometry")
     expected_libraries = {key: libraries[key]["sha256"] for key in ("C8", "Q4")}
     require(qualification.get("libraries") == expected_libraries, "Q qualification shader identity mismatch")
     require(qualification.get("device") == "Apple A16 GPU", "Q qualification is not from the expected A16 GPU")
@@ -227,14 +231,73 @@ def validate_q_readback(directory, route):
     return manifest
 
 
+def run_q_contract(args):
+    """Night-only explicit device entry; no GGUF and no target Q dispatch."""
+    require(not args.strict_v1,
+            "q-contract has no numerical/model acceptance; --strict-v1 is not applicable")
+    output=args.output.expanduser().resolve()
+    require(not output.exists(), "Refuse existing host output directory")
+    output.mkdir(parents=True)
+    summary={"scope":"actual backend Q entry/geometry/cache inspection", "runtime_contract_pass":None,
+             "collection_completed":False,"fp64_pass":None,"model_output_pass":None,"model_quality_pass":None,
+             "model_loaded":False,"target_Q_dispatches":0,"performance_measured":False,"errors":[]}
+    try:
+        require(args.device and args.install and args.timeout>0,"Q contract inspection requires --device, --install and positive timeout")
+        from bitnet.actquant.run_phone import build_identity
+        build,identity=build_identity(args.build_dir.expanduser().resolve())
+        require(build.get('q_kernel_contract')==load_contract(),"Signed app canonical Q contract differs")
+        shader_root=Path(build['shaders']);q4_library_identity(shader_root/'q-stock4x1.metallib',shader_root/'BUILD.json','iphoneos')
+        shader_build=json.loads((shader_root/'BUILD.json').read_text());c8=variant_contract('c8x2');product=shader_build['products']['qcur0-c8x2.metallib']
+        require(product.get('q_contract')==c8 and product['expected_symbols']==[c8['entry']] and
+                product['sha256']==sha256(shader_root/'q-c8x2.metallib'),"Q contract C8 shader product differs")
+        stamp=datetime.datetime.now().astimezone().strftime('%Y%m%d-%H%M%S%f');prefix='candidate-q-contract-'+stamp
+        libraries={route:{'file':prefix+'-'+filename,'sha256':sha256(shader_root/filename)}
+                   for route,filename in [('Q4','q-stock4x1.metallib'),('C8','q-c8x2.metallib')]}
+        cfg={'operation':'q-contract','output':prefix,'libraries':libraries,'q_kernel_contract':load_contract()}
+        write_json(output/'config.json',cfg);write_json(output/'BUILD_IDENTITY.json',identity)
+        commands=Commands(output/'logs',developer_environment(args.developer_dir));bundle=build['bundle_id']
+        commands.run('device-details',['xcrun','devicectl','--timeout','60','device','info','details','--device',args.device])
+        commands.run('install',['xcrun','devicectl','--timeout','240','device','install','app',build['app'],'--device',args.device])
+        for route,filename in [('Q4','q-stock4x1.metallib'),('C8','q-c8x2.metallib')]:
+            commands.run('transfer-'+route,['xcrun','devicectl','--timeout','180','device','copy','to','--device',args.device,
+                         '--domain-type','appDataContainer','--domain-identifier',bundle,'--source',shader_root/filename,
+                         '--destination','Documents/'+libraries[route]['file']])
+        launch,log=commands.run('launch',['xcrun','devicectl','--timeout',str(args.timeout),'device','process','launch','--console',
+                 '--terminate-existing','--device',args.device,'--environment-variables',json.dumps({'BITNET_CANDIDATE_CONFIG':json.dumps(cfg,separators=(',',':'))}),bundle],check=False)
+        commands.run('fetch',['xcrun','devicectl','--timeout','180','device','copy','from','--device',args.device,
+                     '--domain-type','appDataContainer','--domain-identifier',bundle,'--source','Documents/'+prefix,'--destination',output/'device'])
+        native_path=output/'device/contract-check/RESULT.json';native=json.loads(native_path.read_text());record=json.loads((output/'device/result.json').read_text())
+        code=native['exit_code'];actual=re.findall(r'The app terminated with the exit code (\d+)\.',log)
+        require(code in (0,1,2) and actual==[str(code)] and launch in (0,code),"Q inspection native/app exit mismatch")
+        complete=[json.loads(x.split('BITNET_PHONE_COMPLETE ',1)[1]) for x in log.splitlines() if 'BITNET_PHONE_COMPLETE ' in x]
+        require(complete==[record] and record['native_result_sha256']==sha256(native_path) and record['process_exit_code']==code,
+                "Q inspection completion/file identity mismatch")
+        require(native['target_Q_dispatches']==0 and native['model_loaded'] is False and native['fp64_pass'] is None and
+                native['model_output_pass'] is None and native['performance_measured'] is False,"Q inspection scope changed")
+        expected={'Q4_4x2_rejected','Q4_4x4_rejected','legacy_4x2_rejected','legacy_4x4_rejected','Q4_unique_entry_load',
+                  'Q4_unchanged_file_reuses_pipeline','canonical_path_alias_reuses_pipeline','different_file_has_distinct_cache_identity',
+                  'C8_library_cannot_satisfy_cached_Q4','C8_unique_entry_load','Q4_library_cannot_satisfy_cached_C8',
+                  'missing_path_cannot_reuse_Q4','deleted_cached_file_rejected','restored_new_file_identity_gets_new_pipeline',
+                  'same_path_replaced_with_C8_rejects_Q4','same_path_restored_Q4_loads_new_identity',
+                  'forged_entry_rejected_by_actual_getter','forged_groups_rejected_by_actual_getter'}
+        if code==0:require(native['runtime_contract_pass'] is True and expected<={x['name'] for x in native['cases']} and
+                          all(x['pass'] is True for x in native['cases']),"Q inspection required cases missing/failed")
+        summary.update(collection_completed=True,runtime_contract_pass=native['runtime_contract_pass'],native_exit_code=code,
+                       actual_app_exit_code=int(actual[0]),cases=native['cases'],native_result_sha256=sha256(native_path),
+                       device_initialization_may_run_capability_probes=True,selected_build_manifest_sha256=identity['build_manifest_sha256'])
+        write_json(output/'summary.json',summary);print(json.dumps(summary,indent=2));return code
+    except (OSError,RuntimeError,ValueError,KeyError,TypeError) as error:
+        summary['errors'].append(str(error));write_json(output/'summary.json',summary);print(json.dumps(summary,indent=2),file=sys.stderr);return 2
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build-dir", type=Path, required=True)
     parser.add_argument("--device", default=os.environ.get("IPHONE_DEVICE_ID"), help="devicectl identifier; no stored device default")
-    parser.add_argument("--model", type=Path, required=True)
+    parser.add_argument("--model", type=Path, help="Required except for the model-free q-contract inspection")
     parser.add_argument("--model-sha256", default=PUBLIC_MODEL_SHA256)
     parser.add_argument("--mode", choices=("graph-verify", "decode-benchmark", "q-verify", "q-benchmark",
-                                        "ffn-reference", "ffn-verify", "ffn-benchmark", "down-verify", "poc-verify"), required=True)
+                                        "ffn-reference", "ffn-verify", "ffn-benchmark", "down-verify", "poc-verify", "q-contract"), required=True)
     parser.add_argument("--output", type=Path, required=True, help="Fresh local host artifact directory")
     parser.add_argument("--developer-dir", type=Path)
     parser.add_argument("--install", action="store_true", help="Required: install the selected signed app before every launch")
@@ -257,6 +320,9 @@ def main():
     parser.add_argument("--strict-v1", action="store_true", help="Also require full frozen numerical acceptance; missing checks return 2")
     parser.add_argument("--timeout", type=int, default=3600)
     args = parser.parse_args()
+    if args.mode == "q-contract":
+        return run_q_contract(args)
+    require(args.model is not None, "--model is required except for q-contract")
     require(args.device, "Supply --device or IPHONE_DEVICE_ID")
     require(args.install, "Every run requires --install to select the signed app from this BUILD.json")
     require(args.timeout > 0, "Timeout must be positive")
@@ -372,6 +438,14 @@ def main():
                              "Kref": "k0-postnorm-reference.metallib", "F8": "ffn-gate-up-8x2.metallib",
                              "split": "ffn-expand.metallib"}
         for key, filename in libraries.items():
+            if key == "Q4":
+                q4_library_identity(library_root / filename, shader_root / "BUILD.json", "iphoneos")
+            elif key == "C8":
+                qbuild = json.loads((shader_root / "BUILD.json").read_text())
+                desc = variant_contract('c8x2'); product = qbuild['products']['qcur0-c8x2.metallib']
+                require(qbuild.get('q_kernel_contract') == load_contract() and product.get('q_contract') == desc and
+                        product['expected_symbols'] == [desc['entry']] and product['sha256'] == sha256(library_root / filename),
+                        'C8 product entry/geometry/canonical contract mismatch')
             cfg["libraries"][key] = {"file": filename, "sha256": sha256(library_root / filename)}
         write_json(output / "config.json", cfg)
         write_json(output / "model-identity.json", {"path": str(model), "bytes": model.stat().st_size, "sha256": args.model_sha256})
@@ -415,6 +489,8 @@ def main():
                 manifest = json.loads(manifest_path.read_text())
                 require(manifest.get("model_sha256") == args.model_sha256, "Fixture belongs to a different model")
                 manifest["libraries"] = {key: cfg["libraries"][key] for key in ("C8", "Q4")}
+                manifest["q_kernel_contract"] = operator_q_contract()
+                manifest["q_kernel_config_sha256"] = load_contract()["config_sha256"]
                 write_json(manifest_path, manifest)
             elif cfg["operator_kind"] == "DOWN":
                 manifest_path = fixture / "MANIFEST.json"
@@ -611,10 +687,10 @@ def main():
                                 "Original PoC GPU/canary/input/coverage failed")
                         route = dispatch["route"]
                         require(dispatch.get("kernel_symbol") == ("kernel_mul_mv_tq2_0_f32" if route == "S" else
-                                "tq2_0_matvec_poc" if route == "PoC" else "tq2_0_matvec_poc_c8x2"),
+                                "tq2_0_matvec_poc" if route == "PoC" else variant_contract("stock4x1")["entry"]),
                                 "Original PoC actual shader symbol differs")
-                        require(dispatch.get("grid") == ([640, 1, 1] if route == "Q4" else [320, 1, 1])
-                                and dispatch.get("threads") == ([32, 1, 1] if route == "Q4" else [32, 2, 1]),
+                        require(dispatch.get("grid") == (variant_contract("stock4x1")["grid"] if route == "Q4" else [320, 1, 1])
+                                and dispatch.get("threads") == (variant_contract("stock4x1")["threads"] if route == "Q4" else [32, 2, 1]),
                                 "Original PoC launch differs")
                 require(actual == wanted, "Original PoC path coverage differs")
                 completed = []

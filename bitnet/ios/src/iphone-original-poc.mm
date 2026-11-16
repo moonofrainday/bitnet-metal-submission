@@ -5,6 +5,7 @@
 
 #include "../../validation/reference.cpp"
 #include "../../validation/stock-runtime.h"
+#include "ggml-metal-bitnet-q-config.h"
 #include <dlfcn.h>
 #import <UIKit/UIKit.h>
 
@@ -199,12 +200,13 @@ struct Route {
     const char *name;
     const char *symbol;
     size_t simd_groups;
+    size_t rows_per_simd = TQ2_POC_ROWS_PER_SIMD;
     bool stock;
     id<MTLComputePipelineState> pipeline = nil;
     std::string library, sha;
     Route(const char *n, const char *s, size_t groups, bool native) : name(n), symbol(s), simd_groups(groups), stock(native) {}
 };
-Route custom(id<MTLDevice> device, const fs::path &path, const char *name, const char *symbol, size_t groups) {
+Route custom(id<MTLDevice> device, const fs::path &path, const char *name, const char *symbol, size_t groups, size_t rows = TQ2_POC_ROWS_PER_SIMD) {
     NSError *error = nil;
     id<MTLLibrary> library = [device newLibraryWithURL:[NSURL fileURLWithPath:ns(path)] error:&error];
     require(library != nil, "Load custom library: " + path.string() + ": " + str(error.localizedDescription));
@@ -213,7 +215,7 @@ Route custom(id<MTLDevice> device, const fs::path &path, const char *name, const
     id<MTLComputePipelineState> pipeline = [device newComputePipelineStateWithFunction:function error:&error];
     require(pipeline != nil, "Custom pipeline creation: " + str(error.localizedDescription));
     require(pipeline.threadExecutionWidth == 32 && pipeline.maxTotalThreadsPerThreadgroup >= 32*groups, "Custom pipeline thread limit/width mismatch");
-    Route route{name,symbol,groups,false}; route.pipeline = pipeline; route.library = fs::canonical(path).string(); route.sha = file_sha(path);
+    Route route{name,symbol,groups,false}; route.rows_per_simd=rows; route.pipeline = pipeline; route.library = fs::canonical(path).string(); route.sha = file_sha(path);
     return route;
 }
 NSDictionary *dispatch(StockRuntime &stock, const Route &route, const Case &c, id<MTLBuffer> w, id<MTLBuffer> x,
@@ -227,7 +229,7 @@ NSDictionary *dispatch(StockRuntime &stock, const Route &route, const Case &c, i
     id<MTLCommandBuffer> command = [stock.queue() commandBuffer];
     require(command != nil, "Command allocation failed");
     command.label = [NSString stringWithFormat:@"BitNet-iphone-original-poc %@ %@",@(c.id.c_str()),@(route.name)];
-    const size_t rows_per_simd = 4;
+    const size_t rows_per_simd = route.rows_per_simd;
     const size_t grid = TQ2_ROWS/(rows_per_simd*route.simd_groups);
     if (route.stock) stock.encode(command,w,x,y,0,0,guard_bytes);
     else {
@@ -306,7 +308,7 @@ int perform(const Options &o, NSMutableDictionary *summary) {
         summary[@"metal_runtime_initialized"] = @YES;
         routes.push_back(Route{"S","kernel_mul_mv_tq2_0_f32",2,true});
         routes.push_back(custom(stock->device(),o.poc,"PoC","tq2_0_matvec_poc",2));
-        routes.push_back(custom(stock->device(),o.q4,"Q4","tq2_0_matvec_poc_c8x2",1));
+        routes.push_back(custom(stock->device(),o.q4,"Q4",GGML_BITNET_Q_STRINGIFY(GGML_BITNET_Q4_ENTRY),GGML_BITNET_Q4_NSG,GGML_BITNET_Q4_ROWS));
     }
     bool all_fp64 = true, all_parity = true, all_coverage = true, all_known = true;
     for (const Case &c : cases) {

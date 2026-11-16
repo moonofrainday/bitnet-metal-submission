@@ -197,7 +197,7 @@ def validate_collection(args, config, log, device_dir, fixture):
         require(native["q_route"] == args.q_route and native["q_fallback"] == args.q_fallback and
                 native["capture_scope"] == args.capture_scope, "Q route/scope identity mismatch")
         if "q_library" in config:
-            for key in ("q_library_sha256", "q_variant", "q_library_source_sha256", "q_library_manifest_sha256", "q_library_sdk"):
+            for key in ("q_library_sha256", "q_variant", "q_library_source_sha256", "q_library_manifest_sha256", "q_library_sdk", "q_kernel_contract_version", "q_kernel_config_sha256", "q_entry", "q_grid", "q_threads"):
                 require(native[key] == config[key], "Q4 source/library runtime identity mismatch: " + key)
         require(native["activation_quantization"] is args.actquant and native["capture_enabled"] is args.capture and
                 native["prefill"] == "batched" and native["kv"] == "F16" and native["workload"] == args.workload,

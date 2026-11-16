@@ -14,7 +14,7 @@ import sys
 import numpy as np
 
 from analyze_q4 import MODEL_SHA, WEIGHT_SHA, EvidenceError, decode_weight, load, manifest, metrics, native_root, payload, q_records, require, sha
-from q4_contract import q4_library_identity
+from q4_contract import q4_library_identity, operator_q_contract
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -80,6 +80,7 @@ def main(argv=None):
           'timing_step16_activation_sha256':by_step[16]['input_sha256'],'tolerance':{'abs':2e-4,'relative':2e-5},
           'source_validation':validation,'source_joint_scoped_pass':True,'whole_model_quality_acceptance_inferred':False,
           'whole_model_source_reference_acceptance_inferred':False,'timing_includes_ActQuant_preparation':False,
+          'q_kernel_contract':operator_q_contract(),'q_kernel_config_sha256':qidentity['q_kernel_config_sha256'],
           'legacy_C8_scope':'Extra isolated arithmetic research only; not the accepted Q4 graph route'}
     output.mkdir(parents=True)
     for step,files in generated.items():

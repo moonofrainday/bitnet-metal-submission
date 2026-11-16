@@ -113,11 +113,13 @@ llama_model_bitnet::graph::graph(const llama_model & model, const llm_graph_para
         }
         const char * custom_q = std::getenv("GGML_METAL_BITNET_POC");
         if (custom_q && custom_q[0] != '\0' && std::strcmp(custom_q, "0") != 0) {
+            const char * variant = std::getenv("GGML_METAL_BITNET_POC_VARIANT");
             const char * rows = std::getenv("GGML_METAL_BITNET_POC_ROWS_PER_SIMD");
             const char * groups = std::getenv("GGML_METAL_BITNET_POC_SIMD_PER_GROUP");
             const char * layers = std::getenv("GGML_METAL_BITNET_LAYERS");
             const char * ablation = std::getenv("GGML_METAL_BITNET_FFN_ABLATION");
-            if (!act_quant_q4 || std::strcmp(custom_q, "1") != 0 || !rows || std::strcmp(rows, "4") != 0 ||
+            if (!act_quant_q4 || std::strcmp(custom_q, "1") != 0 ||
+                    (variant && std::strcmp(variant, "stock4x1") != 0) || !rows || std::strcmp(rows, "4") != 0 ||
                     !groups || std::strcmp(groups, "1") != 0 || !layers || std::strcmp(layers, "0") != 0 ||
                     (ablation && ablation[0] != '\0' && std::strcmp(ablation, "0") != 0)) {
                 throw std::runtime_error("ActQuant custom Q requires explicit Q4 permission, rows=4, groups=1, layer=0 and no FFN ablation");

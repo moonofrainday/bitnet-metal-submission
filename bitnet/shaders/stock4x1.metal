@@ -1,14 +1,26 @@
 #include <metal_stdlib>
+#include "ggml-metal-bitnet-q-config.h"
 using namespace metal;
 #define FOR_UNROLL(x) _Pragma("clang loop unroll(full)") for (x)
-#define N_SIMDWIDTH 32
-#define QK_K 256
-constant short FC_mul_mv_nsg = 1;
+#define N_SIMDWIDTH GGML_BITNET_Q_SIMD_WIDTH
+#define QK_K GGML_BITNET_Q_BLOCK_ELEMENTS
+#if defined(POC_ROWS_PER_SIMD) && POC_ROWS_PER_SIMD != GGML_BITNET_Q4_ROWS
+#error "Q4 rows disagree with the canonical contract"
+#endif
+#if defined(POC_SIMD_PER_GROUP) && POC_SIMD_PER_GROUP != GGML_BITNET_Q4_NSG
+#error "Q4 SIMD groups disagree with the canonical contract"
+#endif
+#ifdef POC_VARIANT
+#error "Q4 uses stock helper arithmetic, not a POC_VARIANT"
+#endif
+static_assert(GGML_BITNET_Q_CONFIG_VERSION == 1, "Q contract version");
+static_assert(GGML_BITNET_Q_NROWS % (GGML_BITNET_Q4_ROWS * GGML_BITNET_Q4_NSG) == 0, "Q4 row coverage");
+constant short FC_mul_mv_nsg = GGML_BITNET_Q4_NSG;
 constant short FC_mul_mv_ne12 = 1;
 constant short FC_mul_mv_r2 = 1;
 constant short FC_mul_mv_r3 = 1;
 struct block_tq2_0 { uchar qs[64]; half d; };
-static_assert(sizeof(block_tq2_0) == 66, "TQ2_0 block");
+static_assert(sizeof(block_tq2_0) == GGML_BITNET_Q_BLOCK_BYTES, "TQ2_0 block");
 struct ggml_metal_kargs_mul_mv {
     int ne00, ne01, ne02;
     ulong nb00, nb01, nb02, nb03;
@@ -121,14 +133,15 @@ void kernel_mul_mv_tq2_0_f32_impl(
     }
 }
 
-kernel void tq2_0_matvec_poc_c8x2(
+kernel void GGML_BITNET_Q4_ENTRY(
     device const char *w [[buffer(0)]], device const char *x [[buffer(1)]], device char *y [[buffer(2)]],
     uint3 group [[threadgroup_position_in_grid]],
     ushort lane [[thread_index_in_simdgroup]], ushort simd [[simdgroup_index_in_threadgroup]]) {
     const ggml_metal_kargs_mul_mv args = {
-        2560,2560,1, 66,660,1689600,1689600,
-        2560,1,1, 4,10240,10240,10240,
-        2560,1,4, 1,1,0.0f
+        GGML_BITNET_Q_NCOLS,GGML_BITNET_Q_NROWS,1,
+        GGML_BITNET_Q_BLOCK_BYTES,GGML_BITNET_Q_ROW_BYTES,GGML_BITNET_Q_WEIGHT_BYTES,GGML_BITNET_Q_WEIGHT_BYTES,
+        GGML_BITNET_Q_NCOLS,1,1, sizeof(float),GGML_BITNET_Q_NCOLS*sizeof(float),GGML_BITNET_Q_NCOLS*sizeof(float),GGML_BITNET_Q_NCOLS*sizeof(float),
+        GGML_BITNET_Q_NROWS,1,GGML_BITNET_Q4_ROWS, 1,1,0.0f
     };
-    kernel_mul_mv_tq2_0_f32_impl<4>(args, w, x, y, nullptr, group, lane, simd);
+    kernel_mul_mv_tq2_0_f32_impl<GGML_BITNET_Q4_ROWS>(args, w, x, y, nullptr, group, lane, simd);
 }

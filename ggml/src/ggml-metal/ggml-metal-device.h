@@ -128,7 +128,9 @@ void ggml_metal_library_free(ggml_metal_library_t lib);
 
 ggml_metal_device_t ggml_metal_library_get_device(ggml_metal_library_t lib);
 
-struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_poc_pipeline(ggml_metal_library_t lib);
+struct ggml_metal_bitnet_q_contract;
+struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_poc_pipeline(
+        ggml_metal_library_t lib, const struct ggml_metal_bitnet_q_contract * contract);
 struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_ffn_pipeline(ggml_metal_library_t lib, bool fused);
 struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_ffn_mechanism_pipeline(ggml_metal_library_t lib, int kind);
 struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_ffn_k_pipeline(ggml_metal_library_t lib);

@@ -27,13 +27,15 @@
     {
       "role": "Selected stock-arithmetic fixed 4x1 wrapper, preserved complete source",
       "path": "shaders/stock4x1.metal",
-      "sha256": "99a6f27566340ff465d1ca6242a4faf5a1e08dda9b676de2622e8ff99e5fa028",
+      "sha256": "589a35035bd69c7bbb23daf7f3382178ff9f6192544bd57fd8a9331949d7cb67",
       "source_sha256": "99a6f27566340ff465d1ca6242a4faf5a1e08dda9b676de2622e8ff99e5fa028",
-      "byte_identical": true,
+      "byte_identical": false,
       "origin": {
         "project_commit": "7fcf557fb593800df38fd217c02e07d3594dea4b",
         "repository_relative_path": "outputs/experiments/2026-11-12_063053+0900-qcur0-coeff-tg/shaders/stock4x1.metal"
-      }
+      },
+      "modification": "Canonical Q entry and layout header; complete stock helper arithmetic retained.",
+      "canonical_config": "ggml/src/ggml-metal/ggml-metal-bitnet-q-config.h"
     },
     {
       "role": "Native selector and ABI adapter; link only freshly built pinned QVAC libraries",

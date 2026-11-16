@@ -2,10 +2,12 @@
 """CPU-only rejection/coverage controls for the joint Q4 verifier."""
 import copy
 import hashlib
+import json
 from pathlib import Path
 import tempfile
 import unittest
 
+from q4_contract import ROOT, SOURCE, LEGACY_SOURCE_SHA, LEGACY_ENTRY, analysis_contract, q4_library_identity
 from analyze_q4 import EvidenceError, POSITIONS, WEIGHT_NB, WEIGHT_NE, WEIGHT_SHA, payload, q_records, scoped_verdict, trace_evidence
 
 
@@ -27,7 +29,7 @@ def trace():
             lines.append('BITNET_ACTQUANT_Q4_GUARD node=Qcur-0 source=actq_qkv_out-0 source_op=ACT_QUANT checked=1')
         for layer in range(30):
             custom=step>0 and layer==0;r='q-custom' if custom else 'q-stock';n=1 if step else 27
-            pipeline='tq2_0_matvec_poc_c8x2' if custom else 'kernel_mul_mv_tq2_0_f32' if step else 'kernel_mul_mm_tq2_0_f32'
+            pipeline=analysis_contract()['entry'] if custom else 'kernel_mul_mv_tq2_0_f32' if step else 'kernel_mul_mm_tq2_0_f32'
             fields=f'route={r} layer={layer} node=Qcur-{layer} weight=blk.{layer}.attn_q.weight n={n} command=0x{step:02x}{layer:02x}'
             lines.append(f'BITNET_MULTILAYER_ENCODE {fields} pipeline={pipeline} grid=[640,1,1] threads=[32,1,1]')
             lines.append(f'BITNET_MULTILAYER_COMPLETE {fields} status=4 completed=1')
@@ -80,8 +82,34 @@ class Q4Contract(unittest.TestCase):
 
     def test_incorrect_geometry_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
-            path=Path(tmp)/'trace.log';path.write_text(trace().replace('pipeline=tq2_0_matvec_poc_c8x2 grid=[640,1,1]','pipeline=tq2_0_matvec_poc_c8x2 grid=[320,1,1]',1))
+            path=Path(tmp)/'trace.log';path.write_text(trace().replace('pipeline='+analysis_contract()['entry']+' grid=[640,1,1]','pipeline='+analysis_contract()['entry']+' grid=[320,1,1]',1))
             with self.assertRaises(EvidenceError):trace_evidence(path,'Q4')
+
+
+    def test_legacy_name_rejected_by_default_trace_profile(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'trace.log';path.write_text(trace().replace(analysis_contract()['entry'],LEGACY_ENTRY))
+            with self.assertRaises(EvidenceError):trace_evidence(path,'Q4')
+
+    def test_legacy_analysis_profile_requires_build_source_identity(self):
+        with self.assertRaises(ValueError):analysis_contract('legacy-shared-v0')
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'BUILD.json'
+            build={'build_completed':True,'exit_code':0,'sdk':'iphoneos','sources':{SOURCE:LEGACY_SOURCE_SHA},
+                   'products':{'stock4x1.metallib':{'source':'stock4x1.metal','expected_symbols':[LEGACY_ENTRY],'sha256':'a'*64}},
+                   'commands':[{'name':'stock4x1-compile','exit_code':0,'argv':[str(ROOT/SOURCE)]}]}
+            path.write_text(json.dumps(build));contract=analysis_contract('legacy-shared-v0',path)
+            self.assertTrue(contract['analysis_only_legacy']);self.assertEqual(contract['entry'],LEGACY_ENTRY)
+            build['sources'][SOURCE]='0'*64;path.write_text(json.dumps(build))
+            with self.assertRaises(ValueError):analysis_contract('legacy-shared-v0',path)
+
+    def test_legacy_build_is_never_a_current_runtime_library(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);library=root/'q.metallib';library.write_bytes(b'unit-only-not-a-real-library')
+            path=root/'BUILD.json';path.write_text(json.dumps({'build_completed':True,'exit_code':0,'sdk':'iphoneos',
+                'sources':{SOURCE:LEGACY_SOURCE_SHA},'products':{'stock4x1.metallib':{'source':'stock4x1.metal',
+                'expected_symbols':[LEGACY_ENTRY],'sha256':hashlib.sha256(library.read_bytes()).hexdigest(),'bytes':library.stat().st_size}}}))
+            with self.assertRaises(ValueError):q4_library_identity(library,path,'iphoneos')
 
 
 if __name__=='__main__':unittest.main()

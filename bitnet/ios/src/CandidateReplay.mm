@@ -4,6 +4,7 @@
 #import <CommonCrypto/CommonDigest.h>
 #import <llama/llama.h>
 #import <llama/ggml-backend.h>
+#include "ggml-metal-bitnet-q-config.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -25,6 +26,7 @@ extern "C" int bitnet_run_iphone_down(const char*,const char*,const char*,const 
 extern "C" int bitnet_run_iphone_original_poc(const char*,const char*,const char*,const char*);
 extern "C" int bitnet_run_iphone_ppl(const char*,const char*,const char*);
 extern "C" int bitnet_actquant_run_config(const char*,const char*);
+extern "C" int bitnet_q_pipeline_contract_run(const char*,const char*,const char*);
 extern "C" void ggml_metal_bitnet_shadow_wait(void);
 namespace bitnet_candidate {
 namespace fs=std::filesystem;
@@ -35,7 +37,7 @@ static double seconds(Clock::time_point a){return std::chrono::duration<double>(
 static std::string thermal(){switch(NSProcessInfo.processInfo.thermalState){case NSProcessInfoThermalStateNominal:return "nominal";case NSProcessInfoThermalStateFair:return "fair";case NSProcessInfoThermalStateSerious:return "serious";case NSProcessInfoThermalStateCritical:return "critical";}return "unknown";}
 static std::vector<llama_token> ids(const fs::path&p){std::ifstream f(p);std::vector<llama_token>v;llama_token t;while(f>>t)v.push_back(t);require(f.eof(),"cannot read IDs "+p.string());return v;}
 static void save(const fs::path&p,const void*d,size_t n){fs::create_directories(p.parent_path());std::ofstream f(p,std::ios::binary);require(bool(f.write((const char*)d,n)),"write failed "+p.string());}
-static void route(const std::string&r){require(r=="S"||r=="G"||r=="K"||r=="F8"||r=="Q4"||r=="QB","invalid route");for(const char*k:{"GGML_METAL_BITNET_Q_GUARD_ONLY","GGML_METAL_BITNET_POC","GGML_METAL_BITNET_FFN","GGML_METAL_BITNET_FFN_MECHANISM","GGML_METAL_BITNET_POC_ROWS_PER_SIMD","GGML_METAL_BITNET_POC_SIMD_PER_GROUP"})unsetenv(k);if(r=="Q4"||r=="QB"){setenv(r=="QB"?"GGML_METAL_BITNET_Q_GUARD_ONLY":"GGML_METAL_BITNET_POC","1",1);setenv("GGML_METAL_BITNET_POC_ROWS_PER_SIMD","4",1);setenv("GGML_METAL_BITNET_POC_SIMD_PER_GROUP","1",1);}else if(r=="F8")setenv("GGML_METAL_BITNET_FFN","fused",1);else if(r!="S")setenv("GGML_METAL_BITNET_FFN_MECHANISM",r.c_str(),1);}
+static void route(const std::string&r){require(r=="S"||r=="G"||r=="K"||r=="F8"||r=="Q4"||r=="QB","invalid route");for(const char*k:{"GGML_METAL_BITNET_Q_GUARD_ONLY","GGML_METAL_BITNET_POC","GGML_METAL_BITNET_POC_VARIANT","GGML_METAL_BITNET_FFN","GGML_METAL_BITNET_FFN_MECHANISM","GGML_METAL_BITNET_POC_ROWS_PER_SIMD","GGML_METAL_BITNET_POC_SIMD_PER_GROUP"})unsetenv(k);if(r=="Q4"||r=="QB"){setenv(r=="QB"?"GGML_METAL_BITNET_Q_GUARD_ONLY":"GGML_METAL_BITNET_POC","1",1);setenv("GGML_METAL_BITNET_POC_VARIANT","stock4x1",1);setenv("GGML_METAL_BITNET_POC_ROWS_PER_SIMD",GGML_BITNET_Q_STRINGIFY(GGML_BITNET_Q4_ROWS),1);setenv("GGML_METAL_BITNET_POC_SIMD_PER_GROUP",GGML_BITNET_Q_STRINGIFY(GGML_BITNET_Q4_NSG),1);}else if(r=="F8")setenv("GGML_METAL_BITNET_FFN","fused",1);else if(r!="S")setenv("GGML_METAL_BITNET_FFN_MECHANISM",r.c_str(),1);}
 static void trace(bool enabled){for(const char*k:{"GGML_METAL_BITNET_POC_TRACE","GGML_METAL_BITNET_FFN_TRACE"}){if(enabled)setenv(k,"1",1);else unsetenv(k);}}
 struct Options{fs::path model,prompt,prompt_ids,continuation_ids,out,library,k_library,k_shadow,f8_library,q_library;std::string operation="verify",comparison="ALL",layers="0",q_fallback;int pairs=21,rounds=3,round_index=1,warmups=2;std::vector<std::string> routes;bool traced=false,allow_missing_k=false,k_shadow_all=false,q_readback=false;};
 struct Replay{double wall=0,prefill=0,reset=0,begin_s=0,end_s=0;std::vector<double>token_ms,token_start,token_end;std::vector<float>logits;std::vector<int>greedy;std::string before,after;bool low_before=false,low_after=false;};
@@ -51,7 +53,7 @@ class Session{
 public:
  explicit Session(const Options&o):o_layers_(o.layers),q_fallback_(o.q_fallback),k_shadow_(o.k_shadow),k_shadow_all_(o.k_shadow_all),q_readback_requested_(o.q_readback){
   stop_q_readback();
-  for(const char*k:{"GGML_METAL_BITNET_Q_GUARD_ONLY","GGML_METAL_BITNET_POC","GGML_METAL_BITNET_FFN","GGML_METAL_BITNET_FFN_DECODE","GGML_METAL_BITNET_FFN_MECHANISM","GGML_METAL_BITNET_FFN_SHADOW_DIR","GGML_METAL_BITNET_FFN_TIME","GGML_METAL_BITNET_LAYER_TIME","GGML_METAL_BITNET_FFN_ABLATION","GGML_METAL_BITNET_FFN_ABLATION_CPU","GGML_METAL_BITNET_FFN_ABLATION_COUNT","GGML_METAL_BITNET_FFN_ABLATION_TRACE","GGML_METAL_BITNET_FFN_ABLATION_GPU","GGML_METAL_BITNET_FFN_ABLATION_REUSE_LAYER","GGML_METAL_GRAPH_DEBUG","GGML_METAL_DEBUG_GRAPH","GGML_METAL_CAPTURE_COMPUTE","METAL_CAPTURE_ENABLED"})unsetenv(k);
+  for(const char*k:{"GGML_METAL_BITNET_Q_GUARD_ONLY","GGML_METAL_BITNET_POC","GGML_METAL_BITNET_POC_VARIANT","GGML_METAL_BITNET_FFN","GGML_METAL_BITNET_FFN_DECODE","GGML_METAL_BITNET_FFN_MECHANISM","GGML_METAL_BITNET_FFN_SHADOW_DIR","GGML_METAL_BITNET_FFN_TIME","GGML_METAL_BITNET_LAYER_TIME","GGML_METAL_BITNET_FFN_ABLATION","GGML_METAL_BITNET_FFN_ABLATION_CPU","GGML_METAL_BITNET_FFN_ABLATION_COUNT","GGML_METAL_BITNET_FFN_ABLATION_TRACE","GGML_METAL_BITNET_FFN_ABLATION_GPU","GGML_METAL_BITNET_FFN_ABLATION_REUSE_LAYER","GGML_METAL_GRAPH_DEBUG","GGML_METAL_DEBUG_GRAPH","GGML_METAL_CAPTURE_COMPUTE","METAL_CAPTURE_ENABLED"})unsetenv(k);
   trace(false);setenv("GGML_METAL_BITNET_LAYERS",o.layers.c_str(),1);setenv("GGML_METAL_BITNET_FFN_MECHANISM_METALLIB",o.library.c_str(),1);setenv("GGML_METAL_BITNET_FFN_K_METALLIB",o.k_library.c_str(),1);setenv("GGML_METAL_BITNET_FFN_FUSED_METALLIB",o.f8_library.c_str(),1);setenv("GGML_METAL_BITNET_POC_METALLIB",o.q_library.c_str(),1);
   prompt_=ids(o.prompt_ids);continuation_=ids(o.continuation_ids);require(prompt_.size()==27&&continuation_.size()==32,"expected27/32 token IDs");llama_backend_init();ggml_backend_dev_t devices[]={ggml_backend_dev_by_name("MTL0"),nullptr};require(devices[0],"MTL0 unavailable");auto mp=llama_model_default_params();mp.devices=devices;mp.n_gpu_layers=999;mp.check_tensors=true;model_.reset(llama_model_load_from_file(o.model.c_str(),mp));require(bool(model_)&&llama_model_n_layer(model_.get())==30,"model/block count invalid");const auto*vocab=llama_model_get_vocab(model_.get());vocabulary_=llama_vocab_n_tokens(vocab);
   std::ifstream pf(o.prompt,std::ios::binary);std::string text((std::istreambuf_iterator<char>(pf)),{});std::vector<llama_token>actual(text.size()+2);int n=llama_tokenize(vocab,text.data(),text.size(),actual.data(),actual.size(),true,true);require(n==int(prompt_.size())&&std::equal(prompt_.begin(),prompt_.end(),actual.begin()),"prompt differs from pinned IDs");auto cp=llama_context_default_params();cp.n_ctx=512;cp.n_batch=cp.n_ubatch=128;cp.n_threads=cp.n_threads_batch=6;cp.type_k=cp.type_v=GGML_TYPE_F16;cp.flash_attn_type=LLAMA_FLASH_ATTN_TYPE_DISABLED;cp.cb_eval=nullptr;cp.cb_eval_user_data=nullptr;ctx_.reset(llama_init_from_model(model_.get(),cp));require(bool(ctx_),"context init failed");
@@ -119,6 +121,19 @@ static int run(){
  const char* raw=std::getenv("BITNET_CANDIDATE_CONFIG");require(raw,"missing candidate config");NSError*error=nil;NSData*data=[@(raw) dataUsingEncoding:NSUTF8StringEncoding];NSDictionary*c=[NSJSONSerialization JSONObjectWithData:data options:0 error:&error];require([c isKindOfClass:NSDictionary.class],"invalid JSON config");
  const fs::path docs=[[[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject path].UTF8String;
  const std::string prefix=str(c[@"output"]);require(prefix.rfind("candidate-",0)==0&&prefix.find('/')==std::string::npos,"invalid output prefix");Options o;o.out=docs/prefix;require(!fs::exists(o.out),"refuse existing output");fs::create_directories(o.out);json(o.out/"request.json",c);
+ if([c[@"operation"]isEqual:@"q-contract"]){
+  NSDictionary*contract=c[@"q_kernel_contract"];require([contract isKindOfClass:NSDictionary.class]&&[contract[@"version"]intValue]==GGML_BITNET_Q_CONFIG_VERSION,"Q inspection contract version mismatch");
+  NSDictionary*variants=contract[@"variants"];
+  require([variants[@"stock4x1"][@"entry"]isEqual:@GGML_BITNET_Q_STRINGIFY(GGML_BITNET_Q4_ENTRY)]&&[variants[@"c8x2"][@"entry"]isEqual:@GGML_BITNET_Q_STRINGIFY(GGML_BITNET_C8_ENTRY)],"Q inspection unique entries mismatch");
+  NSDictionary*libs=c[@"libraries"];fs::path q4,c8;NSMutableDictionary*hashes=[NSMutableDictionary dictionary];
+  for(NSString*routeName in @[@"Q4",@"C8"]){NSDictionary*entry=libs[routeName];const auto file=actquantDocumentPath(docs,entry[@"file"],false);NSString*digest=hashFile(file);require([digest isEqual:entry[@"sha256"]],"Q inspection library checksum mismatch");hashes[routeName]=digest;if([routeName isEqual:@"Q4"])q4=file;else c8=file;}
+  const auto nativeOutput=o.out/"contract-check";
+  const int code=bitnet_q_pipeline_contract_run(q4.c_str(),c8.c_str(),nativeOutput.c_str());
+  require(fs::is_regular_file(nativeOutput/"RESULT.json"),"Q inspection result missing");NSDictionary*native=actquantReadJSON(nativeOutput/"RESULT.json");
+  require([native[@"exit_code"]intValue]==code&&[native[@"target_Q_dispatches"]intValue]==0&&![native[@"model_loaded"]boolValue],"Q inspection status/scope mismatch");
+  NSDictionary*record=@{@"schema":@1,@"operation":@"q-contract",@"process_exit_code":@(code),@"native_process_exit_code":@(code),@"execution_pass":@(code==0),@"runtime_contract_pass":native[@"runtime_contract_pass"]?:[NSNull null],@"target_Q_dispatches":@0,@"model_loaded":@NO,@"device_initialization_may_run_capability_probes":@YES,@"fp64_pass":[NSNull null],@"model_output_pass":[NSNull null],@"model_quality_pass":[NSNull null],@"performance_measured":@NO,@"libraries":hashes,@"native_result_sha256":hashFile(nativeOutput/"RESULT.json"),@"contract_version":@(GGML_BITNET_Q_CONFIG_VERSION)};
+  json(o.out/"result.json",record);NSData*encoded=[NSJSONSerialization dataWithJSONObject:record options:NSJSONWritingSortedKeys error:nil];std::printf("BITNET_PHONE_COMPLETE %s\n",[[[NSString alloc]initWithData:encoded encoding:NSUTF8StringEncoding]UTF8String]);fflush(stdout);return code;
+ }
  const std::string model=str(c[@"model"]);require(model.find('/')==std::string::npos,"invalid model basename");o.model=docs/model;NSString*modelSHA=hashFile(o.model);require([modelSHA isEqual:c[@"model_sha256"]],"GGUF checksum mismatch");std::fprintf(stderr,"BITNET_PHONE_MODEL_SHA256 %s\n",modelSHA.UTF8String);fflush(stderr);
 
  if([c[@"operation"]isEqual:@"actquant"]){
@@ -148,9 +163,15 @@ static int run(){
     const auto library=actquantDocumentPath(docs,c[@"q_library"],false);NSString*librarySHA=hashFile(library);
     require([librarySHA isEqual:c[@"q_library_sha256"]]&&[c[@"q_variant"]isEqual:@"stock4x1"],"Q4 library variant/hash mismatch");
     native[@"q_library"]=@(library.c_str());identity[@"q_library_sha256"]=librarySHA;
-    for(NSString*key in @[@"q_library_sha256",@"q_variant",@"q_library_source_sha256",@"q_library_manifest_sha256",@"q_library_sdk"]){
+    for(NSString*key in @[@"q_library_sha256",@"q_variant",@"q_library_source_sha256",@"q_library_manifest_sha256",@"q_library_sdk",@"q_entry",@"q_kernel_config_sha256"]){
      require([c[key]isKindOfClass:NSString.class],"missing Q4 library provenance");native[key]=c[key];
     }
+   }
+   if(c[@"q_library"]){
+    require([c[@"q_kernel_contract_version"]isKindOfClass:NSNumber.class]&&[c[@"q_kernel_contract_version"]intValue]==GGML_BITNET_Q_CONFIG_VERSION,"Q contract version mismatch");
+    require([c[@"q_entry"]isEqual:@GGML_BITNET_Q_STRINGIFY(GGML_BITNET_Q4_ENTRY)],"Q4 entry mismatch");
+    require([c[@"q_grid"]isKindOfClass:NSArray.class]&&[c[@"q_threads"]isKindOfClass:NSArray.class],"Q4 geometry metadata missing");
+    native[@"q_kernel_contract_version"]=c[@"q_kernel_contract_version"];native[@"q_grid"]=c[@"q_grid"];native[@"q_threads"]=c[@"q_threads"];
    }
    require(qr!="Q4"||native[@"q_library"]!=nil,"Q4 library missing");
   }

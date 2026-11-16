@@ -1,9 +1,12 @@
 {
-  "note": "Copied without shader edits. Historical paths identify the private research archive; they are not runtime dependencies.",
+  "note": "Historical paths retain original attribution. The versioned Q contract edits are recorded per file; historical results are unchanged.",
   "files": {
     "stock4x1.metal": {
       "historical_source": "outputs/experiments/2026-11-12_202159+0900-iphone-candidate-sequence/shaders/stock4x1.metal",
-      "sha256": "99a6f27566340ff465d1ca6242a4faf5a1e08dda9b676de2622e8ff99e5fa028"
+      "sha256": "589a35035bd69c7bbb23daf7f3382178ff9f6192544bd57fd8a9331949d7cb67",
+      "historical_source_sha256": "99a6f27566340ff465d1ca6242a4faf5a1e08dda9b676de2622e8ff99e5fa028",
+      "modification": "Canonical Q-only entry/layout guards; arithmetic and non-Q research routes retained.",
+      "canonical_config": "ggml/src/ggml-metal/ggml-metal-bitnet-q-config.h"
     },
     "dual.metal": {
       "historical_source": "outputs/experiments/2026-11-12_202159+0900-iphone-candidate-sequence/shaders/dual.metal",
@@ -31,7 +34,10 @@
     },
     "c-expand.metal": {
       "historical_source": "outputs/experiments/2026-11-12_202159+0900-iphone-candidate-sequence/shaders/c-expand.metal",
-      "sha256": "a72309048481fe4e8bd04fd662644de7df86f161cfd5426415d0bca1180aa634"
+      "sha256": "a160c6812a26d3ba7eb3630010ca16a080c1645d228caea8be9faf1333f9a23a",
+      "historical_source_sha256": "a72309048481fe4e8bd04fd662644de7df86f161cfd5426415d0bca1180aa634",
+      "modification": "Canonical Q-only entry/layout guards; arithmetic and non-Q research routes retained.",
+      "canonical_config": "ggml/src/ggml-metal/ggml-metal-bitnet-q-config.h"
     },
     "include-expand/contract.h": {
       "historical_source": "outputs/experiments/2026-11-12_202159+0900-iphone-candidate-sequence/shaders/include-expand/contract.h",

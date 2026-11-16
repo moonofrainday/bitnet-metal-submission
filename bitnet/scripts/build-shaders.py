@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import shlex
 import subprocess
 import sys
@@ -20,6 +21,9 @@ import time
 
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+from bitnet.q_kernel_contract import load_contract
+
 SHADERS = ROOT / "bitnet" / "shaders"
 SAFE = ["-fmetal-math-mode=safe", "-ffp-contract=off"]
 C8 = ["-DPOC_VARIANT=2", "-DPOC_ALIGNED_X=0",
@@ -30,13 +34,21 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def units():
+def require(condition, message):
+    if not condition:
+        raise RuntimeError(message)
+
+
+def units(contract=None):
+    contract = contract or load_contract()
+    q4, c8 = (contract['variants'][name] for name in ('stock4x1', 'c8x2'))
+    q_flags = ['-I', str(ROOT / Path(contract['config_path']).parent), '-Werror=macro-redefined']
     return [
         ("original-poc", "original/matvec.metal", [], "tq2_0_matvec_poc"),
-        ("stock4x1", "stock4x1.metal", [], "tq2_0_matvec_poc_c8x2"),
-        ("qcur0-c8x2", "c-expand.metal", C8 + [
-            "-I", str(SHADERS / "original"),
-            "-Dtq2_0_matvec_poc=tq2_0_matvec_poc_c8x2"], "tq2_0_matvec_poc_c8x2"),
+        ("stock4x1", "stock4x1.metal", q_flags, q4['entry']),
+        ("qcur0-c8x2", "c-expand.metal", q_flags + [
+            '-DBITNET_CANONICAL_Q_C8=1', '-DPOC_VARIANT=2', '-DPOC_ALIGNED_X=0',
+            "-I", str(SHADERS / "original")], c8['entry']),
         ("dual", "dual.metal", [], "ffn_dual_projection"),
         ("post", "post.metal", SAFE, "ffn_post_strict,ffn_shadow_copy"),
         ("up-epilogue", "up-epilogue.metal", [], "ffn_up_epilogue"),
@@ -83,17 +95,22 @@ def main():
     common = ["-O3", target_flag, "-fmodules-cache-path=" + str(output / "modules")]
     plan = []
     products = {}
-    for name, source, flags, symbols in units():
+    contract = load_contract()
+    q_units = {'stock4x1': contract['variants']['stock4x1'],
+               'qcur0-c8x2': contract['variants']['c8x2']}
+    for name, source, flags, symbols in units(contract):
         air = output / (name + ".air")
         lib = output / (name + ".metallib")
         plan.append((name + "-compile", compiler + common + flags +
                      [str(SHADERS / source), "-c", "-o", str(air)]))
-        if args.emit_air:
+        if args.emit_air or name in q_units:
             plan.append((name + "-llvm", compiler + common + flags +
                          [str(SHADERS / source), "-S", "-emit-llvm", "-o",
                           str(output / (name + ".ll"))]))
         plan.append((name + "-link", linker + [str(air), "-o", str(lib)]))
         products[lib.name] = {"source": source, "expected_symbols": symbols.split(",")}
+        if name in q_units:
+            products[lib.name]['q_contract'] = q_units[name]
     combined = output / "ffn-mechanisms.metallib"
     plan.append(("ffn-mechanisms-link", linker + [str(output / (name + ".air"))
                  for name in ["post", "up-epilogue", "dual"]] + ["-o", str(combined)]))
@@ -102,7 +119,7 @@ def main():
                                                     "ffn_up_epilogue", "ffn_dual_projection"]}
     if args.plan:
         print(json.dumps({"sdk": args.sdk, "deployment_target": target,
-                          "output": str(output), "commands": [
+                          "output": str(output), 'q_kernel_contract': contract, "commands": [
                               {"name": name, "argv": argv} for name, argv in plan]}, indent=2))
         return 0
     if platform.system() != "Darwin":
@@ -124,10 +141,12 @@ def main():
         "DEVELOPER_DIR": env.get("DEVELOPER_DIR"),
         "macOS": platform.mac_ver()[0], "machine": platform.machine(),
         "build_completed": False, "GPU_executed": False,
+        'q_kernel_contract': contract,
         "sources": {str(p.relative_to(ROOT)): digest(p)
                     for p in sorted(SHADERS.rglob("*")) if p.is_file()},
         "commands": [], "products": {},
     }
+    manifest['sources'][contract['config_path']] = contract['config_sha256']
 
     def save():
         (output / "BUILD.json").write_text(json.dumps(manifest, indent=2) + "\n")
@@ -169,6 +188,25 @@ def main():
                 raise RuntimeError("Missing or empty library: " + str(path))
             manifest["products"][filename] = dict(description, sha256=digest(path),
                                                     bytes=path.stat().st_size)
+            if 'q_contract' in description:
+                descriptor = description['q_contract']
+                llvm = output / (path.stem + '.ll')
+                text = llvm.read_text()
+                defined = re.findall(r'^define\s+[^@\n]*@([A-Za-z_][A-Za-z_0-9]*)\(', text, re.M)
+                entry = descriptor['entry']
+                require(entry in defined and '!air.kernel' in text, 'Expected Q entry missing from compiler AIR')
+                binary = path.read_bytes()
+                require(entry.encode('ascii') in binary, 'Expected Q entry missing from metallib name table')
+                forbidden = {'tq2_0_matvec_poc_c8x2'} | {d['entry'] for d in q_units.values() if d['entry'] != entry}
+                require(all(name not in defined and name.encode('ascii') not in binary for name in forbidden),
+                        'Q metallib contains a shared or mismatched entry')
+                manifest['products'][filename]['symbol_validation'] = {
+                    'AIR_defined_functions': defined, 'AIR_sha256': digest(llvm),
+                    'expected_entry_in_AIR_and_metallib': True, 'forbidden_entries_absent': True,
+                    'scope': 'Offline compiler AIR and metallib name table; no GPU pipeline creation',
+                }
+        if digest(ROOT / contract['config_path']) != contract['config_sha256']:
+            raise RuntimeError('Canonical Q contract changed during shader build')
         manifest["build_completed"] = True
         manifest["exit_code"] = 0
         print("Build completed. No GPU correctness or performance test was run.")

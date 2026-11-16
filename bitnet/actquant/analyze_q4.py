@@ -17,6 +17,8 @@ import sys
 
 import numpy as np
 
+from q4_contract import analysis_contract
+
 MODEL_SHA = '52257df879ab4366d97228e7bda94a9a3c6a9065ec44e7879a8b87d54e568cd2'
 WEIGHT_SHA = 'b2dea7f42cacfd08ed780df979f6f28240026795b1f5c87ca8c16fc7da23dc58'
 ATOL, RTOL = 2e-4, 2e-5
@@ -80,7 +82,8 @@ def metrics(actual, reference):
             'pass': not bool(bad.any())}, bad
 
 
-def manifest(root, route, captured=True):
+def manifest(root, route, captured=True, contract=None):
+    contract = contract or analysis_contract()
     r = load(root / 'RUN.json')
     require(r['schema'] == 1 and r['operation'] == 'model' and r['workload'] == 'teacher', 'Expected teacher model RUN')
     require(r['model_sha256'] == MODEL_SHA and r['backend'] == 'MTL0' and r['activation_quantization'] is True,
@@ -94,8 +97,14 @@ def manifest(root, route, captured=True):
     require(len(r['prompt_ids']) == 27 and len(r['continuation_ids']) == 32 and
             r['token_ids'] == r['prompt_ids'] + r['continuation_ids'], 'Wrong teacher history')
     require([x['input_position'] for x in r['logits']] == list(range(26, 59)), 'Incomplete logit coverage')
+    if contract.get('analysis_only_legacy'):
+        require(r['q_library_sha256'] == contract['legacy_library_sha256'] and
+                r['q_library_source_sha256'] == contract['legacy_source_sha256'], 'Legacy run is not bound to the supplied audited shader build')
+    else:
+        require(r['q_kernel_contract_version'] == contract['version'] and r['q_entry'] == contract['entry'] and
+                r['q_kernel_config_sha256'] == contract['config_sha256'], 'RUN canonical entry/config provenance mismatch')
     if route == 'Q4':
-        require(r['q_rows_per_simd'] == 4 and r['q_simd_per_group'] == 1 and r['q_variant'] == 'stock4x1',
+        require(r['q_rows_per_simd'] == contract['rows'] and r['q_simd_per_group'] == contract['groups'] and r['q_variant'] == 'stock4x1',
                 'Wrong Q4 algorithm/layout')
         for key in ['q_library_sha256', 'q_library_source_sha256', 'q_library_manifest_sha256']:
             require(isinstance(r[key], str) and len(r[key]) == 64, 'Missing Q4 library provenance')
@@ -132,7 +141,8 @@ def decode_weight(raw):
     return (codes.astype(np.float64)-1) * scales[:,:,None]
 
 
-def trace_evidence(path, route, fallback='none'):
+def trace_evidence(path, route, fallback='none', contract=None):
+    contract = contract or analysis_contract()
     text = Path(path).read_text(errors='replace')
     phase, begins, ends = None, [], []
     encoded, completed = Counter(), Counter()
@@ -170,8 +180,8 @@ def trace_evidence(path, route, fallback='none'):
             require(not custom or (route == 'Q4' and fallback == 'none' and phase > 0 and layer == 0 and f['n'] == '1'),
                     'Custom prefill/non-target/stock dispatch')
             if custom:
-                require(f['pipeline'] == 'tq2_0_matvec_poc_c8x2' and f['grid'] == '[640,1,1]' and
-                        f['threads'] == '[32,1,1]', 'Wrong actual Q4 pipeline/launch')
+                require(f['pipeline'] == contract['entry'] and f['grid'] == json.dumps(contract['grid'],separators=(',',':')) and
+                        f['threads'] == json.dumps(contract['threads'],separators=(',',':')), 'Wrong actual Q4 pipeline/launch')
             else:
                 require(f['pipeline'] == ('kernel_mul_mm_tq2_0_f32' if phase == 0 else 'kernel_mul_mv_tq2_0_f32'),
                         'Wrong actual stock Q pipeline')
@@ -205,10 +215,10 @@ def vector_comparison(a, b):
             'max_abs': max(x['max_abs'] for x in rows), 'rows': rows}
 
 
-def probe_control(path, reference_root, reference_run, route):
+def probe_control(path, reference_root, reference_run, route, contract=None):
     if path is None:
         return None
-    root = native_root(path); r = manifest(root, route, False)
+    root = native_root(path); r = manifest(root, route, False, contract)
     require(r['token_ids'] == reference_run['token_ids'] and r['q_library_sha256'] == reference_run['q_library_sha256'],
             'Probe history/library differs')
     return vector_comparison(logits(root,r), logits(reference_root,reference_run))
@@ -241,8 +251,12 @@ def run(args):
               'frozen_tolerance':{'absolute':ATOL,'relative':RTOL},'official_source_model_output_pass':None,
               'model_quality_pass':None,'performance_measured':False,'historical_strict_failures_overwritten':False}
     try:
+        contract = analysis_contract(args.contract_profile, args.legacy_shader_build)
+        result['contract_profile'] = args.contract_profile
+        result['Q4_entry'] = contract['entry']; result['Q4_contract_version'] = contract['version']
+        if contract.get('analysis_only_legacy'): result['legacy_shader_build_sha256'] = contract['legacy_build_sha256']
         sr, cr = native_root(args.stock), native_root(args.candidate)
-        s,c = manifest(sr,'stock'),manifest(cr,'Q4'); sq,cq = q_records(s),q_records(c)
+        s,c = manifest(sr,'stock',True,contract),manifest(cr,'Q4',True,contract); sq,cq = q_records(s),q_records(c)
         require(s['token_ids'] == c['token_ids'] and s['device'] == c['device'] and s['q_library_sha256'] == c['q_library_sha256'],
                 'Routes must have identical history, device and Q4 library identity')
         w = payload(sr,sq[0]['weight_path'],1689600,WEIGHT_SHA,np.uint8); payload(cr,cq[0]['weight_path'],1689600,WEIGHT_SHA,np.uint8)
@@ -263,13 +277,13 @@ def run(args):
         layer_c=[x for x in c['checkpoints'] if x['kind']=='l_out' and x['node']=='l_out-0' and x['input_positions'] in [[27],[42],[58]]]
         require([x['input_positions'] for x in layer_s] == [x['input_positions'] for x in layer_c] == [[27],[42],[58]], 'Missing sampled residual steps1/16/32')
         residual=vector_comparison([payload(cr,x['path'],2560) for x in layer_c],[payload(sr,x['path'],2560) for x in layer_s])
-        logit=vector_comparison(logits(cr,c),logits(sr,s));probe_s=probe_control(args.stock_plain,sr,s,'stock');probe_c=probe_control(args.candidate_plain,cr,c,'Q4')
-        traces={'stock':trace_evidence(args.stock_log,'stock'),'Q4':trace_evidence(args.candidate_log,'Q4')}
+        logit=vector_comparison(logits(cr,c),logits(sr,s));probe_s=probe_control(args.stock_plain,sr,s,'stock',contract);probe_c=probe_control(args.candidate_plain,cr,c,'Q4',contract)
+        traces={'stock':trace_evidence(args.stock_log,'stock',contract=contract),'Q4':trace_evidence(args.candidate_log,'Q4',contract=contract)}
         quant={'stock':quantizer_check(sr,s,sq,args.official_source),'Q4':quantizer_check(cr,c,cq,args.official_source)}
         fallback=None
         if args.missing_library is not None and args.missing_library_log is not None:
             fr=native_root(args.missing_library);f=load(fr/'RUN.json');require(f['q_route']=='Q4' and f['q_fallback']=='missing-library' and f['token_ids']==s['token_ids'] and f['activation_quantization'] is True,'Wrong missing-library control')
-            fb=vector_comparison(logits(fr,f),logits(sr,s));trace=trace_evidence(args.missing_library_log,'Q4','missing-library');fallback={'pass':fb['bitwise_pass'] and trace['pass'],'logits':fb,'trace':trace}
+            fb=vector_comparison(logits(fr,f),logits(sr,s));trace=trace_evidence(args.missing_library_log,'Q4','missing-library',contract);fallback={'pass':fb['bitwise_pass'] and trace['pass'],'logits':fb,'trace':trace}
         checks={'identical_real_inputs_pass':True,'parity_pass':all(v['pass'] for v in comparisons[1:]),
                 'fp64_pass':all(v['stock']['pass'] and v['Q4']['pass'] for v in fp_rows),
                 'model_output_pass':residual['pass'] and logit['pass'],
@@ -297,6 +311,8 @@ def main(argv=None):
         p.add_argument('--'+name,type=Path,required=True)
     for name in ['stock-plain','candidate-plain','missing-library','missing-library-log']:
         p.add_argument('--'+name,type=Path)
+    p.add_argument('--contract-profile',choices=('canonical-v1','legacy-shared-v0'),default='canonical-v1')
+    p.add_argument('--legacy-shader-build',type=Path,help='Analysis-only preserved shader BUILD.json; required for legacy-shared-v0')
     p.add_argument('--official-source',type=Path,default=Path(__file__).resolve().parents[1]/'reference/official-bitnet-096f25ae.py')
     return run(p.parse_args(argv))
 

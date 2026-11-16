@@ -5,6 +5,7 @@
 
 #include "reference.h"
 #include "stock-runtime.h"
+#include "ggml-metal-bitnet-q-config.h"
 
 #include <algorithm>
 #include <cmath>
@@ -24,6 +25,8 @@ namespace fs = std::filesystem;
 namespace {
 constexpr size_t weight_bytes = size_t(TQ2_ROWS) * TQ2_BLOCKS_PER_ROW * TQ2_BLOCK_BYTES;
 constexpr size_t vector_bytes = size_t(TQ2_ROWS) * sizeof(float);
+static_assert(TQ2_ROWS == GGML_BITNET_Q_NROWS && TQ2_COLUMNS == GGML_BITNET_Q_NCOLS &&
+              TQ2_SIMD_WIDTH == GGML_BITNET_Q_SIMD_WIDTH, "Standalone Q shape differs from canonical contract");
 constexpr size_t guard_bytes = 128;
 constexpr double abs_tolerance = 2e-4;
 constexpr double rel_tolerance = 2e-5;
@@ -214,12 +217,13 @@ struct Route {
     const char *name;
     const char *symbol;
     size_t simd_groups;
+    size_t rows_per_simd;
     bool stock;
     id<MTLComputePipelineState> pipeline = nil;
     std::string library, sha;
-    Route(const char *n, const char *s, size_t groups, bool native) : name(n), symbol(s), simd_groups(groups), stock(native) {}
+    Route(const char *n, const char *s, size_t groups, bool native, size_t rows = TQ2_POC_ROWS_PER_SIMD) : name(n), symbol(s), simd_groups(groups), rows_per_simd(rows), stock(native) {}
 };
-Route custom(id<MTLDevice> device, const fs::path &path, const char *name, const char *symbol, size_t groups) {
+Route custom(id<MTLDevice> device, const fs::path &path, const char *name, const char *symbol, size_t groups, size_t rows = TQ2_POC_ROWS_PER_SIMD) {
     NSError *error = nil;
     id<MTLLibrary> library = [device newLibraryWithURL:[NSURL fileURLWithPath:ns(path)] error:&error];
     require(library != nil, "Load custom library: " + path.string() + ": " + str(error.localizedDescription));
@@ -227,8 +231,8 @@ Route custom(id<MTLDevice> device, const fs::path &path, const char *name, const
     require(function != nil, "Missing custom kernel " + std::string(symbol));
     id<MTLComputePipelineState> pipeline = [device newComputePipelineStateWithFunction:function error:&error];
     require(pipeline != nil, "Custom pipeline creation: " + str(error.localizedDescription));
-    require(pipeline.threadExecutionWidth == 32 && pipeline.maxTotalThreadsPerThreadgroup >= 32*groups, "Custom pipeline thread limit/width mismatch");
-    Route route{name,symbol,groups,false}; route.pipeline = pipeline; route.library = fs::canonical(path).string(); route.sha = file_sha(path);
+    require(pipeline.threadExecutionWidth == TQ2_SIMD_WIDTH && pipeline.maxTotalThreadsPerThreadgroup >= TQ2_SIMD_WIDTH*groups, "Custom pipeline thread limit/width mismatch");
+    Route route{name,symbol,groups,false,rows}; route.pipeline = pipeline; route.library = fs::canonical(path).string(); route.sha = file_sha(path);
     return route;
 }
 NSDictionary *dispatch(StockRuntime &stock, const Route &route, const Case &c, id<MTLBuffer> w, id<MTLBuffer> x,
@@ -242,7 +246,7 @@ NSDictionary *dispatch(StockRuntime &stock, const Route &route, const Case &c, i
     id<MTLCommandBuffer> command = [stock.queue() commandBuffer];
     require(command != nil, "Command allocation failed");
     command.label = [NSString stringWithFormat:@"BitNet-clean-correctness %@ %@",@(c.id.c_str()),@(route.name)];
-    const size_t rows_per_simd = 4;
+    const size_t rows_per_simd = route.rows_per_simd;
     const size_t grid = TQ2_ROWS/(rows_per_simd*route.simd_groups);
     if (route.stock) stock.encode(command,w,x,y,0,0,guard_bytes);
     else {
@@ -250,14 +254,14 @@ NSDictionary *dispatch(StockRuntime &stock, const Route &route, const Case &c, i
         require(encoder != nil, "Encoder allocation failed"); encoder.label = command.label;
         [encoder setComputePipelineState:route.pipeline];
         [encoder setBuffer:w offset:0 atIndex:0]; [encoder setBuffer:x offset:0 atIndex:1]; [encoder setBuffer:y offset:guard_bytes atIndex:2];
-        [encoder dispatchThreadgroups:MTLSizeMake(grid,1,1) threadsPerThreadgroup:MTLSizeMake(32,route.simd_groups,1)];
+        [encoder dispatchThreadgroups:MTLSizeMake(grid,1,1) threadsPerThreadgroup:MTLSizeMake(TQ2_SIMD_WIDTH,route.simd_groups,1)];
         [encoder endEncoding];
     }
     [command commit]; [command waitUntilCompleted];
     NSDictionary *base = @{@"route":@(route.name),@"kernel_symbol":@(route.symbol),@"command_label":command.label,
         @"command_status":@(command.status),@"completed":@(command.status == MTLCommandBufferStatusCompleted),
         @"actual_stock_selector":@(route.stock),@"stock_library_source":route.stock ? @"fresh ggml-metal embedded-source native selector; not an offline stock copy" : @"fresh offline custom metallib",
-        @"grid":@[@(grid),@1,@1],@"threads":@[@32,@(route.simd_groups),@1],
+        @"grid":@[@(grid),@1,@1],@"threads":@[@TQ2_SIMD_WIDTH,@(route.simd_groups),@1],
         @"weight_handle":[NSString stringWithFormat:@"%p",w],@"activation_handle":[NSString stringWithFormat:@"%p",x],@"output_handle":[NSString stringWithFormat:@"%p",y],
         @"buffer_offsets":@[@0,@0,@(guard_bytes)],@"buffer_lengths":@[@(w.length),@(x.length),@(y.length)],
         @"binding_slots":route.stock ? @{@"args":@0,@"W":@1,@"X":@2,@"Y":@3,@"auxY":@4,@"auxX":@5} : @{@"W":@0,@"X":@1,@"Y":@2},
@@ -319,7 +323,7 @@ int perform(const Options &o, NSMutableDictionary *summary) {
         summary[@"metal_runtime_initialized"] = @YES;
         routes.push_back(Route{"S","kernel_mul_mv_tq2_0_f32",2,true});
         routes.push_back(custom(stock->device(),o.poc,"PoC","tq2_0_matvec_poc",2));
-        routes.push_back(custom(stock->device(),o.q4,"Q4","tq2_0_matvec_poc_c8x2",1));
+        routes.push_back(custom(stock->device(),o.q4,"Q4",GGML_BITNET_Q_STRINGIFY(GGML_BITNET_Q4_ENTRY),GGML_BITNET_Q4_NSG,GGML_BITNET_Q4_ROWS));
     }
     bool all_fp64 = true, all_parity = true, all_coverage = true, all_known = true;
     for (const Case &c : cases) {

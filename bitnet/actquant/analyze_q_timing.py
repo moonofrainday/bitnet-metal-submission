@@ -21,6 +21,7 @@ import numpy as np
 
 from analyze_q4 import EvidenceError, load, manifest, native_root, payload, q_records, quantizer_check, sha
 from prepare_fixtures import SOURCE_SHA
+from q4_contract import analysis_contract, operator_q_contract
 
 ROUNDS = (1, 2, 3)
 COMPARISONS = ('AA', 'SQ', 'CQ')
@@ -91,7 +92,8 @@ def audit(args):
     native = load(perf/'summary.json')
     host = load(run/'summary.json')
     fixture = load(fixture_root/'MANIFEST.json')
-    candidate = manifest(candidate_root,'Q4')
+    contract = analysis_contract(args.contract_profile,args.legacy_shader_build)
+    candidate = manifest(candidate_root,'Q4',contract=contract)
     quant,data_hashes = origin_control(fixture_root,fixture,candidate_root,candidate)
     with (perf/'samples.csv').open(newline='') as handle:
         reader = csv.DictReader(handle)
@@ -108,6 +110,7 @@ def audit(args):
         'ninegroups_three_rounds_all_comparisons': set(groups) == {(r,c) for r in ROUNDS for c in COMPARISONS},
         'rotated_comparison_order': list(groups) == expected_order,
         'official_post_ActQuant_origin': quant['pass'],
+        'native_current_kernel_contract_matches': contract.get('analysis_only_legacy',False) or native.get('q_kernel_contract') == operator_q_contract(),
         'all9_input_hashes_match_fixture': len(native['inputs']) == 9 and
             {str(Path(k).parts[-2]+'/'+Path(k).name):v for k,v in native['inputs'].items()} == data_hashes,
         'same_Q4_library_as_joint_graph': native['libraries']['Q4'] == candidate['q_library_sha256'] == fixture['libraries']['Q4']['sha256'],
@@ -160,7 +163,8 @@ def audit(args):
               ('performance-run/operator/performance/summary.json',perf/'summary.json'),
               ('performance-run/summary.json',run/'summary.json'),('fixture/MANIFEST.json',fixture_root/'MANIFEST.json'),
               ('joint-candidate/device/native/RUN.json',candidate_root/'RUN.json')]
-    return {'analysis_completed':True,'strict_exit_code':0,'audit_pass':True,'CPU_only_audit':True,'new_GPU_device_or_model_run':False,
+    return {'contract_profile':args.contract_profile,'Q4_entry':contract['entry'],'Q4_contract_version':contract['version'],
+            'analysis_completed':True,'strict_exit_code':0,'audit_pass':True,'CPU_only_audit':True,'new_GPU_device_or_model_run':False,
             'checks':checks,'device':host['completion']['device'],'iOS':host['completion']['iOS'],'metric':native['metric'],
             'scope':'One Qcur-0 matvec dispatch on actual physical-phone post-ActQuant step16 W/X; quantizer preparation excluded',
             'protocol':{'rounds':3,'comparisons_per_round':list(COMPARISONS),'warmups_per_path_per_group':WARMUPS,
@@ -197,6 +201,8 @@ def main(argv=None):
     p=argparse.ArgumentParser(description=__doc__)
     for name in ('performance-run','fixture','joint-candidate','output'):
         p.add_argument('--'+name,type=Path,required=True)
+    p.add_argument('--contract-profile',choices=('canonical-v1','legacy-shared-v0'),default='canonical-v1')
+    p.add_argument('--legacy-shader-build',type=Path)
     args=p.parse_args(argv);output=args.output.expanduser().resolve()
     if output.exists():
         print('Refuse existing analysis output',file=sys.stderr);return 2

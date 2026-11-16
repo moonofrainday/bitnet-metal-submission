@@ -3,6 +3,7 @@
 #include "ggml.h"
 #include "ggml-backend.h"
 #include "ggml-cpu.h"
+#include "../../ggml/src/ggml-metal/ggml-metal-bitnet-q-config.h"
 #include "../../vendor/nlohmann/json.hpp"
 #include <CommonCrypto/CommonDigest.h>
 #include <algorithm>
@@ -76,7 +77,7 @@ static std::vector<float> read_tensor(const ggml_tensor * tensor) {
     require(std::all_of(result.begin(), result.end(), [](float x) { return std::isfinite(x); }), "nonfinite captured tensor"); return result;
 }
 static void clear_custom_routes() {
-    for (const char * key : {"LLAMA_BITNET_ACTQUANT_Q4", "GGML_METAL_BITNET_POC", "GGML_METAL_BITNET_Q_GUARD_ONLY", "GGML_METAL_BITNET_POC_ROWS_PER_SIMD", "GGML_METAL_BITNET_POC_SIMD_PER_GROUP", "GGML_METAL_BITNET_POC_METALLIB", "GGML_METAL_BITNET_LAYERS", "GGML_METAL_BITNET_FFN", "GGML_METAL_BITNET_FFN_DECODE", "GGML_METAL_BITNET_FFN_STEP", "GGML_METAL_BITNET_FFN_MECHANISM", "GGML_METAL_BITNET_FFN_ABLATION", "GGML_METAL_BITNET_FFN_SHADOW_DIR", "GGML_METAL_BITNET_FFN_K_SHADOW_DIR", "GGML_METAL_BITNET_QREADBACK_DIR", "GGML_METAL_BITNET_POC_TRACE", "GGML_METAL_BITNET_FFN_TRACE", "GGML_METAL_GRAPH_DEBUG", "GGML_METAL_DEBUG_GRAPH", "GGML_METAL_CAPTURE_COMPUTE", "METAL_CAPTURE_ENABLED"}) { unsetenv(key); }
+    for (const char * key : {"LLAMA_BITNET_ACTQUANT_Q4", "GGML_METAL_BITNET_POC", "GGML_METAL_BITNET_POC_VARIANT", "GGML_METAL_BITNET_Q_GUARD_ONLY", "GGML_METAL_BITNET_POC_ROWS_PER_SIMD", "GGML_METAL_BITNET_POC_SIMD_PER_GROUP", "GGML_METAL_BITNET_POC_METALLIB", "GGML_METAL_BITNET_LAYERS", "GGML_METAL_BITNET_FFN", "GGML_METAL_BITNET_FFN_DECODE", "GGML_METAL_BITNET_FFN_STEP", "GGML_METAL_BITNET_FFN_MECHANISM", "GGML_METAL_BITNET_FFN_ABLATION", "GGML_METAL_BITNET_FFN_SHADOW_DIR", "GGML_METAL_BITNET_FFN_K_SHADOW_DIR", "GGML_METAL_BITNET_QREADBACK_DIR", "GGML_METAL_BITNET_POC_TRACE", "GGML_METAL_BITNET_FFN_TRACE", "GGML_METAL_GRAPH_DEBUG", "GGML_METAL_DEBUG_GRAPH", "GGML_METAL_CAPTURE_COMPUTE", "METAL_CAPTURE_ENABLED"}) { unsetenv(key); }
 }
 static int operator_test(const json & config, const fs::path & out) {
     const fs::path fixture = config.at("fixture").get<std::string>(); const auto manifest = read_json(fixture / "FIXTURES.json");
@@ -218,10 +219,18 @@ static int model_test(const json & config, const fs::path & out) {
     if (q_route == "Q4") {
         require(config.value("q_variant", "") == "stock4x1" && config.value("q_library_source_sha256", "").size() == 64 &&
             config.value("q_library_manifest_sha256", "").size() == 64, "Q4 requires stock4x1 source/build provenance from q4_contract.py");
+        require(config.value("q_kernel_contract_version", 0) == GGML_BITNET_Q_CONFIG_VERSION &&
+            config.value("q_entry", "") == GGML_BITNET_Q_STRINGIFY(GGML_BITNET_Q4_ENTRY) &&
+            config.value("q_kernel_config_sha256", "").size() == 64 &&
+            config.at("q_grid") == json::array({GGML_BITNET_Q_NROWS/(GGML_BITNET_Q4_ROWS*GGML_BITNET_Q4_NSG),1,1}) &&
+            config.at("q_threads") == json::array({GGML_BITNET_Q_SIMD_WIDTH,GGML_BITNET_Q4_NSG,1}),
+            "Q4 requires the current canonical entry/version/geometry; old shared-entry products are not runtime aliases");
     }
     if (q_route == "Q4") {
         setenv("LLAMA_BITNET_ACTQUANT_Q4", "1", 1); setenv("GGML_METAL_BITNET_POC", "1", 1);
-        setenv("GGML_METAL_BITNET_POC_ROWS_PER_SIMD", "4", 1); setenv("GGML_METAL_BITNET_POC_SIMD_PER_GROUP", "1", 1);
+        setenv("GGML_METAL_BITNET_POC_VARIANT", "stock4x1", 1);
+        setenv("GGML_METAL_BITNET_POC_ROWS_PER_SIMD", GGML_BITNET_Q_STRINGIFY(GGML_BITNET_Q4_ROWS), 1);
+        setenv("GGML_METAL_BITNET_POC_SIMD_PER_GROUP", GGML_BITNET_Q_STRINGIFY(GGML_BITNET_Q4_NSG), 1);
         setenv("GGML_METAL_BITNET_LAYERS", "0", 1);
     }
     if (config.value("trace", false)) { setenv("GGML_METAL_BITNET_POC_TRACE", "1", 1); }
@@ -246,9 +255,10 @@ static int model_test(const json & config, const fs::path & out) {
     for (auto token : ids) { require(token >= 0 && token < 128256, "token outside vocabulary"); }
     json record = {{"schema", 1}, {"operation", "model"}, {"workload", workload}, {"backend", backend_name}, {"device", ggml_backend_dev_description(devices[0])}, {"activation_quantization", enabled}, {"model_sha256", MODEL_SHA}, {"tokens_sha256", hash_file(token_file)}, {"prompt_ids", prompt}, {"continuation_ids", continuation}, {"token_ids", ids}, {"prefill", prefill}, {"kv", kv}, {"capture_enabled", capture_enabled}, {"offloaded_layers", log.offloaded}, {"total_offload_layers", log.total}, {"logits", json::array()}, {"performance_measurement", false}, {"CPU_extra_Q8_K_packing_source_expected", backend_name == "CPU"}, {"settings", {{"n_ctx", 512}, {"batch", 128}, {"ubatch", 128}, {"threads", 6}, {"flash_attention", false}}}};
     record.update(json{{"q_route", q_route}, {"q_fallback", q_fallback}, {"q_library_sha256", q_library_sha}, {"q_target", "Qcur-0"}, {"capture_scope", capture_scope},
-        {"trace_enabled", config.value("trace", false)}, {"q_rows_per_simd", q_route == "Q4" ? 4 : 0}, {"q_simd_per_group", q_route == "Q4" ? 1 : 0},
+        {"trace_enabled", config.value("trace", false)}, {"q_rows_per_simd", q_route == "Q4" ? GGML_BITNET_Q4_ROWS : 0}, {"q_simd_per_group", q_route == "Q4" ? GGML_BITNET_Q4_NSG : 0},
+        {"q_kernel_contract_version", GGML_BITNET_Q_CONFIG_VERSION}, {"q_entry", GGML_BITNET_Q_STRINGIFY(GGML_BITNET_Q4_ENTRY)},
         {"official_source_model_acceptance", nullptr}, {"scoped_stock_compatibility_pass", nullptr}});
-    for (const char * key : {"q_variant", "q_library_source_sha256", "q_library_manifest_sha256", "q_library_sdk"}) {
+    for (const char * key : {"q_variant", "q_library_source_sha256", "q_library_manifest_sha256", "q_library_sdk", "q_kernel_config_sha256", "q_grid", "q_threads"}) {
         if (config.contains(key)) { record[key] = config.at(key); }
     }
     int decode_calls = 0; long double nll_total = 0; size_t scored = 0;

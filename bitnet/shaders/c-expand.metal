@@ -2,6 +2,31 @@
 #include "contract.h"
 using namespace metal;
 
+#if defined(BITNET_CANONICAL_Q_C8)
+#include "ggml-metal-bitnet-q-config.h"
+#if BITNET_CANONICAL_Q_C8 != 1
+#error "Canonical Q C8 marker must be 1"
+#endif
+#ifndef POC_VARIANT
+#define POC_VARIANT 2
+#endif
+#ifndef POC_ROWS_PER_SIMD
+#define POC_ROWS_PER_SIMD GGML_BITNET_C8_ROWS
+#endif
+#ifndef POC_SIMD_PER_GROUP
+#define POC_SIMD_PER_GROUP GGML_BITNET_C8_NSG
+#endif
+#define BITNET_C_EXPAND_ENTRY GGML_BITNET_C8_ENTRY
+static_assert(GGML_BITNET_Q_CONFIG_VERSION == 1, "Q contract version");
+static_assert(POC_VARIANT == 2 && POC_ROWS_PER_SIMD == GGML_BITNET_C8_ROWS &&
+              POC_SIMD_PER_GROUP == GGML_BITNET_C8_NSG, "C8 arithmetic or layout differs from Q contract");
+static_assert(TQ2_ROWS == GGML_BITNET_Q_NROWS && TQ2_COLUMNS == GGML_BITNET_Q_NCOLS &&
+              TQ2_SIMD_WIDTH == GGML_BITNET_Q_SIMD_WIDTH && TQ2_BLOCK_ELEMENTS == GGML_BITNET_Q_BLOCK_ELEMENTS &&
+              TQ2_BLOCK_BYTES == GGML_BITNET_Q_BLOCK_BYTES, "C8 packed shape differs from Q contract");
+#else
+#define BITNET_C_EXPAND_ENTRY tq2_0_matvec_poc
+#endif
+
 #ifndef POC_VARIANT
 #define POC_VARIANT 0
 #endif
@@ -66,7 +91,7 @@ inline float packed_byte_dot(uchar packed, float4 coefficients) {
 }
 #endif
 
-kernel void tq2_0_matvec_poc(
+kernel void BITNET_C_EXPAND_ENTRY(
     device const TernaryBlock *weights [[buffer(0)]],
     device const float *x [[buffer(1)]],
     device float *y [[buffer(2)]],

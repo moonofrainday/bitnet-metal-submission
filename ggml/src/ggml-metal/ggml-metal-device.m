@@ -1,5 +1,6 @@
 #import "ggml-metal-device.h"
 #import "ggml-metal-fusion.h"
+#import "ggml-metal-bitnet-q-contract.h"
 
 #import "ggml-impl.h"
 #import "ggml-backend-impl.h"
@@ -871,32 +872,49 @@ struct ggml_metal_pipeline_with_params ggml_metal_library_compile_pipeline(ggml_
 }
 
 static struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_external_pipeline(
-        ggml_metal_library_t lib, const char * name, const char * path, int min_threads) {
+        ggml_metal_library_t lib, const char * name, const char * path, int min_threads, const char * contract) {
     struct ggml_metal_pipeline_with_params result = { 0 };
-    if (!path || !path[0]) {
-        return result;
-    }
+    struct ggml_metal_bitnet_file_snapshot before;
+    char cache_key[2 * PATH_MAX];
 
     [lib->lock lock];
-    result.pipeline = ggml_metal_pipelines_get(lib->pipelines, name);
+    if (!ggml_metal_bitnet_file_snapshot_get(path, &before) ||
+            !ggml_metal_bitnet_external_key(&before, name, contract, cache_key, sizeof(cache_key))) {
+        [lib->lock unlock];
+        return result;
+    }
+    result.pipeline = ggml_metal_pipelines_get(lib->pipelines, cache_key);
     if (!result.pipeline) {
         @autoreleasepool {
             id<MTLDevice> device = ggml_metal_device_get_obj(lib->dev);
-            NSString * filename = [NSString stringWithUTF8String:path];
-            NSURL * url = filename ? [NSURL fileURLWithPath:filename] : nil;
             NSError * error = nil;
-            id<MTLLibrary> kernels = url ? [device newLibraryWithURL:url error:&error] : nil;
+            NSData * bytes = [NSData dataWithContentsOfFile:@(before.path) options:0 error:&error];
+            struct ggml_metal_bitnet_file_snapshot after;
+            const bool stable_read = bytes && bytes.length == before.size &&
+                ggml_metal_bitnet_file_snapshot_get(path, &after) && ggml_metal_bitnet_file_same(&before, &after);
+            dispatch_data_t data = stable_read ? dispatch_data_create(bytes.bytes, bytes.length, NULL,
+                    DISPATCH_DATA_DESTRUCTOR_DEFAULT) : NULL;
+            id<MTLLibrary> kernels = data ? [device newLibraryWithData:data error:&error] : nil;
+            if (data) {
+                dispatch_release(data);
+            }
             id<MTLFunction> function = [kernels newFunctionWithName:@(name)];
             id<MTLComputePipelineState> pipeline = function ?
                 [device newComputePipelineStateWithFunction:function error:&error] : nil;
-            if (pipeline && pipeline.threadExecutionWidth == 32 && pipeline.maxTotalThreadsPerThreadgroup >= (NSUInteger) min_threads) {
+            const bool stable_load = stable_read && ggml_metal_bitnet_file_snapshot_get(path, &after) &&
+                ggml_metal_bitnet_file_same(&before, &after);
+            if (stable_load && pipeline && pipeline.threadExecutionWidth == 32 &&
+                    pipeline.maxTotalThreadsPerThreadgroup >= (NSUInteger) min_threads) {
                 result.pipeline = ggml_metal_pipeline_init();
                 result.pipeline->obj = pipeline;
                 result.pipeline->trace_name = strdup(name);
-                ggml_metal_pipelines_add(lib->pipelines, name, result.pipeline);
+                ggml_metal_pipelines_add(lib->pipelines, cache_key, result.pipeline);
             } else {
-                GGML_LOG_WARN("BitNet external pipeline %s unavailable: %s\n", name,
-                    error ? error.localizedDescription.UTF8String : "missing function or incompatible threadgroup");
+                GGML_LOG_WARN("BitNet external pipeline %s unavailable: stable_read=%d stable_load=%d bytes=%llu expected=%llu device=%d library=%d function=%d pipeline=%d width=%lu max_threads=%lu min_threads=%d error=%s\n",
+                    name, stable_read, stable_load, (unsigned long long) bytes.length, (unsigned long long) before.size,
+                    device != nil, kernels != nil, function != nil, pipeline != nil,
+                    (unsigned long) pipeline.threadExecutionWidth, (unsigned long) pipeline.maxTotalThreadsPerThreadgroup,
+                    min_threads, error ? error.localizedDescription.UTF8String : "nil");
                 [pipeline release];
             }
             [function release];
@@ -911,15 +929,24 @@ static struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_exte
     return result;
 }
 
-struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_poc_pipeline(ggml_metal_library_t lib) {
-    return ggml_metal_library_get_bitnet_external_pipeline(lib, "tq2_0_matvec_poc_c8x2",
-            getenv("GGML_METAL_BITNET_POC_METALLIB"), 32);
+struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_poc_pipeline(
+        ggml_metal_library_t lib, const struct ggml_metal_bitnet_q_contract * contract) {
+    if (!ggml_metal_bitnet_q_contract_valid(contract)) {
+        struct ggml_metal_pipeline_with_params empty = { 0 };
+        return empty;
+    }
+    char key[160];
+    snprintf(key, sizeof(key), "q-v%d:%s:%d:%d:%d:%d:%d:%d", contract->version, contract->variant,
+        GGML_BITNET_Q_NROWS, GGML_BITNET_Q_NCOLS, contract->rows, contract->groups,
+        contract->grid_x, contract->threads_x);
+    return ggml_metal_library_get_bitnet_external_pipeline(lib, contract->entry,
+            getenv("GGML_METAL_BITNET_POC_METALLIB"), contract->threads_x * contract->groups, key);
 }
 
 struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_ffn_pipeline(ggml_metal_library_t lib, bool fused) {
     return ggml_metal_library_get_bitnet_external_pipeline(lib,
             fused ? "tq2_0_matvec_ffn_gate_up_8x2" : "tq2_0_matvec_ffn_expand",
-            getenv(fused ? "GGML_METAL_BITNET_FFN_FUSED_METALLIB" : "GGML_METAL_BITNET_FFN_SPLIT_METALLIB"), 64);
+            getenv(fused ? "GGML_METAL_BITNET_FFN_FUSED_METALLIB" : "GGML_METAL_BITNET_FFN_SPLIT_METALLIB"), 64, "ffn-v1");
 }
 
 struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_ffn_mechanism_pipeline(ggml_metal_library_t lib, int kind) {
@@ -929,12 +956,12 @@ struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_ffn_mechani
         return empty;
     }
     return ggml_metal_library_get_bitnet_external_pipeline(lib, names[kind],
-            getenv("GGML_METAL_BITNET_FFN_MECHANISM_METALLIB"), (kind == 0 || kind == 3) ? 256 : 64);
+            getenv("GGML_METAL_BITNET_FFN_MECHANISM_METALLIB"), (kind == 0 || kind == 3) ? 256 : 64, "ffn-v1");
 }
 
 struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_ffn_k_pipeline(ggml_metal_library_t lib) {
     struct ggml_metal_pipeline_with_params result = ggml_metal_library_get_bitnet_external_pipeline(lib,
-            "ffn_post_weighted_norm_inplace", getenv("GGML_METAL_BITNET_FFN_K_METALLIB"), 1024);
+            "ffn_post_weighted_norm_inplace", getenv("GGML_METAL_BITNET_FFN_K_METALLIB"), 1024, "ffn-v1");
     if (result.pipeline) {
         id<MTLDevice> device = ggml_metal_device_get_obj(lib->dev);
         if (result.pipeline->obj.staticThreadgroupMemoryLength > device.maxThreadgroupMemoryLength) {
