@@ -3407,6 +3407,45 @@ static bool ggml_metal_bitnet_poc_layout(const ggml_tensor * t, ggml_type type,
         std::memcmp(t->ne, ne, sizeof(ne)) == 0 && std::memcmp(t->nb, nb, sizeof(nb)) == 0;
 }
 
+static bool ggml_metal_bitnet_actquant_q4_contract(const ggml_tensor * op,
+        int rows, int groups, bool guard_only, bool trace) {
+    const bool enabled = ggml_metal_bitnet_poc_flag("LLAMA_BITNET_ACTQUANT");
+    const bool permission = ggml_metal_bitnet_poc_flag("LLAMA_BITNET_ACTQUANT_Q4");
+    if (!enabled && !permission) {
+        return true;
+    }
+    const ggml_tensor * input = op->src[1];
+    const char * layers = std::getenv("GGML_METAL_BITNET_LAYERS");
+    float eps = 0.0f;
+    if (input && input->op == GGML_OP_ACT_QUANT) {
+        std::memcpy(&eps, input->op_params, sizeof(eps));
+    }
+    bool valid = enabled && permission && !guard_only && rows == 4 && groups == 1 &&
+        ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_POC") && layers && std::strcmp(layers, "0") == 0 &&
+        op->op == GGML_OP_MUL_MAT && std::strcmp(op->name, "Qcur-0") == 0 &&
+        ggml_metal_bitnet_weight_name(op->src[0], 0, "attn_q") && input && input->op == GGML_OP_ACT_QUANT &&
+        std::strcmp(input->name, "actq_qkv_out-0") == 0 && input->type == GGML_TYPE_F32 &&
+        input->src[0] && input->src[0]->type == GGML_TYPE_F32 && ggml_is_contiguous(input->src[0]) &&
+        ggml_are_same_shape(input, input->src[0]) && eps == 1e-5f;
+    for (const char * name : { "GGML_METAL_BITNET_Q_GUARD_ONLY", "GGML_METAL_BITNET_FFN",
+            "GGML_METAL_BITNET_FFN_MECHANISM", "GGML_METAL_BITNET_FFN_ABLATION" }) {
+        const char * value = std::getenv(name);
+        if (value && value[0] != '\0' && std::strcmp(value, "0") != 0) {
+            valid = false;
+        }
+    }
+    if (trace) {
+        if (valid) {
+            std::fprintf(stderr, "BITNET_ACTQUANT_Q4_GUARD node=%s source=%s source_op=ACT_QUANT eps=%.9g rows=%d simd=%d layer=0 checked=1\n",
+                    op->name, input->name, eps, rows, groups);
+        } else {
+            std::fprintf(stderr, "BITNET_Q_FALLBACK node=%s layer=0 reason=actquant_contract permission=%d rows=%d simd=%d\n",
+                    op->name, permission, rows, groups);
+        }
+    }
+    return valid;
+}
+
 static bool ggml_metal_bitnet_poc_disjoint(ggml_metal_buffer_id a, size_t a_bytes,
         ggml_metal_buffer_id b, size_t b_bytes) {
     return a.metal != b.metal || a.offs + a_bytes <= b.offs || b.offs + b_bytes <= a.offs;
@@ -3915,6 +3954,9 @@ static bool ggml_metal_try_bitnet_poc(ggml_metal_op_t ctx, const ggml_tensor * o
         if (trace) {
             std::fprintf(stderr, "BITNET_Q_FALLBACK node=%s layer=%d reason=layout\n", op->name, ggml_metal_bitnet_layer(op->name, "Qcur-"));
         }
+        return false;
+    }
+    if (!ggml_metal_bitnet_actquant_q4_contract(op, rows_per_simdgroup, simdgroups_per_threadgroup, guard_only, trace)) {
         return false;
     }
 

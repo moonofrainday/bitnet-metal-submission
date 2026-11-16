@@ -61,7 +61,7 @@ static void write_f32(const fs::path & path, const std::vector<float> & values) 
     file.write(reinterpret_cast<const char *>(values.data()), values.size() * sizeof(float)); require(bool(file), "F32 write failed");
 }
 static json tensor_metadata(const ggml_tensor * tensor) {
-    json result = {{"name", tensor->name}, {"type", ggml_type_name(tensor->type)}, {"ne", json::array()}, {"nb", json::array()}, {"bytes", ggml_nbytes(tensor)}};
+    json result = {{"name", tensor->name}, {"op", ggml_op_name(tensor->op)}, {"type", ggml_type_name(tensor->type)}, {"ne", json::array()}, {"nb", json::array()}, {"bytes", ggml_nbytes(tensor)}};
     for (int i = 0; i < 4; ++i) { result["ne"].push_back(tensor->ne[i]); result["nb"].push_back(tensor->nb[i]); }
     if (tensor->buffer) {
         result["buffer_name"] = ggml_backend_buffer_name(tensor->buffer);
@@ -76,7 +76,7 @@ static std::vector<float> read_tensor(const ggml_tensor * tensor) {
     require(std::all_of(result.begin(), result.end(), [](float x) { return std::isfinite(x); }), "nonfinite captured tensor"); return result;
 }
 static void clear_custom_routes() {
-    for (const char * key : {"GGML_METAL_BITNET_POC", "GGML_METAL_BITNET_Q_GUARD_ONLY", "GGML_METAL_BITNET_FFN", "GGML_METAL_BITNET_FFN_DECODE", "GGML_METAL_BITNET_FFN_MECHANISM", "GGML_METAL_BITNET_FFN_ABLATION", "GGML_METAL_BITNET_FFN_SHADOW_DIR", "GGML_METAL_BITNET_FFN_K_SHADOW_DIR", "GGML_METAL_BITNET_QREADBACK_DIR", "GGML_METAL_BITNET_POC_TRACE", "GGML_METAL_BITNET_FFN_TRACE", "GGML_METAL_GRAPH_DEBUG", "GGML_METAL_DEBUG_GRAPH", "GGML_METAL_CAPTURE_COMPUTE", "METAL_CAPTURE_ENABLED"}) { unsetenv(key); }
+    for (const char * key : {"LLAMA_BITNET_ACTQUANT_Q4", "GGML_METAL_BITNET_POC", "GGML_METAL_BITNET_Q_GUARD_ONLY", "GGML_METAL_BITNET_POC_ROWS_PER_SIMD", "GGML_METAL_BITNET_POC_SIMD_PER_GROUP", "GGML_METAL_BITNET_POC_METALLIB", "GGML_METAL_BITNET_LAYERS", "GGML_METAL_BITNET_FFN", "GGML_METAL_BITNET_FFN_DECODE", "GGML_METAL_BITNET_FFN_STEP", "GGML_METAL_BITNET_FFN_MECHANISM", "GGML_METAL_BITNET_FFN_ABLATION", "GGML_METAL_BITNET_FFN_SHADOW_DIR", "GGML_METAL_BITNET_FFN_K_SHADOW_DIR", "GGML_METAL_BITNET_QREADBACK_DIR", "GGML_METAL_BITNET_POC_TRACE", "GGML_METAL_BITNET_FFN_TRACE", "GGML_METAL_GRAPH_DEBUG", "GGML_METAL_DEBUG_GRAPH", "GGML_METAL_CAPTURE_COMPUTE", "METAL_CAPTURE_ENABLED"}) { unsetenv(key); }
 }
 static int operator_test(const json & config, const fs::path & out) {
     const fs::path fixture = config.at("fixture").get<std::string>(); const auto manifest = read_json(fixture / "FIXTURES.json");
@@ -124,8 +124,14 @@ static int operator_test(const json & config, const fs::path & out) {
 }
 struct Capture {
     fs::path out; std::vector<int> positions; json checkpoints = json::array();
+    std::string q_weight_sha; const ggml_tensor * q_weight = nullptr;
+    std::string scope = "all";
     size_t actquant_callbacks = 0, files = 0; bool enabled = false; std::string error;
     bool wanted(ggml_tensor * t) const {
+        if (scope == "q4-layer0") {
+            return std::string(t->name) == "actq_qkv_out-0" || std::string(t->name) == "l_out-0" ||
+                (t->op == GGML_OP_MUL_MAT && std::string(t->name) == "Qcur-0");
+        }
         if (t->op == GGML_OP_ACT_QUANT) { return true; }
         const std::string name = t->name;
         return name.rfind("l_out-", 0) == 0 || (t->op == GGML_OP_MUL_MAT && name.rfind("Qcur-", 0) == 0);
@@ -153,6 +159,24 @@ struct Capture {
             write_f32(out / (base + ".f32"), output); meta["path"] = base + ".f32";
             if (tensor->op == GGML_OP_MUL_MAT) {
                 auto input = read_tensor(tensor->src[1]); write_f32(out / (base + "-input.f32"), input); meta.update(json{{"kind", "Q_preRoPE"}, {"input_path", base + "-input.f32"}});
+                if (layer == 0) {
+                    const auto * weight = tensor->src[0]; require(weight && weight->type == GGML_TYPE_TQ2_0 &&
+                        ggml_is_contiguous(weight) && weight->ne[0] == 2560 && weight->ne[1] == 2560 &&
+                        weight->ne[2] == 1 && weight->ne[3] == 1 && ggml_nbytes(weight) == 1689600 &&
+                        std::string(weight->name) == "blk.0.attn_q.weight", "wrong live Q0 packed-weight contract");
+                    const std::string relative = "weights/blk.0.attn_q.weight.tq2";
+                    if (!q_weight) {
+                        q_weight = weight; std::vector<char> bytes(ggml_nbytes(weight));
+                        ggml_backend_tensor_get(weight, bytes.data(), 0, bytes.size()); fs::create_directories((out / relative).parent_path());
+                        std::ofstream file(out / relative, std::ios::binary); file.write(bytes.data(), bytes.size());
+                        require(bool(file), "Q weight capture failed"); file.close(); q_weight_sha = hash_file(out / relative);
+                    }
+                    require(q_weight == weight, "Q0 weight tensor identity changed during replay");
+                    meta.update(json{{"weight_path", relative}, {"weight_sha256", q_weight_sha}, {"weight", tensor_metadata(weight)},
+                        {"activation", tensor_metadata(tensor->src[1])}, {"phase", positions.front() < 27 ? "prefill" : "decode"},
+                        {"decode_step", positions.front() < 27 ? 0 : positions.front() - 26}});
+                    meta["input_sha256"] = hash_file(out / (base + "-input.f32")); meta["output_sha256"] = hash_file(out / (base + ".f32"));
+                }
             } else { meta["kind"] = "l_out"; }
         }
         checkpoints.push_back(meta);
@@ -167,11 +191,40 @@ static int model_test(const json & config, const fs::path & out) {
     const fs::path model = config.at("model").get<std::string>(), token_file = config.at("tokens").get<std::string>();
     require(hash_file(model) == MODEL_SHA, "wrong public model SHA256"); const auto tokens = read_json(token_file);
     const bool enabled = config.value("actquant", false), capture_enabled = config.value("capture", false);
+    const std::string q_route = config.value("q_route", "stock"), q_fallback = config.value("q_fallback", "none");
+    const std::string capture_scope = config.value("capture_scope", "all");
     const std::string workload = config.value("workload", "teacher"), backend_name = config.value("backend", "MTL0"), prefill = config.value("prefill", "batched"), kv = config.value("kv", "F16");
     require(workload == "teacher" || workload == "corpus", "bad workload"); require(backend_name == "CPU" || backend_name == "MTL0", "bad backend");
     require(prefill == "batched" || prefill == "sequential", "bad prefill mode"); require(kv == "F16" || kv == "F32", "bad KV dtype");
+    require(q_route == "stock" || q_route == "Q4", "bad q_route");
+    require(capture_scope == "all" || capture_scope == "q4-layer0", "bad capture_scope");
+    require(q_fallback == "none" || q_fallback == "missing-library", "bad q_fallback (invalid geometry is a rejected graph contract, not an accepted route)");
+    require(q_fallback == "none" || q_route == "Q4", "Q fallback requires Q4 route");
+    require(q_route == "stock" || (enabled && backend_name == "MTL0" && workload == "teacher" && prefill == "batched" && kv == "F16"), "Q4 requires ActQuant ON, MTL0 teacher/batched/F16");
     clear_custom_routes(); setenv("LLAMA_BITNET_ACTQUANT", enabled ? "1" : "0", 1);
     setenv("GGML_METAL_ACTQUANT_TRACE", config.value("trace", false) ? "1" : "0", 1);
+    std::string q_library_sha;
+    if (config.contains("q_library")) {
+        const fs::path library = config.at("q_library").get<std::string>();
+        require(library.is_absolute() && fs::is_regular_file(library), "Q library must be an existing absolute file");
+        q_library_sha = hash_file(library); require(q_library_sha == config.at("q_library_sha256").get<std::string>(), "Q library SHA256 mismatch");
+        if (q_route == "Q4") {
+            const auto selected = q_fallback == "missing-library" ? out / "intentionally-missing.metallib" : library;
+            require(q_fallback == "none" || !fs::exists(selected), "missing-library control path exists");
+            setenv("GGML_METAL_BITNET_POC_METALLIB", selected.c_str(), 1);
+        }
+    }
+    require(q_route == "stock" || !q_library_sha.empty(), "Q4 requires a SHA-verified library (also for intentional missing-library control)");
+    if (q_route == "Q4") {
+        require(config.value("q_variant", "") == "stock4x1" && config.value("q_library_source_sha256", "").size() == 64 &&
+            config.value("q_library_manifest_sha256", "").size() == 64, "Q4 requires stock4x1 source/build provenance from q4_contract.py");
+    }
+    if (q_route == "Q4") {
+        setenv("LLAMA_BITNET_ACTQUANT_Q4", "1", 1); setenv("GGML_METAL_BITNET_POC", "1", 1);
+        setenv("GGML_METAL_BITNET_POC_ROWS_PER_SIMD", "4", 1); setenv("GGML_METAL_BITNET_POC_SIMD_PER_GROUP", "1", 1);
+        setenv("GGML_METAL_BITNET_LAYERS", "0", 1);
+    }
+    if (config.value("trace", false)) { setenv("GGML_METAL_BITNET_POC_TRACE", "1", 1); }
     ModelLog log; llama_log_set(model_logger, &log); llama_backend_init();
     struct BackendGuard { ~BackendGuard() { llama_backend_free(); llama_log_set(nullptr, nullptr); } } backend_guard;
     ggml_backend_dev_t devices[] = {ggml_backend_dev_by_name(backend_name.c_str()), nullptr}; require(devices[0] != nullptr, "model backend missing");
@@ -179,7 +232,7 @@ static int model_test(const json & config, const fs::path & out) {
     std::unique_ptr<llama_model, decltype(&llama_model_free)> m(llama_model_load_from_file(model.c_str(), mp), llama_model_free); require(bool(m), "model load failed");
     require(llama_model_n_layer(m.get()) == 30 && llama_vocab_n_tokens(llama_model_get_vocab(m.get())) == 128256, "wrong public model geometry");
     if (backend_name == "MTL0") { require(log.offloaded == 31 && log.total == 31, "actual31/31 offload not confirmed"); }
-    Capture capture; capture.out = out; capture.enabled = capture_enabled;
+    Capture capture; capture.out = out; capture.enabled = capture_enabled; capture.scope = capture_scope;
     auto cp = llama_context_default_params(); cp.n_ctx = 512; cp.n_batch = cp.n_ubatch = 128; cp.n_threads = cp.n_threads_batch = 6;
     cp.type_k = cp.type_v = kv == "F16" ? GGML_TYPE_F16 : GGML_TYPE_F32; cp.offload_kqv = backend_name == "MTL0"; cp.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_DISABLED;
     cp.cb_eval = capture_enabled ? Capture::callback : nullptr; cp.cb_eval_user_data = capture_enabled ? &capture : nullptr;
@@ -192,13 +245,25 @@ static int model_test(const json & config, const fs::path & out) {
     require(ids.size() == (workload == "corpus" ? 129 : 59) && ids.front() == 128000, "input token counts/BOS mismatch");
     for (auto token : ids) { require(token >= 0 && token < 128256, "token outside vocabulary"); }
     json record = {{"schema", 1}, {"operation", "model"}, {"workload", workload}, {"backend", backend_name}, {"device", ggml_backend_dev_description(devices[0])}, {"activation_quantization", enabled}, {"model_sha256", MODEL_SHA}, {"tokens_sha256", hash_file(token_file)}, {"prompt_ids", prompt}, {"continuation_ids", continuation}, {"token_ids", ids}, {"prefill", prefill}, {"kv", kv}, {"capture_enabled", capture_enabled}, {"offloaded_layers", log.offloaded}, {"total_offload_layers", log.total}, {"logits", json::array()}, {"performance_measurement", false}, {"CPU_extra_Q8_K_packing_source_expected", backend_name == "CPU"}, {"settings", {{"n_ctx", 512}, {"batch", 128}, {"ubatch", 128}, {"threads", 6}, {"flash_attention", false}}}};
+    record.update(json{{"q_route", q_route}, {"q_fallback", q_fallback}, {"q_library_sha256", q_library_sha}, {"q_target", "Qcur-0"}, {"capture_scope", capture_scope},
+        {"trace_enabled", config.value("trace", false)}, {"q_rows_per_simd", q_route == "Q4" ? 4 : 0}, {"q_simd_per_group", q_route == "Q4" ? 1 : 0},
+        {"official_source_model_acceptance", nullptr}, {"scoped_stock_compatibility_pass", nullptr}});
+    for (const char * key : {"q_variant", "q_library_source_sha256", "q_library_manifest_sha256", "q_library_sdk"}) {
+        if (config.contains(key)) { record[key] = config.at(key); }
+    }
     int decode_calls = 0; long double nll_total = 0; size_t scored = 0;
     const size_t limit = workload == "corpus" ? 128 : ids.size();
     for (size_t position = 0; position < limit;) {
         const size_t count = workload == "teacher" && prefill == "batched" && position == 0 ? prompt.size() : 1;
+        const int q_step = workload == "teacher" && position >= prompt.size() ? int(position - prompt.size() + 1) : 0;
+        const std::string q_step_text = std::to_string(q_step);
+        if (q_step > 0) { setenv("GGML_METAL_BITNET_FFN_DECODE", "1", 1); } else { unsetenv("GGML_METAL_BITNET_FFN_DECODE"); }
+        setenv("GGML_METAL_BITNET_FFN_STEP", q_step_text.c_str(), 1);
+        if (config.value("trace", false)) { std::fprintf(stderr, "ACTQUANT_Q_PHASE_BEGIN q_route=%s phase=%s decode_step=%d input_position=%zu count=%zu\n", q_route.c_str(), q_step ? "decode" : "prefill", q_step, position, count); }
         capture.positions.clear(); for (size_t i = 0; i < count; ++i) { capture.positions.push_back(int(position + i)); }
         require(llama_memory_seq_pos_max(llama_get_memory(ctx.get()), 0) == int(position) - 1, "KV position before decode differs");
         int code = llama_decode(ctx.get(), llama_batch_get_one(ids.data() + position, int(count))); require(code == 0 && capture.error.empty(), "model decode/capture failed: " + capture.error); llama_synchronize(ctx.get()); ++decode_calls;
+        if (config.value("trace", false)) { std::fprintf(stderr, "ACTQUANT_Q_PHASE_COMPLETE q_route=%s decode_step=%d synchronized=1\n", q_route.c_str(), q_step); }
         const int at = int(position + count - 1); require(llama_memory_seq_pos_max(llama_get_memory(ctx.get()), 0) == at, "KV position after decode differs");
         if (workload == "corpus" || at >= 26) {
             const float * y = llama_get_logits_ith(ctx.get(), -1); require(y != nullptr, "missing full logits"); std::vector<float> values(y, y + 128256);
@@ -218,6 +283,7 @@ static int model_test(const json & config, const fs::path & out) {
     record["execution_pass"] = true; record["finite_logits"] = true; record["parity_pass"] = nullptr; record["fp64_pass"] = nullptr; record["model_output_pass"] = nullptr;
     record["scored_tokens"] = scored; if (scored) { record["mean_NLL"] = double(nll_total / scored); record["PPL"] = std::exp(double(nll_total / scored)); }
     record["strict_model_exit_code"] = 2; write_json(out / "RUN.json", record);
+    std::printf("ACTQUANT_Q_ROUTE_COMPLETE q_route=%s q_fallback=%s eligible_decode_calls=%d synchronized=1 numerical_acceptance_unverified=1\n", q_route.c_str(), q_fallback.c_str(), workload == "teacher" ? 32 : 0);
     std::printf("ACTQUANT_MODEL_COMPLETE enabled=%d backend=%s workload=%s decode_calls=%d logits=%zu actquant_callbacks=%zu synchronized=1\n", enabled, backend_name.c_str(), workload.c_str(), decode_calls, record["logits"].size(), capture.actquant_callbacks); std::fflush(stdout);
     return 0;
 }

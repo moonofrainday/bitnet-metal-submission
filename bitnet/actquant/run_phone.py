@@ -19,6 +19,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path.insert(0, str(ROOT / "bitnet/ios"))
 from common import PUBLIC_MODEL_SHA256, Commands, developer_environment, require, sha256, write_json
+from q4_contract import q4_library_identity
 
 OFFICIAL_ACTQUANT_SHA256 = "a8b3170f1824f010701f4e033fbc33d199bc2ea344ddbf2554594b66fada8b1c"
 
@@ -144,6 +145,8 @@ def command_plan(args, build, config, remote_fixture, remote_tokens):
         plan.append([*copy, "--source", str(args.fixture), "--destination", "Documents/" + remote_fixture])
     else:
         plan.append([*copy, "--source", str(args.tokens), "--destination", "Documents/" + remote_tokens])
+    if args.operation == "model" and args.q_library is not None:
+        plan.append([*copy, "--source", str(args.q_library), "--destination", "Documents/" + config["q_library"]])
     plan.append([*common, "--timeout", str(args.timeout), "device", "process", "launch", "--console", "--terminate-existing",
                  "--device", args.device, "--environment-variables", json.dumps({"BITNET_CANDIDATE_CONFIG": json.dumps(config, separators=(",", ":"))}), bundle])
     plan.append([*common, "--timeout", "900", "device", "copy", "from", "--device", args.device,
@@ -191,6 +194,11 @@ def validate_collection(args, config, log, device_dir, fixture):
         positions = list(range(128)) if args.workload == "corpus" else list(range(26, 59))
         require(result["tokens_sha256"] == native["tokens_sha256"] == config["tokens_sha256"] and
                 native["token_ids"] == ids and native["prompt_ids"] == tokens["prompt"] and native["continuation_ids"] == tokens["continuation"], "Token input identity mismatch")
+        require(native["q_route"] == args.q_route and native["q_fallback"] == args.q_fallback and
+                native["capture_scope"] == args.capture_scope, "Q route/scope identity mismatch")
+        if "q_library" in config:
+            for key in ("q_library_sha256", "q_variant", "q_library_source_sha256", "q_library_manifest_sha256", "q_library_sdk"):
+                require(native[key] == config[key], "Q4 source/library runtime identity mismatch: " + key)
         require(native["activation_quantization"] is args.actquant and native["capture_enabled"] is args.capture and
                 native["prefill"] == "batched" and native["kv"] == "F16" and native["workload"] == args.workload,
                 "Effective model settings mismatch")
@@ -226,6 +234,11 @@ def main(argv=None):
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--actquant", choices=("on", "off"), default="on")
     p.add_argument("--workload", choices=("teacher", "corpus"), default="teacher")
+    p.add_argument("--q-route", choices=("stock", "Q4"), default="stock")
+    p.add_argument("--q-fallback", choices=("none", "missing-library"), default="none")
+    p.add_argument("--capture-scope", choices=("all", "q4-layer0"), default="all")
+    p.add_argument("--q-library", type=Path, help="Optional stock4x1 library; defaults to the signed build shader product for Q4-scoped runs")
+    p.add_argument("--q-library-manifest", type=Path)
     p.add_argument("--capture", action="store_true")
     p.add_argument("--trace", action="store_true")
     p.add_argument("--reuse-model", action="store_true")
@@ -248,7 +261,10 @@ def main(argv=None):
         remote_fixture, remote_tokens = prefix + "-fixtures", prefix + "-tokens.json"
         config = {"operation": "actquant", "actquant_operation": args.operation, "output": prefix, "backend": "MTL0",
                   "model": args.model.name, "model_sha256": PUBLIC_MODEL_SHA256, "actquant": args.actquant,
-                  "capture": args.capture, "trace": args.trace, "workload": args.workload, "prefill": "batched", "kv": "F16"}
+                  "capture": args.capture, "trace": args.trace, "workload": args.workload, "prefill": "batched", "kv": "F16",
+                  "q_route": args.q_route, "q_fallback": args.q_fallback, "capture_scope": args.capture_scope}
+        require(args.q_route == "stock" or (args.operation == "model" and args.actquant and args.workload == "teacher"), "Q4 requires an ActQuant-ON teacher model run")
+        require(args.q_fallback == "none" or args.q_route == "Q4", "Q fallback requires Q4")
         fixture = None
         if args.operation == "operator":
             require(args.fixture is not None, "Operator collection requires --fixture")
@@ -267,6 +283,19 @@ def main(argv=None):
         blockers, build = [], {}
         try:
             build, identity = build_identity(args.build_dir)
+            if args.operation == "model" and (args.q_route == "Q4" or args.capture_scope == "q4-layer0" or args.q_library is not None):
+                shader_dir = Path(build["shaders"])
+                args.q_library = (args.q_library or shader_dir / "q-stock4x1.metallib").expanduser().resolve()
+                shader_manifest = (args.q_library_manifest or shader_dir / "BUILD.json").expanduser().resolve()
+                q_identity = q4_library_identity(args.q_library, shader_manifest, "iphoneos")
+                expected = shader_dir / "q-stock4x1.metallib"
+                require(sha256(args.q_library) == sha256(expected), "Q4 must match the same signed build stock4x1 product")
+                require(build["shader_build_manifest_sha256"] == sha256(shader_manifest) and
+                        build["shader_products_sha256"]["q-stock4x1.metallib"] == sha256(args.q_library),
+                        "Q4 shader provenance changed after the signed app build")
+                config.update(q_identity); config["q_library"] = prefix + "-q-stock4x1.metallib"
+                write_json(args.output / "Q4_LIBRARY_IDENTITY.json", q_identity)
+                write_json(args.output / "config.json", config)
             write_json(args.output / "BUILD_IDENTITY.json", identity)
             if args.operation == "model":
                 write_json(args.output / "OPERATOR_GATE.json", operator_gate(args.operator_run, args.operator_analysis, build))

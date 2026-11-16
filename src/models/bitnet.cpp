@@ -73,6 +73,14 @@ llama_model_bitnet::graph::graph(const llama_model & model, const llm_graph_para
         throw std::runtime_error("LLAMA_BITNET_ACTQUANT must be 0 or 1");
     }
     const bool act_quant_enabled = act_quant_env && std::strcmp(act_quant_env, "1") == 0;
+    const char * act_quant_q4_env = std::getenv("LLAMA_BITNET_ACTQUANT_Q4");
+    if (act_quant_q4_env && std::strcmp(act_quant_q4_env, "0") != 0 && std::strcmp(act_quant_q4_env, "1") != 0) {
+        throw std::runtime_error("LLAMA_BITNET_ACTQUANT_Q4 must be 0 or 1");
+    }
+    const bool act_quant_q4 = act_quant_q4_env && std::strcmp(act_quant_q4_env, "1") == 0;
+    if (act_quant_q4 && !act_quant_enabled) {
+        throw std::runtime_error("LLAMA_BITNET_ACTQUANT_Q4 requires LLAMA_BITNET_ACTQUANT=1");
+    }
     if (act_quant_enabled) {
         if (n_layer != 30 || hparams.n_embd != 2560 || model.vocab.n_tokens() != 128256 ||
                 hparams.llm_ffn_op != LLM_FFN_RELU_SQR || cparams.training || !loras->empty()) {
@@ -96,12 +104,29 @@ llama_model_bitnet::graph::graph(const llama_model & model, const llm_graph_para
                 }
             }
         }
-        for (const char * name : { "GGML_METAL_BITNET_POC", "GGML_METAL_BITNET_Q_GUARD_ONLY",
+        for (const char * name : { "GGML_METAL_BITNET_Q_GUARD_ONLY",
                 "GGML_METAL_BITNET_FFN", "GGML_METAL_BITNET_FFN_MECHANISM" }) {
             const char * value = std::getenv(name);
             if (value && value[0] != '\0' && std::strcmp(value, "0") != 0) {
                 throw std::runtime_error("experimental ActQuant cannot be combined with custom Q or FFN routes");
             }
+        }
+        const char * custom_q = std::getenv("GGML_METAL_BITNET_POC");
+        if (custom_q && custom_q[0] != '\0' && std::strcmp(custom_q, "0") != 0) {
+            const char * rows = std::getenv("GGML_METAL_BITNET_POC_ROWS_PER_SIMD");
+            const char * groups = std::getenv("GGML_METAL_BITNET_POC_SIMD_PER_GROUP");
+            const char * layers = std::getenv("GGML_METAL_BITNET_LAYERS");
+            const char * ablation = std::getenv("GGML_METAL_BITNET_FFN_ABLATION");
+            if (!act_quant_q4 || std::strcmp(custom_q, "1") != 0 || !rows || std::strcmp(rows, "4") != 0 ||
+                    !groups || std::strcmp(groups, "1") != 0 || !layers || std::strcmp(layers, "0") != 0 ||
+                    (ablation && ablation[0] != '\0' && std::strcmp(ablation, "0") != 0)) {
+                throw std::runtime_error("ActQuant custom Q requires explicit Q4 permission, rows=4, groups=1, layer=0 and no FFN ablation");
+            }
+            static std::once_flag q4_log_once;
+            std::call_once(q4_log_once, []() {
+                LLAMA_LOG_INFO("BitNet ActQuant Q4: allow only layer-0 single-token Qcur-0, stock-helper rows=4/groups=1; "
+                        "runtime quantizer, layout and buffer guards remain required.\n");
+            });
         }
         static std::once_flag log_once;
         std::call_once(log_once, []() {

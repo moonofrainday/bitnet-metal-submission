@@ -136,6 +136,23 @@ static int run(){
    const auto tokens=actquantDocumentPath(docs,c[@"tokens"],false);NSString*digest=hashFile(tokens);
    require([digest isEqual:c[@"tokens_sha256"]],"ActQuant token checksum mismatch");
    native[@"tokens"]=@(tokens.c_str());identity[@"tokens_sha256"]=digest;
+   const std::string qr=c[@"q_route"]?str(c[@"q_route"]):"stock";
+   const std::string qf=c[@"q_fallback"]?str(c[@"q_fallback"]):"none";
+   const std::string qs=c[@"capture_scope"]?str(c[@"capture_scope"]):"all";
+   require(qr=="stock"||qr=="Q4","invalid ActQuant Q route");
+   require(qf=="none"||qf=="missing-library","invalid ActQuant Q fallback");
+   require(qs=="all"||qs=="q4-layer0","invalid ActQuant capture scope");
+   require(qr!="Q4"||flag(c,@"actquant"),"Q4 requires ActQuant ON");
+   native[@"q_route"]=@(qr.c_str());native[@"q_fallback"]=@(qf.c_str());native[@"capture_scope"]=@(qs.c_str());
+   if(c[@"q_library"]){
+    const auto library=actquantDocumentPath(docs,c[@"q_library"],false);NSString*librarySHA=hashFile(library);
+    require([librarySHA isEqual:c[@"q_library_sha256"]]&&[c[@"q_variant"]isEqual:@"stock4x1"],"Q4 library variant/hash mismatch");
+    native[@"q_library"]=@(library.c_str());identity[@"q_library_sha256"]=librarySHA;
+    for(NSString*key in @[@"q_library_sha256",@"q_variant",@"q_library_source_sha256",@"q_library_manifest_sha256",@"q_library_sdk"]){
+     require([c[key]isKindOfClass:NSString.class],"missing Q4 library provenance");native[key]=c[key];
+    }
+   }
+   require(qr!="Q4"||native[@"q_library"]!=nil,"Q4 library missing");
   }
   json(o.out/"native-config.json",native);
   NSData*encoded=[NSJSONSerialization dataWithJSONObject:native options:NSJSONWritingSortedKeys error:nil];require(encoded!=nil,"ActQuant config serialization failed");

@@ -161,6 +161,8 @@ def main():
                                  "--output", shaders, "--developer-dir", env["DEVELOPER_DIR"]])
         for original, alias in (("qcur0-c8x2.metallib", "q-c8x2.metallib"), ("stock4x1.metallib", "q-stock4x1.metallib")):
             shutil.copy2(shaders / original, shaders / alias)
+        record["shader_build_manifest_sha256"] = sha256(shaders / "BUILD.json")
+        record["shader_products_sha256"] = {path.name: sha256(path) for path in shaders.glob("*.metallib")}
         objects = []
         for source in ("iphone-q.mm", "iphone-operator.mm", "iphone-down-controls.mm", "iphone-original-poc.mm", "iphone-ppl.mm", "iphone-actquant.mm"):
             obj = output / "objects" / (Path(source).stem + ".o")
