@@ -1,0 +1,2810 @@
+diff --git a/bitnet/actquant/analyze_attribution.py b/bitnet/actquant/analyze_attribution.py
+new file mode 100644
+index 0000000..d4223d0
+--- /dev/null
++++ b/bitnet/actquant/analyze_attribution.py
+@@ -0,0 +1,201 @@
++#!/usr/bin/env python3
++"""CPU-only attribution archive validation and thermally separated statistics.
++
++Mac diagnostic archives require --telemetry-only and never produce performance
++statistics. Exit0 means valid measurement evidence, not a speedup or quality pass.
++Missing/invalid evidence returns2; an observed numerical gate failure is separate.
++"""
++import argparse
++from collections import Counter, defaultdict
++import csv
++import json
++import math
++from pathlib import Path
++import numpy as np
++from analyze_q4 import EvidenceError, MODEL_SHA, native_root, require, sha
++from run_phone import attribution_protocol
++
++
++def number(row, name):
++    value=float(row[name]);require(math.isfinite(value),'Nonfinite CSV '+name);return value
++
++
++def stats(rows):
++    a=np.array([number(r,'a_wall_ms') for r in rows]);b=np.array([number(r,'b_wall_ms') for r in rows])
++    difference=b-a
++    return {'pairs':len(rows),'a_p50_ms':float(np.percentile(a,50)),'a_p95_ms':float(np.percentile(a,95)),
++            'b_p50_ms':float(np.percentile(b,50)),'b_p95_ms':float(np.percentile(b,95)),
++            'paired_B_minus_A_median_ms':float(np.median(difference)),
++            'paired_relative_median_percent':float(np.median(100*difference/a)),
++            'B_wins':int(np.count_nonzero(difference<0)),'ties':int(np.count_nonzero(difference==0)),
++            'AB_pairs':sum(r['order']=='AB' for r in rows),'BA_pairs':sum(r['order']=='BA' for r in rows)}
++
++
++def thermal_groups(rows, paths):
++    groups=defaultdict(list);transitions=[]
++    for row in rows:
++        key=(int(row['round']),row['contrast'],int(row['pair']))
++        a,b=paths[(*key,'A')],paths[(*key,'B')]
++        thermals=[a['before']['thermal'],a['after']['thermal'],b['before']['thermal'],b['after']['thermal']]
++        power=[a['before']['low_power'],a['after']['low_power'],b['before']['low_power'],b['after']['low_power']]
++        if any(v not in ('nominal','fair','serious','critical') for v in thermals) or len(set(thermals))!=1 or any(type(v) is not bool for v in power) or len(set(power))!=1:
++            transitions.append({'round':key[0],'contrast':key[1],'pair':key[2],'thermal':thermals,'low_power':power})
++        else:
++            groups[(thermals[0],power[0])].append(row)
++    results=[]
++    for (thermal,power),data in groups.items():
++        parts={'thermal':thermal,'low_power':power,'statistics':stats(data),'order_groups':{},'time_blocks':[]}
++        for order in ('AB','BA'):
++            chosen=[r for r in data if r['order']==order]
++            if chosen:parts['order_groups'][order]=stats(chosen)
++        for indices in np.array_split(np.arange(len(data)),3):
++            chosen=[data[int(i)] for i in indices]
++            if chosen:parts['time_blocks'].append({'first_pair':int(chosen[0]['pair']),'last_pair':int(chosen[-1]['pair']),'statistics':stats(chosen)})
++        results.append(parts)
++    return {'stable_strata':results,'transition_or_unavailable_pairs':transitions,
++            'cross_thermal_pooled_statistics':None}
++
++
++def diagnostics(path, route):
++    record=json.loads(path.read_text())
++    require(record['schema']==1 and record['complete'] is True and record['dropped_records']==0 and
++            record['command_buffer_drops']==0 and record['pending_callback_handlers']==0 and record['callback_wait_timed_out'] is False,
++            'Incomplete diagnostic collection')
++    require(record['clock']=='CLOCK_UPTIME_RAW' and record['units']=='nanoseconds' and record['calibration']['pairs']==10000,
++            'Unknown CPU diagnostic clock/protocol')
++    tasks=record['tasks'];calls=record['q_calls'];buffers=record['command_buffers']
++    require(tasks and buffers and len(calls)==32 and [int(r['step']) for r in calls]==list(range(1,33)),
++            'Missing all32 actual layer0 Q calls')
++    require(all(t['mode']==route and 1<=t['step']<=32 for t in tasks),'Diagnostic route/step mismatch')
++    fields=('native_encode_calls','native_encode_ns','matvec_calls','q_identity_calls','outer_eligible','guard_attempts','guard_passes',
++            'guard_rejects','custom_dispatches','stock_target_dispatches','guard_ns','guard_tensor_buffer_ns','getter_ns','native_target_encode_ns')
++    total={key:sum(t[key] for t in tasks) for key in fields}
++    attempts=32 if route!='S' else 0;custom=32 if route=='Q4' else 0
++    require(total['q_identity_calls']==960 and total['outer_eligible']==32 and total['guard_attempts']==total['guard_passes']==attempts and
++            total['guard_rejects']==0 and total['custom_dispatches']==custom and total['stock_target_dispatches']==32-custom,
++            'Actual diagnostic guard/dispatch counts differ')
++    require(sum(v['guard_attempt'] for v in calls)==sum(v['guard_pass'] for v in calls)==attempts and
++            sum(v['custom'] for v in calls)==custom and sum(v['stock'] for v in calls)==32-custom,
++            'Per-call and aggregate counts differ')
++    families=defaultdict(lambda:{'encode_calls':0,'raw_worker_encode_ns':0})
++    for task in tasks:
++        require(task['slice_start']<=task['slice_end'] and task['native_encode_ns']>=0,'Bad encode interval')
++        for family in task['operator_family_cpu']:
++            families[family['family']]['encode_calls']+=family['encode_calls'];families[family['family']]['raw_worker_encode_ns']+=family['encode_ns']
++    token_buffers=[]
++    for step in range(1,33):
++        selected=[r for r in buffers if r['step']==step];require(selected,'Missing per-token existing command buffers')
++        gpu=[]
++        for row in selected:
++            require(row['completed'] is True and row['status']==4 and
++                    row['encode_start_ns']<=row['encode_end_ns'] and row['commit_start_ns']<=row['commit_end_ns'],
++                    'Incomplete/reversed command buffer interval')
++            start,end=row['gpu_start_s'],row['gpu_end_s']
++            require(type(start) in (int,float) and type(end) in (int,float) and math.isfinite(start) and math.isfinite(end) and 0<start<=end,
++                    'Unavailable/invalid GPU command-buffer timing')
++            gpu.append((start,end))
++        gpu.sort();union=0.0;left,right=gpu[0]
++        for start,end in gpu[1:]:
++            if start>right:union+=right-left;left,right=start,end
++            else:right=max(right,end)
++        union+=right-left
++        token_buffers.append({'step':step,'existing_command_buffers':len(selected),
++                              'GPU_command_buffer_elapsed_us':[1e6*(r['gpu_end_s']-r['gpu_start_s']) for r in selected],
++                              'GPU_interval_union_us':1e6*union,
++                              'host_encode_begin_to_completion_callback_span_us':
++                              (max(r['completed_host_ns'] for r in selected)-min(r['encode_start_ns'] for r in selected))/1000})
++    return {'pass':True,'route':route,'tasks':len(tasks),'actual_layer0_Q_calls':len(calls),'totals':total,
++            'operator_family_CPU_work':dict(families),'clock_calibration':record['calibration'],'per_token_command_buffers':token_buffers,
++            'raw_sha256':sha(path),'scope':'Existing command-buffer intervals, diagnostic instrumentation enabled; no per-shader GPU attribution',
++            'nonadditive_warning':'Nested/concurrent worker times are not additive critical-path time; GPU/host timestamps have distinct domains',
++            'unavailable':['GPU ALU counters','GPU occupancy','GPU bandwidth','individual operator GPU elapsed']}
++
++
++def audit(args):
++    root=native_root(args.run);native=json.loads((root/'RUN.json').read_text());kind=native['attribution_kind']
++    require(kind in ('formal','diagnostic','overhead') and native['operation']=='attribution' and native['execution_pass'] is True and
++            native['activation_quantization'] is True and native['one_model_and_context'] is True and native['model_sha256']==MODEL_SHA,
++            'Not a complete ActQuant attribution archive')
++    require(args.telemetry_only or native['device']=='Apple A16 GPU','Mac data requires --telemetry-only; no Mac performance report')
++    if not args.telemetry_only:
++        require(args.gate is not None,'Performance analysis requires the same-build correctness gate')
++        gate=json.loads(args.gate.read_text())
++        require(sha(args.gate)==native['correctness_gate_sha256'] and gate['scoped_correctness_pass'] is True and
++                gate['model_sha256']==MODEL_SHA and gate['q_library_sha256']==native['q_library_sha256'] and
++                native['tokens_sha256'] in {r['tokens_sha256'] for r in gate['histories'].values()},'Performance gate identity differs')
++        for name,digest in gate['evidence_sha256'].items():require(sha(name)==digest,'Correctness evidence changed after measurement')
++    protocol=attribution_protocol(kind,len(native['comparisons'])==4)
++    expected_contrasts=['S_METRICS','QB_METRICS','Q4_METRICS'] if kind=='overhead' else protocol['comparisons']
++    require(native['comparisons']==expected_contrasts,'Unexpected comparison scope')
++    require(native['rounds']==protocol['rounds'] and native['pairs']==protocol['pairs'] and native['pipeline_warmup_replays_per_route']==2 and
++            native['new_synchronization_points']==0 and native['capture_enabled'] is False and native['trace_enabled'] is False,
++            'Changed timing protocol/synchronization/capture')
++    with (root/'samples.csv').open(newline='') as file:samples=list(csv.DictReader(file))
++    with (root/'token-times.csv').open(newline='') as file:tokens=list(csv.DictReader(file))
++    require(len(samples)==native['sample_pairs']==protocol['rounds']*protocol['pairs']*len(native['comparisons']) and
++            len(tokens)==native['token_rows']==len(samples)*64 and len(native['paths'])==len(samples)*2,'Raw coverage differs')
++    path_map={(r['round'],r['contrast'],r['pair'],r['side']):r for r in native['paths']}
++    require(len(path_map)==len(native['paths']) and len({r['final_logits_sha256'] for r in native['paths']})==1,'Path identity/output neutrality differs')
++    token_map=defaultdict(list)
++    for row in tokens:token_map[(int(row['round']),row['contrast'],int(row['pair']),row['path'])].append(row)
++    seen=set();expected_schedule=[]
++    for round in range(1,protocol['rounds']+1):
++        contrasts=native['comparisons'];shift=(round-1)%len(contrasts)
++        for position,contrast in enumerate(contrasts[shift:]+contrasts[:shift],1):expected_schedule.append((round,(round-1)*len(contrasts)+position,contrast))
++    require([(r['round'],r['block'],r['contrast']) for r in native['schedule']]==expected_schedule,'Contrast rotation differs')
++    for row in samples:
++        round,pair,block=int(row['round']),int(row['pair']),int(row['block']);key=(round,row['contrast'],pair)
++        require(key not in seen and 0<=pair<protocol['pairs'] and (round,block,row['contrast']) in expected_schedule,'Duplicate/unexpected sample')
++        seen.add(key);ab=((pair%4 in (0,3)) != (round%2==0));require(row['order']==('AB' if ab else 'BA'),'Unbalanced order schedule')
++        am=kind=='diagnostic';bm=kind!='formal'
++        require(int(row['a_metrics'])==int(am) and int(row['b_metrics'])==int(bm),'Instrumentation mixed into wrong campaign')
++        routes={'AA':('S','S'),'SQB':('S','QB'),'SQ4':('S','Q4'),'QBQ4':('QB','Q4'),
++                'S_METRICS':('S','S'),'QB_METRICS':('QB','QB'),'Q4_METRICS':('Q4','Q4')}
++        require((row['a_route'],row['b_route'])==routes[row['contrast']],'Wrong route in comparison')
++        for side in ('A','B'):
++            prefix=side.lower();begin,end=int(row[prefix+'_begin_ns']),int(row[prefix+'_end_ns']);wall=number(row,prefix+'_wall_ms')
++            require(0<begin<end and abs((end-begin)/1e6-wall)<=1e-9*max(1,wall),'Wall boundary mismatch')
++            path=path_map[(*key,side)];require(path['route']==row[prefix+'_route'] and path['metrics']==(am if side=='A' else bm),'Path metadata differs')
++            records=token_map[(*key,side)];require([int(r['step']) for r in records]==list(range(1,33)),'Incomplete token history')
++            previous=begin
++            for token in records:
++                require(token['route']==path['route'] and int(token['metrics'])==int(path['metrics']),'Token route/instrumentation differs')
++                tb,te=int(token['begin_ns']),int(token['end_ns']);require(previous<=tb<te<=end,'Token boundary mismatch');previous=te
++                require(abs((te-tb)/1e6-number(token,'wall_ms'))<=1e-9,'Token elapsed mismatch')
++        require(int(row['a_end_ns'])<=int(row['b_begin_ns']) if ab else int(row['b_end_ns'])<=int(row['a_begin_ns']),'Recorded execution order differs')
++        require(abs(number(row,'b_minus_a_ms')-(number(row,'b_wall_ms')-number(row,'a_wall_ms')))<=1e-9,'Paired difference mismatch')
++    metrics=[]
++    for path in native['paths']:
++        if path['diagnostic_file'] is not None:
++            file=(root/path['diagnostic_file']).resolve();require(file.is_relative_to(root.resolve()),'Diagnostic path escapes run')
++            data=diagnostics(file,path['route']);data.update(round=path['round'],contrast=path['contrast'],pair=path['pair'],side=path['side']);metrics.append(data)
++    require(len(metrics)==(0 if kind=='formal' else len(samples)*2 if kind=='diagnostic' else len(samples)), 'Missing diagnostic path records')
++    comparison=[]
++    if not args.telemetry_only:
++        for round,_,contrast in expected_schedule:
++            chosen=[r for r in samples if int(r['round'])==round and r['contrast']==contrast]
++            comparison.append({'round':round,'contrast':contrast,**thermal_groups(chosen,path_map)})
++    return {'measurement_integrity_pass':True,'analysis_completed':True,'scope':'Fixed32-token decode wall; reset/prefill excluded',
++            'attribution_kind':kind,'device':native['device'],'pairs':len(samples),'token_rows':len(tokens),'formal_wall_campaign':kind=='formal',
++            'telemetry_only':args.telemetry_only,'performance_statistics':None if args.telemetry_only else comparison,
++            'diagnostics':metrics,'speedup_established':None,'model_quality_pass':None,'official_source_model_output_pass':None,
++            'historical_official_strict_exit_preserved':1,'new_synchronization_points':0,
++            'guard_attribution_boundary':'SQB includes full guard and candidate lookup before stock; SQ4/QBQ4 include encoding, binding, shader and scheduling changes',
++            'diagnostic_boundary':'CPU/GPU command-buffer intervals are instrumented observations; overhead campaign is separate; no hardware bottleneck attribution',
++            'raw_hashes':{'RUN.json':sha(root/'RUN.json'),'samples.csv':sha(root/'samples.csv'),'token-times.csv':sha(root/'token-times.csv')}}
++
++
++def main():
++    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--run',type=Path,required=True);p.add_argument('--output',type=Path,required=True)
++    p.add_argument('--telemetry-only',action='store_true');p.add_argument('--gate',type=Path);args=p.parse_args()
++    if args.output.exists():p.error('Output must be fresh')
++    args.output.mkdir(parents=True)
++    try:result=audit(args);code=0
++    except (EvidenceError,OSError,ValueError,KeyError,TypeError) as error:
++        result={'analysis_completed':False,'measurement_integrity_pass':None,'error':str(error),'model_quality_pass':None,
++                'official_source_model_output_pass':None,'historical_official_strict_exit_preserved':1};code=2
++    (args.output/'SUMMARY.json').write_text(json.dumps(result,indent=2,allow_nan=False)+'\n')
++    print(json.dumps({k:v for k,v in result.items() if k not in ('diagnostics','performance_statistics')},indent=2));return code
++
++
++if __name__=='__main__':raise SystemExit(main())
+diff --git a/bitnet/actquant/analyze_attribution_verify.py b/bitnet/actquant/analyze_attribution_verify.py
+new file mode 100644
+index 0000000..0cd0b8a
+--- /dev/null
++++ b/bitnet/actquant/analyze_attribution_verify.py
+@@ -0,0 +1,109 @@
++#!/usr/bin/env python3
++"""CPU-only same-process S/QB/Q4 verification, including observed stock PSO identity."""
++import argparse
++import json
++from pathlib import Path
++import re
++from types import SimpleNamespace
++import analyze_q4 as q4
++import analyze_qb as qb
++
++
++def split_trace(text, output, expected_context):
++    current=None;blocks={};contexts=[]
++    for line in text.splitlines():
++        fields=dict(re.findall(r'(\w+)=(\[[^\]]*\]|[^\s]+)',line))
++        if line.startswith('ACTQUANT_ATTRIBUTION_PATH_BEGIN '):
++            q4.require(current is None and fields['capture']=='1','Invalid same-process trace boundary')
++            current=fields['route'];q4.require(current in ('stock','QB','Q4') and current not in blocks,'Duplicate route trace')
++            q4.require(int(fields['context'],16)==int(expected_context),'Trace context differs from native context')
++            contexts.append(fields['context']);blocks[current]=[]
++        elif line.startswith('ACTQUANT_ATTRIBUTION_PATH_END '):
++            q4.require(current==fields['route'] and fields['synchronized']=='1','Incomplete same-process route')
++            current=None
++        elif current is not None:
++            blocks[current].append(line)
++    q4.require(current is None and set(blocks)=={'stock','QB','Q4'} and len(set(contexts))==1,'Incomplete one-context routes')
++    result={}
++    for route,lines in blocks.items():
++        file=output/(route+'.log');file.write_text('\n'.join(lines)+'\n');result[route]=file
++    return result
++
++
++def stock_abi(path, guarded):
++    records=[]
++    for line in path.read_text().splitlines():
++        if not line.startswith('BITNET_Q_STOCK_ABI '):continue
++        fields=dict(re.findall(r'(\w+)=(\[[^\]]*\]|[^\s]+)',line))
++        if fields.get('node')!='Qcur-0':continue
++        q4.require(fields['guarded']==str(int(guarded)) and fields['pipeline']=='kernel_mul_mv_tq2_0_f32','Wrong live stock ABI route')
++        records.append(fields)
++    q4.require([int(r['step']) for r in records]==list(range(1,33)),'Missing32 actual stock ABI records')
++    return records
++
++
++def main():
++    p=argparse.ArgumentParser(description=__doc__)
++    for name in ['run','log','stock-null','missing-library','missing-library-log','output']:
++        p.add_argument('--'+name,type=Path,required=True)
++    p.add_argument('--official-source',type=Path,default=Path(__file__).resolve().parents[1]/'reference/official-bitnet-096f25ae.py')
++    args=p.parse_args();q4.require(not args.output.exists(),'Refuse existing verification output');args.output.mkdir(parents=True)
++    result={'scope':'Same-build ActQuant-ON one-context S/QB/Q4 verification','analysis_completed':False,
++            'scoped_stock_compatibility_pass':None,'official_source_model_output_pass':None,'full_model_FP64_pass':None,
++            'model_quality_pass':None,'performance_measured':False,'historical_official_strict_exit_preserved':1}
++    try:
++        root=q4.native_root(args.run);native=q4.load(root/'RUN.json')
++        q4.require(native['operation']=='attribution' and native['attribution_kind']=='verify' and native['execution_pass'] is True and
++                   native['one_model_and_context'] is True and native['activation_quantization'] is True and native['performance_measurement'] is False,
++                   'Expected completed same-context ActQuant verification')
++        records={(r['route'],r['capture_enabled']):r for r in native['paths']}
++        q4.require(len(records)==len(native['paths'])==6 and set(records)=={(r,c) for r in ('S','QB','Q4') for c in (True,False)},'Incomplete verification paths')
++        folders={key:root/record['subrun'] for key,record in records.items()}
++        for folder in folders.values():
++            q4.require(folder.resolve().is_relative_to(root.resolve()),'Subrun outside native root')
++            sub=q4.load(folder/'RUN.json');q4.require(sub['context_id']==native['context_id'] and sub['callback_pointer_present'] is True,'Not the same callback-capable context')
++        trace_dir=args.output/'trace';trace_dir.mkdir()
++        traces=split_trace(args.log.read_text(),trace_dir,native['context_id'])
++        shared=dict(stock=folders[('S',True)],stock_plain=folders[('S',False)],stock_log=traces['stock'],official_source=args.official_source)
++        qb_code=qb.run(SimpleNamespace(**shared,candidate=folders[('QB',True)],candidate_plain=folders[('QB',False)],
++                                      candidate_log=traces['QB'],output=args.output/'QB'))
++        q4_code=q4.run(SimpleNamespace(**shared,candidate=folders[('Q4',True)],candidate_plain=folders[('Q4',False)],
++                                      candidate_log=traces['Q4'],output=args.output/'Q4',contract_profile='canonical-v1',
++                                      legacy_shader_build=None,missing_library=args.missing_library,missing_library_log=args.missing_library_log))
++        q4.require(qb_code in (0,1) and q4_code in (0,1),'Required subanalysis has missing/invalid evidence')
++        ss,bs=stock_abi(traces['stock'],False),stock_abi(traces['QB'],True)
++        rows=[]
++        abi_fields=('pipeline','cached_pipeline','args_bytes','add','norm','grid','threads','smem','slots')
++        binding_fields=('w','x','y','residual','norm_weight')
++        for step,(s,b) in enumerate(zip(ss,bs),1):
++            rows.append({'step':step,'same_stock_PSO':s['cached_pipeline']==b['cached_pipeline'],
++                         'same_ABI_launch':all(s[k]==b[k] for k in abi_fields),
++                         'same_live_bindings':all(s[k]==b[k] for k in binding_fields),
++                         'stock_PSO':s['cached_pipeline'],'QB_PSO':b['cached_pipeline'],
++                         'differing_binding_fields':[k for k in binding_fields if s[k]!=b[k]]})
++        null_root=q4.native_root(args.stock_null);null_run=q4.manifest(null_root,'stock',False)
++        null_checks={}
++        for (route,captured),folder in folders.items():
++            run=q4.load(folder/'RUN.json');q4.require(run['token_ids']==null_run['token_ids'],'Callback-null history differs')
++            comparison=q4.vector_comparison(q4.logits(folder,run),q4.logits(null_root,null_run))
++            null_checks[route+('-capture' if captured else '-plain')]=comparison
++        checks={'QB_scoped_pass':qb_code==0,'Q4_scoped_pass':q4_code==0,
++                'same_process_stock_PSO_pass':all(row['same_stock_PSO'] for row in rows),
++                'same_stock_ABI_launch_pass':all(row['same_ABI_launch'] for row in rows),
++                'same_stock_live_bindings_pass':all(row['same_live_bindings'] for row in rows),
++                'callback_null_stock_bitwise_pass':all(row['bitwise_pass'] for row in null_checks.values())}
++        verdict,code=q4.scoped_verdict(checks)
++        result.update(analysis_completed=True,checks=checks,scoped_stock_compatibility_pass=verdict,strict_scoped_exit_code=code,
++                      same_live_bindings_observed=all(row['same_live_bindings'] for row in rows),PSO_ABI_rows=rows,
++                      callback_null_comparisons=null_checks,QB_summary_sha256=q4.sha(args.output/'QB/SUMMARY.json'),
++                      Q4_summary_sha256=q4.sha(args.output/'Q4/SUMMARY.json'),native_run_sha256=q4.sha(root/'RUN.json'),
++                      model_sha256=native['model_sha256'],tokens_sha256=native['tokens_sha256'],q_library_sha256=native['q_library_sha256'],
++                      callback_note='Verify plain retains a callback pointer returning false; all33 logits also compared with original15-stage callback-null stockplain',
++                      binding_note='Live handle/offset equality is observed separately; identical captured W/X is enforced by same-input subanalyses')
++    except (q4.EvidenceError,OSError,ValueError,KeyError,TypeError) as error:
++        result.update(error=str(error),scoped_stock_compatibility_pass=None,strict_scoped_exit_code=2);code=2
++    (args.output/'SUMMARY.json').write_text(json.dumps(result,indent=2,allow_nan=False)+'\n')
++    print(json.dumps({k:v for k,v in result.items() if k not in ['PSO_ABI_rows','callback_null_comparisons']},indent=2));return code
++
++
++if __name__=='__main__':raise SystemExit(main())
+diff --git a/bitnet/actquant/analyze_q4.py b/bitnet/actquant/analyze_q4.py
+index 7010bc2..632dced 100644
+--- a/bitnet/actquant/analyze_q4.py
++++ b/bitnet/actquant/analyze_q4.py
+@@ -103,7 +103,7 @@ def manifest(root, route, captured=True, contract=None):
+     else:
+         require(r['q_kernel_contract_version'] == contract['version'] and r['q_entry'] == contract['entry'] and
+                 r['q_kernel_config_sha256'] == contract['config_sha256'], 'RUN canonical entry/config provenance mismatch')
+-    if route == 'Q4':
++    if route in ('Q4','QB'):
+         require(r['q_rows_per_simd'] == contract['rows'] and r['q_simd_per_group'] == contract['groups'] and r['q_variant'] == 'stock4x1',
+                 'Wrong Q4 algorithm/layout')
+         for key in ['q_library_sha256', 'q_library_source_sha256', 'q_library_manifest_sha256']:
+@@ -147,7 +147,7 @@ def trace_evidence(path, route, fallback='none', contract=None):
+     phase, begins, ends = None, [], []
+     encoded, completed = Counter(), Counter()
+     phase_encoded, phase_completed = Counter(), Counter()
+-    counts = Counter(); guard_steps = []; fallback_count = 0
++    counts = Counter(); guard_steps = []; fallback_count = 0; qb_pass_steps = []; qb_stock_steps = []
+     for line in text.splitlines():
+         f = dict(re.findall(r'(\w+)=(\[[^\]]*\]|[^\s]+)', line))
+         if line.startswith('ACTQUANT_Q_PHASE_BEGIN '):
+@@ -159,10 +159,20 @@ def trace_evidence(path, route, fallback='none', contract=None):
+                     'Every replay phase must complete all 30 actual Q dispatches before its synchronized marker')
+             ends.append(phase); phase = None
+         elif line.startswith('BITNET_ACTQUANT_Q4_GUARD '):
+-            require(phase is not None and phase > 0 and route == 'Q4' and f['node'] == 'Qcur-0' and
++            require(phase is not None and phase > 0 and route in ('Q4','QB') and f['node'] == 'Qcur-0' and
+                     f['source'] == 'actq_qkv_out-0' and f['source_op'] == 'ACT_QUANT' and f['checked'] == '1',
+                     'Wrong ActQuant-Q4 guard identity/phase')
+             guard_steps.append(phase)
++        elif line.startswith('BITNET_Q_GUARD_PASS ') and route == 'QB':
++            require(phase is not None and phase>0 and f['node']=='Qcur-0' and f['checked']=='1' and
++                    f['custom_encoded']=='0' and f['bounds']=='1' and f['disjoint']=='1' and
++                    f['candidate_pipeline']==contract['entry'] and f['rows']=='4' and f['simd']=='1',
++                    'QB did not complete the actual candidate guard')
++            qb_pass_steps.append(phase)
++        elif line.startswith('BITNET_Q_STOCK_ABI ') and route == 'QB' and f.get('node')=='Qcur-0' and f.get('guarded')=='1':
++            require(phase is not None and phase>0 and f['pipeline']=='kernel_mul_mv_tq2_0_f32',
++                    'QB did not return to the original stock pipeline')
++            qb_stock_steps.append(phase)
+         elif line.startswith('BITNET_Q_FALLBACK '):
+             require(fallback == 'missing-library' and f['reason'] == 'pipeline' and f['node'] == 'Qcur-0',
+                     'Unexpected runtime fallback')
+@@ -193,13 +203,15 @@ def trace_evidence(path, route, fallback='none', contract=None):
+     require(counts['prefill_stock'] == 30 and counts['decode_nontarget_stock'] == 928 and
+             counts['decode_target_custom'] == expect_custom and counts['decode_target_stock'] == 32-expect_custom,
+             'Wrong actual stock/custom Q dispatch counts')
+-    require(guard_steps == (list(range(1,33)) if route == 'Q4' else []), 'ActQuant-specific guard did not hit every eligible call')
++    require(guard_steps == (list(range(1,33)) if route in ('Q4','QB') else []), 'ActQuant-specific guard did not hit every eligible call')
++    if route == 'QB':
++        require(qb_pass_steps == qb_stock_steps == list(range(1,33)), 'QB guard/pipeline return coverage incomplete')
+     require(fallback_count == (32 if fallback == 'missing-library' else 0), 'Missing-library fallback count')
+     require('ACTQUANT_MODEL_COMPLETE enabled=1 backend=MTL0 workload=teacher decode_calls=33 logits=33 ' in text,
+             'Native complete marker missing')
+     return {'pass': True, 'counts': dict(counts), 'eligible_calls': 32, 'custom_dispatches': expect_custom,
+             'guard_hits': len(guard_steps), 'fallbacks': fallback_count, 'all_Q_encodes_completed': sum(encoded.values()),
+-            'log_sha256': sha(path)}
++            'log_sha256': sha(path), 'QB_guard_passes':len(qb_pass_steps),'QB_guarded_stock_calls':len(qb_stock_steps)}
+ 
+ 
+ def logits(root, run):
+diff --git a/bitnet/actquant/analyze_qb.py b/bitnet/actquant/analyze_qb.py
+new file mode 100644
+index 0000000..9e67cba
+--- /dev/null
++++ b/bitnet/actquant/analyze_qb.py
+@@ -0,0 +1,83 @@
++#!/usr/bin/env python3
++"""CPU-only full-guard/stock QB qualification; not official-model acceptance.
++
++Complete observed failure returns 1. Missing/invalid evidence returns 2.
++"""
++import argparse
++import csv
++import json
++from pathlib import Path
++import numpy as np
++from analyze_q4 import (ATOL, RTOL, MODEL_SHA, WEIGHT_SHA, EvidenceError, analysis_contract,
++                        decode_weight, logits, manifest, metrics, native_root, payload,
++                        probe_control, q_records, quantizer_check, require, scoped_verdict,
++                        trace_evidence, vector_comparison)
++
++
++def run(args):
++    require(not args.output.exists(), 'Refuse existing analysis')
++    args.output.mkdir(parents=True)
++    result = {'scope':'ActQuant-ON layer0 QB full guard followed by stock dispatch',
++              'analysis_completed':False,'official_source_model_output_pass':None,'full_model_FP64_pass':None,
++              'model_quality_pass':None,'performance_measured':False,'historical_official_strict_exit_preserved':1}
++    try:
++        contract=analysis_contract();sr,br=native_root(args.stock),native_root(args.candidate)
++        s,b=manifest(sr,'stock',True,contract),manifest(br,'QB',True,contract)
++        require(s['token_ids']==b['token_ids'] and s['device']==b['device'] and s['q_library_sha256']==b['q_library_sha256'],
++                'Stock/QB identity differs')
++        sq,bq=q_records(s),q_records(b)
++        weight=payload(sr,sq[0]['weight_path'],1689600,WEIGHT_SHA,np.uint8)
++        payload(br,bq[0]['weight_path'],1689600,WEIGHT_SHA,np.uint8)
++        decoded=decode_weight(weight);rows=[];hashes=[];comparisons=[]
++        with (args.output/'FP64_ROWS.csv').open('w',newline='') as file:
++            writer=csv.writer(file);writer.writerow(['step','row','reference','stock','QB','tolerance','stock_fail','QB_fail'])
++            for step,(a,c) in enumerate(zip(sq,bq)):
++                n=len(a['input_positions']);require(a['input_sha256']==c['input_sha256'],'Actual stock/QB X differs')
++                x=payload(sr,a['input_path'],n*2560,a['input_sha256']);payload(br,c['input_path'],n*2560,c['input_sha256'])
++                y=payload(sr,a['path'],n*2560,a['output_sha256']);z=payload(br,c['path'],n*2560,c['output_sha256'])
++                comparison,_=metrics(z,y);comparisons.append(comparison)
++                hashes.append({'step':step,'W_sha256':WEIGHT_SHA,'X_sha256':a['input_sha256'],
++                               'stock_Y_sha256':a['output_sha256'],'QB_Y_sha256':c['output_sha256']})
++                if step==0:continue
++                reference=np.einsum('rbk,bk->r',decoded,x.astype(np.float64).reshape(10,256),optimize=False)
++                sm,sbad=metrics(y,reference);bm,bbad=metrics(z,reference);rows.append({'step':step,'stock':sm,'QB':bm})
++                for i in range(2560):writer.writerow([step,i,reference[i],y[i],z[i],ATOL+RTOL*abs(reference[i]),int(sbad[i]),int(bbad[i])])
++        layers=[]
++        for root,run in [(sr,s),(br,b)]:
++            records=[r for r in run['checkpoints'] if r['kind']=='l_out' and r['node']=='l_out-0']
++            require([r['input_positions'] for r in records]==[list(range(27)),*[[i] for i in range(27,59)]],
++                    'All33 layer outputs required')
++            layers.append([payload(root,r['path'],2560*len(r['input_positions'])) for r in records])
++        layer=vector_comparison(layers[1],layers[0]);logit=vector_comparison(logits(br,b),logits(sr,s))
++        probes={'stock':probe_control(args.stock_plain,sr,s,'stock',contract),
++                'QB':probe_control(args.candidate_plain,br,b,'QB',contract)}
++        traces={'stock':trace_evidence(args.stock_log,'stock',contract=contract),
++                'QB':trace_evidence(args.candidate_log,'QB',contract=contract)}
++        quant={'stock':quantizer_check(sr,s,sq,args.official_source),'QB':quantizer_check(br,b,bq,args.official_source)}
++        checks={'identical_real_inputs_pass':True,'all33_Q_bitwise_pass':all(r['bitwise_differences']==0 for r in comparisons),
++                'fp64_pass':all(r['stock']['pass'] and r['QB']['pass'] for r in rows),
++                'all33_layer_and_logit_bitwise_pass':layer['bitwise_pass'] and logit['bitwise_pass'],
++                'local_actquant_pass':all(r['pass'] for r in quant.values()),'full_guard_and_stock_dispatch_pass':True,
++                'probe_neutrality_pass':None if any(v is None for v in probes.values()) else all(v['bitwise_pass'] for v in probes.values())}
++        verdict,code=scoped_verdict(checks)
++        result.update(analysis_completed=True,checks=checks,scoped_stock_compatibility_pass=verdict,strict_scoped_exit_code=code,
++                      model_sha256=MODEL_SHA,q_library_sha256=b['q_library_sha256'],input_hashes=hashes,Q_comparisons=comparisons,
++                      FP64=rows,layers=layer,logits=logit,probe_controls=probes,actual_runtime=traces,actual_input_quantizers=quant,
++                      numerical_scope='All32 same-input Q dots; all33 Q/layer/logit parity; prefill parity only',
++                      callback_pointer_note='Same-process verify plain can retain an inactive callback pointer; compare separately with the15-stage stockplain callback-null run')
++    except (EvidenceError,OSError,KeyError,TypeError,ValueError) as error:
++        result.update(error=str(error),scoped_stock_compatibility_pass=None,strict_scoped_exit_code=2);code=2
++    (args.output/'SUMMARY.json').write_text(json.dumps(result,indent=2,allow_nan=False)+'\n')
++    print(json.dumps({k:v for k,v in result.items() if k not in ['input_hashes','Q_comparisons','FP64','layers','logits','probe_controls']},indent=2))
++    return code
++
++
++def main():
++    p=argparse.ArgumentParser(description=__doc__)
++    for name in ['stock','candidate','stock-log','candidate-log','stock-plain','candidate-plain','output']:
++        p.add_argument('--'+name,type=Path,required=True)
++    p.add_argument('--official-source',type=Path,default=Path(__file__).resolve().parents[1]/'reference/official-bitnet-096f25ae.py')
++    return run(p.parse_args())
++
++
++if __name__=='__main__':raise SystemExit(main())
+diff --git a/bitnet/actquant/attribution.h b/bitnet/actquant/attribution.h
+new file mode 100644
+index 0000000..004e9fd
+--- /dev/null
++++ b/bitnet/actquant/attribution.h
+@@ -0,0 +1,279 @@
++// Included by runner.cpp inside bitnet_actquant.
++static uint64_t attribution_ns() {
++    timespec value;
++    require(clock_gettime(CLOCK_UPTIME_RAW, &value) == 0, "host clock failed");
++    return uint64_t(value.tv_sec)*1000000000ULL + uint64_t(value.tv_nsec);
++}
++
++static json attribution_state() {
++#if defined(__OBJC__)
++    static const char * names[] = {"nominal", "fair", "serious", "critical"};
++    const auto state = NSProcessInfo.processInfo.thermalState;
++    return {{"thermal", state >= 0 && state < 4 ? names[state] : "unknown"},
++        {"low_power", bool(NSProcessInfo.processInfo.lowPowerModeEnabled)},
++        {"battery_level", double(UIDevice.currentDevice.batteryLevel)},
++        {"battery_state", int(UIDevice.currentDevice.batteryState)},
++        {"iOS", UIDevice.currentDevice.systemVersion.UTF8String}};
++#else
++    return {{"thermal", "unavailable"}, {"low_power", nullptr}, {"battery_level", nullptr}, {"battery_state", nullptr}};
++#endif
++}
++
++static void attribution_route(const std::string & route) {
++    require(route == "S" || route == "QB" || route == "Q4", "bad attribution route");
++    unsetenv("GGML_METAL_BITNET_POC"); unsetenv("GGML_METAL_BITNET_Q_GUARD_ONLY");
++    if (route != "S") { setenv(route == "QB" ? "GGML_METAL_BITNET_Q_GUARD_ONLY" : "GGML_METAL_BITNET_POC", "1", 1); }
++}
++
++struct AttributionPath {
++    std::string route, final_logits_sha256, diagnostic_file, subrun;
++    bool metrics = false;
++    uint64_t begin = 0, end = 0, reset_ns = 0, prefill_ns = 0;
++    std::vector<uint64_t> token_begin, token_end;
++    json before, after;
++};
++
++static std::string attribution_digest(const float * values, size_t count) {
++    unsigned char bytes[CC_SHA256_DIGEST_LENGTH];
++    CC_SHA256(values, CC_LONG(count*sizeof(float)), bytes);
++    static const char hex[] = "0123456789abcdef";
++    std::string result;
++    for (unsigned char byte : bytes) { result += hex[byte >> 4]; result += hex[byte & 15]; }
++    return result;
++}
++
++static int attribution_test(const json & config, const fs::path & out) {
++#if defined(__OBJC__)
++    UIDevice.currentDevice.batteryMonitoringEnabled = YES;
++#endif
++    const std::string kind = config.value("attribution_kind", "formal");
++    require(kind == "formal" || kind == "diagnostic" || kind == "overhead" || kind == "verify", "bad attribution kind");
++    require(config.value("actquant", false) && config.value("backend", "MTL0") == "MTL0" &&
++        config.value("kv", "F16") == "F16" && config.value("prefill", "batched") == "batched" &&
++        config.value("workload", "teacher") == "teacher" &&
++        config.value("capture", false) == (kind == "verify") && config.value("trace", false) == (kind == "verify"),
++        "attribution requires ActQuant ON, MTL0/batched/F16/teacher; capture/trace are verify-only");
++    const bool verification = kind == "verify";
++    const int rounds = config.value("rounds", kind == "diagnostic" || verification ? 1 : 3);
++    const int pairs = config.value("pairs", kind == "diagnostic" || verification ? 1 : kind == "overhead" ? 7 : 21);
++    const int warmups = config.value("warmups", 2);
++    require(warmups == 2 && rounds == (kind == "diagnostic" || verification ? 1 : 3) &&
++        pairs == (kind == "diagnostic" || verification ? 1 : kind == "overhead" ? 7 : 21), "attribution protocol must remain frozen");
++    require(verification || config.value("correctness_gate_sha256", "").size() == 64, "same-build Q4/QB correctness gate is required");
++    const fs::path model = config.at("model").get<std::string>(), token_file = config.at("tokens").get<std::string>();
++    const fs::path library = config.at("q_library").get<std::string>();
++    require(hash_file(model) == MODEL_SHA && library.is_absolute() && fs::is_regular_file(library), "model/library identity");
++    const std::string library_sha = hash_file(library);
++    require(library_sha == config.at("q_library_sha256").get<std::string>() && config.value("q_variant", "") == "stock4x1" &&
++        config.value("q_library_source_sha256", "").size() == 64 && config.value("q_library_manifest_sha256", "").size() == 64 &&
++        config.value("q_kernel_contract_version", 0) == GGML_BITNET_Q_CONFIG_VERSION &&
++        config.value("q_kernel_config_sha256", "").size() == 64 &&
++        config.value("q_entry", "") == GGML_BITNET_Q_STRINGIFY(GGML_BITNET_Q4_ENTRY) &&
++        config.at("q_grid") == json::array({GGML_BITNET_Q_NROWS/(GGML_BITNET_Q4_ROWS*GGML_BITNET_Q4_NSG),1,1}) &&
++        config.at("q_threads") == json::array({GGML_BITNET_Q_SIMD_WIDTH,GGML_BITNET_Q4_NSG,1}), "Q4 canonical provenance");
++    const auto tokens = read_json(token_file);
++    const auto prompt = tokens.at("prompt").get<std::vector<llama_token>>();
++    const auto continuation = tokens.at("continuation").get<std::vector<llama_token>>();
++    require(prompt.size() == 27 && continuation.size() == 32 && prompt.front() == 128000, "attribution token counts/BOS");
++    for (const auto & sequence : {prompt, continuation}) {
++        for (auto token : sequence) { require(token >= 0 && token < 128256, "attribution token outside vocabulary"); }
++    }
++    clear_custom_routes(); setenv("LLAMA_BITNET_ACTQUANT", "1", 1); setenv("LLAMA_BITNET_ACTQUANT_Q4", "1", 1);
++    setenv("GGML_METAL_ACTQUANT_TRACE", "0", 1); setenv("GGML_METAL_BITNET_LAYERS", "0", 1);
++    setenv("GGML_METAL_BITNET_POC_VARIANT", "stock4x1", 1);
++    setenv("GGML_METAL_BITNET_POC_ROWS_PER_SIMD", GGML_BITNET_Q_STRINGIFY(GGML_BITNET_Q4_ROWS), 1);
++    setenv("GGML_METAL_BITNET_POC_SIMD_PER_GROUP", GGML_BITNET_Q_STRINGIFY(GGML_BITNET_Q4_NSG), 1);
++    setenv("GGML_METAL_BITNET_POC_METALLIB", library.c_str(), 1); attribution_route("S");
++    ModelLog log; llama_log_set(model_logger, &log); llama_backend_init();
++    struct Cleanup { ~Cleanup() { clear_custom_routes(); llama_backend_free(); llama_log_set(nullptr, nullptr); } } cleanup;
++    ggml_backend_dev_t devices[] = {ggml_backend_dev_by_name("MTL0"), nullptr}; require(devices[0], "MTL0 missing");
++    using reset_fn = void (*)(void); using write_fn = int (*)(const char *);
++    const auto reg = ggml_backend_dev_backend_reg(devices[0]);
++    const auto reset = reinterpret_cast<reset_fn>(ggml_backend_reg_get_proc_address(reg, "ggml_backend_metal_q_attribution_diag_reset"));
++    const auto write = reinterpret_cast<write_fn>(ggml_backend_reg_get_proc_address(reg, "ggml_backend_metal_q_attribution_diag_write"));
++    require(reset && write, "same-build backend diagnostic API missing");
++    auto mp = llama_model_default_params(); mp.devices = devices; mp.n_gpu_layers = 999; mp.check_tensors = true;
++    std::unique_ptr<llama_model, decltype(&llama_model_free)> m(llama_model_load_from_file(model.c_str(), mp), llama_model_free);
++    require(m && llama_model_n_layer(m.get()) == 30 && llama_vocab_n_tokens(llama_model_get_vocab(m.get())) == 128256 &&
++        log.offloaded == 31 && log.total == 31, "wrong model/offload geometry");
++    Capture capture; capture.scope = "q4-layer0";
++    auto cp = llama_context_default_params(); cp.n_ctx = 512; cp.n_batch = cp.n_ubatch = 128;
++    cp.n_threads = cp.n_threads_batch = 6; cp.type_k = cp.type_v = GGML_TYPE_F16;
++    cp.offload_kqv = true; cp.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_DISABLED;
++    cp.cb_eval = verification ? Capture::callback : nullptr; cp.cb_eval_user_data = verification ? &capture : nullptr;
++    std::unique_ptr<llama_context, decltype(&llama_free)> ctx(llama_init_from_model(m.get(), cp), llama_free);
++    require(bool(ctx), "attribution context creation failed");
++    json paths = json::array(); uint64_t serial = 0; std::string expected_final_sha;
++    auto replay = [&](const std::string & route, bool metrics, bool keep_diagnostic,
++            bool record_verification = false, bool captured = false, bool traced = false) {
++        AttributionPath result; result.route = route; result.metrics = metrics;
++        const uint64_t path_id = ++serial;
++        const fs::path folder = out/"verification"/("path-" + std::to_string(path_id) + "-" + route + (captured?"-capture":"-plain"));
++        capture = Capture{}; capture.scope = "q4-layer0"; capture.out = folder; capture.enabled = captured;
++        json logit_records = json::array();
++        auto snapshot = [&](int position) {
++            const float * y = llama_get_logits_ith(ctx.get(), -1); require(y, "verify logits missing");
++            std::vector<float> values(y,y+128256);
++            require(std::all_of(values.begin(),values.end(),[](float x){return std::isfinite(x);}),"verify nonfinite logits");
++            const std::string path = "logits/position-" + std::to_string(position) + ".f32"; write_f32(folder/path,values);
++            logit_records.push_back({{"input_position",position},{"path",path},{"vocab",128256},
++                {"greedy_token",int(std::max_element(values.begin(),values.end())-values.begin())}});
++        };
++        result.token_begin.reserve(32); result.token_end.reserve(32);
++        unsetenv("GGML_METAL_BITNET_Q_ATTRIBUTION"); attribution_route("S"); unsetenv("GGML_METAL_BITNET_FFN_DECODE");
++        auto before = attribution_ns(); llama_synchronize(ctx.get()); llama_memory_clear(llama_get_memory(ctx.get()), true); llama_synchronize(ctx.get());
++        require(llama_memory_seq_pos_max(llama_get_memory(ctx.get()), 0) == -1, "attribution KV reset failed");
++        result.reset_ns = attribution_ns() - before; before = attribution_ns();
++        setenv("GGML_METAL_BITNET_FFN_STEP", "0", 1);
++        capture.positions.clear(); for (int i=0;i<27;++i) { capture.positions.push_back(i); }
++        const std::string native_route = route == "S" ? "stock" : route;
++        if (traced) {
++            setenv("GGML_METAL_BITNET_POC_TRACE","1",1);
++            std::fprintf(stderr,"ACTQUANT_ATTRIBUTION_PATH_BEGIN id=%llu route=%s capture=%d context=%p\n",(unsigned long long)path_id,native_route.c_str(),captured,(void*)ctx.get());
++            std::fprintf(stderr,"ACTQUANT_Q_PHASE_BEGIN q_route=%s decode_step=0\n",native_route.c_str());
++        }
++        require(llama_decode(ctx.get(), llama_batch_get_one(const_cast<llama_token *>(prompt.data()), 27)) == 0, "attribution prefill failed");
++        llama_synchronize(ctx.get()); require(llama_memory_seq_pos_max(llama_get_memory(ctx.get()), 0) == 26, "attribution prefill KV mismatch");
++        require(capture.error.empty(),"attribution prefill capture failed: " + capture.error);
++        if (traced) { std::fprintf(stderr,"ACTQUANT_Q_PHASE_COMPLETE q_route=%s decode_step=0 synchronized=1\n",native_route.c_str()); }
++        result.prefill_ns = attribution_ns() - before;
++        if (record_verification) { snapshot(26); }
++        attribution_route(route); setenv("GGML_METAL_BITNET_FFN_DECODE", "1", 1);
++        if (metrics) { reset(); setenv("GGML_METAL_BITNET_Q_ATTRIBUTION", "1", 1); }
++        result.before = attribution_state(); result.begin = attribution_ns();
++        for (int step = 0; step < 32; ++step) {
++            const auto begin = attribution_ns(); const std::string text = std::to_string(step+1);
++            setenv("GGML_METAL_BITNET_FFN_STEP", text.c_str(), 1);
++            capture.positions = {27+step};
++            if (traced) { std::fprintf(stderr,"ACTQUANT_Q_PHASE_BEGIN q_route=%s decode_step=%d\n",native_route.c_str(),step+1); }
++            require(llama_memory_seq_pos_max(llama_get_memory(ctx.get()), 0) == 26+step, "attribution token KV prefix mismatch");
++            require(llama_decode(ctx.get(), llama_batch_get_one(const_cast<llama_token *>(&continuation[step]), 1)) == 0, "attribution decode failed");
++            llama_synchronize(ctx.get());
++            require(capture.error.empty(),"attribution decode capture failed: " + capture.error);
++            require(llama_memory_seq_pos_max(llama_get_memory(ctx.get()), 0) == 27+step, "attribution token KV end mismatch");
++            result.token_begin.push_back(begin); result.token_end.push_back(attribution_ns());
++            if (traced) { std::fprintf(stderr,"ACTQUANT_Q_PHASE_COMPLETE q_route=%s decode_step=%d synchronized=1\n",native_route.c_str(),step+1); }
++            if (record_verification) { snapshot(27+step); }
++        }
++        result.end = attribution_ns(); result.after = attribution_state(); unsetenv("GGML_METAL_BITNET_Q_ATTRIBUTION");
++        unsetenv("GGML_METAL_BITNET_POC_TRACE");
++        const float * logits = llama_get_logits_ith(ctx.get(), -1); require(logits != nullptr, "attribution final logits missing");
++        require(std::all_of(logits, logits+128256, [](float x) { return std::isfinite(x); }), "attribution nonfinite final logits");
++        result.final_logits_sha256 = attribution_digest(logits, 128256);
++        if (expected_final_sha.empty()) { require(route=="S","first attribution replay must be stock"); expected_final_sha=result.final_logits_sha256; }
++        require(result.final_logits_sha256==expected_final_sha,"attribution final logits differ: route="+route+
++            " metrics="+std::to_string(metrics)+" expected="+expected_final_sha+" actual="+result.final_logits_sha256);
++        if (metrics && keep_diagnostic) {
++            result.diagnostic_file = "diagnostics/path-" + std::to_string(path_id) + ".json";
++            fs::create_directories((out/result.diagnostic_file).parent_path());
++            require(write((out/result.diagnostic_file).c_str()) == 0, "backend diagnostics incomplete or write failed");
++        }
++        if (record_verification) {
++            json record={{"schema",1},{"operation","model"},{"workload","teacher"},{"backend","MTL0"},{"device",ggml_backend_dev_description(devices[0])},
++                {"activation_quantization",true},{"model_sha256",MODEL_SHA},{"tokens_sha256",hash_file(token_file)},{"prompt_ids",prompt},{"continuation_ids",continuation},
++                {"token_ids",prompt},{"prefill","batched"},{"kv","F16"},{"capture_enabled",captured},{"offloaded_layers",31},{"total_offload_layers",31},
++                {"logits",logit_records},{"performance_measurement",false},{"q_route",native_route},{"q_fallback","none"},{"capture_scope","q4-layer0"},
++                {"q_library_sha256",library_sha},{"q_rows_per_simd",route=="S"?0:GGML_BITNET_Q4_ROWS},{"q_simd_per_group",route=="S"?0:GGML_BITNET_Q4_NSG},
++                {"q_entry",GGML_BITNET_Q_STRINGIFY(GGML_BITNET_Q4_ENTRY)},{"q_kernel_contract_version",GGML_BITNET_Q_CONFIG_VERSION},
++                {"settings",{{"n_ctx",512},{"batch",128},{"ubatch",128},{"threads",6},{"flash_attention",false}}},
++                {"checkpoints",capture.checkpoints},{"completed_decode_calls",33},{"finite_logits",true},{"execution_pass",true},
++                {"context_id",std::to_string(uintptr_t(ctx.get()))},{"callback_pointer_present",true},{"trace_enabled",traced},
++                {"parity_pass",nullptr},{"fp64_pass",nullptr},{"model_output_pass",nullptr},{"strict_model_exit_code",2}};
++            for (auto token:continuation) { record["token_ids"].push_back(token); }
++            for (const char * key : {"q_variant","q_library_source_sha256","q_library_manifest_sha256","q_library_sdk","q_kernel_config_sha256","q_grid","q_threads"}) { record[key]=config.at(key); }
++            write_json(folder/"RUN.json",record); result.subrun=fs::relative(folder,out).string();
++            if (traced) {
++                std::fprintf(stderr,"ACTQUANT_MODEL_COMPLETE enabled=1 backend=MTL0 workload=teacher decode_calls=33 logits=33 actquant_callbacks=%zu synchronized=1\n",capture.actquant_callbacks);
++                std::fprintf(stderr,"ACTQUANT_ATTRIBUTION_PATH_END id=%llu route=%s synchronized=1\n",(unsigned long long)path_id,native_route.c_str());
++            }
++        }
++        return result;
++    };
++    const std::vector<std::string> routes = {"S", "QB", "Q4"};
++    for (int i = 0; i < warmups; ++i) {
++        for (const auto & route : routes) { replay(route, kind == "diagnostic", false); if (kind == "overhead") { replay(route, true, false); } }
++    }
++    if (verification) {
++        for (bool captured : {true,false}) {
++            for (const auto & route : routes) {
++                const auto result=replay(route,false,false,true,captured,captured);
++                paths.push_back({{"route",route},{"capture_enabled",captured},{"subrun",result.subrun},{"final_logits_sha256",result.final_logits_sha256}});
++            }
++        }
++        json runtime={{"schema",1},{"operation","attribution"},{"attribution_kind",kind},{"backend","MTL0"},
++            {"device",ggml_backend_dev_description(devices[0])},{"model_sha256",MODEL_SHA},{"tokens_sha256",hash_file(token_file)},
++            {"one_model_and_context",true},{"context_id",std::to_string(uintptr_t(ctx.get()))},{"activation_quantization",true},
++            {"offloaded_layers",31},{"total_offload_layers",31},{"paths",paths},{"capture_enabled",true},{"trace_enabled",true},
++            {"q_library_sha256",library_sha},{"q_entry",GGML_BITNET_Q_STRINGIFY(GGML_BITNET_Q4_ENTRY)},{"q_kernel_contract_version",GGML_BITNET_Q_CONFIG_VERSION},
++            {"execution_pass",true},{"finite_logits",true},{"performance_measurement",false},{"parity_pass",nullptr},{"fp64_pass",nullptr},
++            {"model_output_pass",nullptr},{"semantic_acceptance_pass",nullptr},{"strict_model_exit_code",2}};
++        for (const char * key : {"q_variant","q_library_source_sha256","q_library_manifest_sha256","q_library_sdk","q_kernel_config_sha256","q_grid","q_threads"}) { runtime[key]=config.at(key); }
++        write_json(out/"RUN.json",runtime);
++        std::printf("ACTQUANT_ATTRIBUTION_COMPLETE kind=verify paths=6 synchronized=1 numerical_acceptance_unverified=1\n");std::fflush(stdout);return 0;
++    }
++    std::vector<std::string> contrasts;
++    if (kind == "overhead") { contrasts = {"S_METRICS", "QB_METRICS", "Q4_METRICS"}; }
++    else { contrasts = config.value("comparisons", std::vector<std::string>{"AA", "SQB", "SQ4"}); }
++    require(kind=="overhead" || contrasts==std::vector<std::string>({"AA","SQB","SQ4"}) ||
++        contrasts==std::vector<std::string>({"AA","SQB","SQ4","QBQ4"}), "frozen major contrasts are required");
++    auto pair_routes = [](const std::string & name) -> std::pair<std::string,std::string> {
++        if (name == "AA") { return {"S","S"}; } if (name == "SQB") { return {"S","QB"}; }
++        if (name == "SQ4") { return {"S","Q4"}; } if (name == "QBQ4") { return {"QB","Q4"}; }
++        if (name == "S_METRICS") { return {"S","S"}; } if (name == "QB_METRICS") { return {"QB","QB"}; }
++        if (name == "Q4_METRICS") { return {"Q4","Q4"}; } throw std::runtime_error("unknown attribution contrast");
++    };
++    std::ofstream samples(out/"samples.csv"), token_times(out/"token-times.csv");
++    samples << std::setprecision(17); token_times << std::setprecision(17);
++    samples << "round,block,contrast,pair,order,a_route,b_route,a_metrics,b_metrics,a_wall_ms,b_wall_ms,b_minus_a_ms,a_reset_ms,b_reset_ms,a_prefill_ms,b_prefill_ms,a_begin_ns,a_end_ns,b_begin_ns,b_end_ns,a_thermal_before,a_thermal_after,b_thermal_before,b_thermal_after\n";
++    token_times << "round,block,contrast,pair,order,path,route,metrics,step,begin_ns,end_ns,wall_ms\n";
++    json schedule = json::array(); int block = 0;
++    for (int round = 1; round <= rounds; ++round) {
++        auto sequence = contrasts; std::rotate(sequence.begin(), sequence.begin()+((round-1)%sequence.size()), sequence.end());
++        for (const auto & contrast : sequence) {
++            ++block; const auto selected = pair_routes(contrast); schedule.push_back({{"round",round},{"block",block},{"contrast",contrast}});
++            for (int pair = 0; pair < pairs; ++pair) {
++                const bool ab = ((pair%4 == 0 || pair%4 == 3) != (round%2 == 0));
++                const bool am = kind == "diagnostic", bm = kind != "formal";
++                AttributionPath a,b;
++                if (ab) { a = replay(selected.first,am,am); b = replay(selected.second,bm,bm); }
++                else { b = replay(selected.second,bm,bm); a = replay(selected.first,am,am); }
++                const double aw = double(a.end-a.begin)/1e6, bw = double(b.end-b.begin)/1e6;
++                samples << round << ',' << block << ',' << contrast << ',' << pair << ',' << (ab?"AB":"BA") << ',' << a.route << ',' << b.route << ','
++                    << am << ',' << bm << ',' << aw << ',' << bw << ',' << bw-aw << ',' << double(a.reset_ns)/1e6 << ',' << double(b.reset_ns)/1e6 << ','
++                    << double(a.prefill_ns)/1e6 << ',' << double(b.prefill_ns)/1e6 << ',' << a.begin << ',' << a.end << ',' << b.begin << ',' << b.end << ','
++                    << a.before["thermal"].get<std::string>() << ',' << a.after["thermal"].get<std::string>() << ',' << b.before["thermal"].get<std::string>() << ',' << b.after["thermal"].get<std::string>() << '\n';
++                for (const auto & side : {std::make_pair("A",&a),std::make_pair("B",&b)}) {
++                    const auto & path = *side.second;
++                    paths.push_back({{"round",round},{"block",block},{"contrast",contrast},{"pair",pair},{"side",side.first},{"route",path.route},
++                        {"metrics",path.metrics},{"final_logits_sha256",path.final_logits_sha256},{"before",path.before},{"after",path.after},
++                        {"diagnostic_file",path.diagnostic_file.empty()?json(nullptr):json(path.diagnostic_file)}});
++                    for (int step = 0; step < 32; ++step) {
++                        token_times << round << ',' << block << ',' << contrast << ',' << pair << ',' << (ab?"AB":"BA") << ',' << side.first << ',' << path.route << ',' << path.metrics << ',' << step+1 << ','
++                            << path.token_begin[step] << ',' << path.token_end[step] << ',' << double(path.token_end[step]-path.token_begin[step])/1e6 << '\n';
++                    }
++                }
++            }
++        }
++    }
++    require(bool(samples) && bool(token_times), "attribution CSV write failed"); samples.close(); token_times.close();
++    require(hash_file(library) == library_sha, "Q library changed during attribution");
++    timespec resolution; require(clock_getres(CLOCK_UPTIME_RAW,&resolution) == 0, "clock resolution unavailable");
++    json runtime = {{"schema",1},{"operation","attribution"},{"attribution_kind",kind},{"backend","MTL0"},{"device",ggml_backend_dev_description(devices[0])},
++        {"model_sha256",MODEL_SHA},{"tokens_sha256",hash_file(token_file)},{"prompt_ids",prompt},{"continuation_ids",continuation},
++        {"activation_quantization",true},{"offloaded_layers",31},{"total_offload_layers",31},{"prefill","batched"},{"kv","F16"},
++        {"settings",{{"n_ctx",512},{"batch",128},{"ubatch",128},{"threads",6},{"flash_attention",false}}},
++        {"q_library_sha256",library_sha},{"q_entry",GGML_BITNET_Q_STRINGIFY(GGML_BITNET_Q4_ENTRY)},{"q_kernel_contract_version",GGML_BITNET_Q_CONFIG_VERSION},
++        {"correctness_gate_sha256",config.at("correctness_gate_sha256")},{"one_model_and_context",true},{"KV_data_and_metadata_reset_each_path",true},
++        {"prefix_restored_outside_wall",true},{"pipeline_warmup_replays_per_route",warmups},{"tokens_per_path",32},{"rounds",rounds},{"pairs",pairs},
++        {"comparisons",contrasts},{"schedule",schedule},{"paths",paths},{"sample_pairs",rounds*pairs*int(contrasts.size())},
++        {"token_rows",64*rounds*pairs*int(contrasts.size())},{"clock","CLOCK_UPTIME_RAW"},{"clock_resolution_ns",uint64_t(resolution.tv_sec)*1000000000ULL+uint64_t(resolution.tv_nsec)},
++        {"wall_interval","32 fixed N1 llama_decode calls including existing synchronize per token; reset/prefill excluded"},
++        {"capture_enabled",false},{"trace_enabled",false},{"backend_metrics_enabled_during_formal",false},{"new_synchronization_points",0},
++        {"performance_measurement",true},{"formal_wall_campaign",kind == "formal"},{"critical_path_timestamps_diagnostic_only",true},
++        {"execution_pass",true},{"finite_logits",true},{"parity_pass",nullptr},{"fp64_pass",nullptr},{"model_output_pass",nullptr},
++        {"semantic_acceptance_pass",nullptr},{"official_source_model_acceptance",nullptr},{"strict_model_exit_code",2}};
++    for (const char * key : {"q_variant","q_library_source_sha256","q_library_manifest_sha256","q_library_sdk","q_kernel_config_sha256","q_grid","q_threads"}) { runtime[key]=config.at(key); }
++    write_json(out/"RUN.json",runtime);
++    std::printf("ACTQUANT_ATTRIBUTION_COMPLETE kind=%s pairs=%d token_rows=%d synchronized=1 numerical_acceptance_unverified=1\n",kind.c_str(),rounds*pairs*int(contrasts.size()),64*rounds*pairs*int(contrasts.size()));
++    std::fflush(stdout); return 0;
++}
+diff --git a/bitnet/actquant/make_attribution_gate.py b/bitnet/actquant/make_attribution_gate.py
+new file mode 100644
+index 0000000..c22b00b
+--- /dev/null
++++ b/bitnet/actquant/make_attribution_gate.py
+@@ -0,0 +1,76 @@
++#!/usr/bin/env python3
++"""Bind completed same-build phone correctness evidence before attribution timing."""
++import argparse
++import json
++from pathlib import Path
++from run_phone import build_identity, token_identity
++from common import PUBLIC_MODEL_SHA256, require, sha256
++
++
++def verify_run_binding(directory, analysis, expected_identity, build, tokens_sha256):
++    identity=json.loads((directory/'BUILD_IDENTITY.json').read_text())
++    require(identity==expected_identity,'Verification run is not from the current signed build/source')
++    summary=json.loads((directory/'summary.json').read_text())
++    require(summary.get('execution_pass') is True and summary.get('GPU_executed') is True and
++            all(type(summary.get(k)) is int and summary[k]==0 for k in ('native_process_exit_code','collection_exit_code','actual_process_exit_code','launch_command_exit_code')),
++            'Verification host/native execution did not complete')
++    native_file=directory/'device/native/RUN.json';native=json.loads(native_file.read_text());digest=sha256(native_file)
++    require(analysis['native_run_sha256']==digest and summary['native_run_sha256']==digest,'Analysis and supplied native RUN differ')
++    require(native.get('operation')=='attribution' and native.get('attribution_kind')=='verify' and native.get('execution_pass') is True and
++            native.get('activation_quantization') is True and native.get('one_model_and_context') is True and
++            native.get('device')=='Apple A16 GPU' and native.get('backend')=='MTL0' and
++            native.get('model_sha256')==PUBLIC_MODEL_SHA256 and native.get('tokens_sha256')==tokens_sha256 and
++            native.get('q_library_sha256')==build['shader_products_sha256']['q-stock4x1.metallib'],
++            'Verification native model/history/library/backend identity differs')
++    result=json.loads((directory/'device/result.json').read_text())
++    require(result.get('operation')=='actquant' and result.get('actquant_operation')=='attribution' and
++            result.get('process_exit_code')==result.get('native_process_exit_code')==0 and result.get('execution_pass') is True and
++            result.get('native_run_sha256')==digest,'Verification app completion record does not bind supplied RUN')
++    return digest
++
++
++def main():
++    p=argparse.ArgumentParser(description=__doc__)
++    for name in ['build-dir','correctness','repeat-contract','primary-analysis','independent-analysis','primary-run','independent-run','tokens-primary','tokens-independent','output']:
++        p.add_argument('--'+name,type=Path,required=True)
++    args=p.parse_args()
++    if args.output.exists():p.error('Gate output must be fresh')
++    result={'schema':1,'scoped_correctness_pass':None,'official_source_model_output_pass':None,
++            'full_model_FP64_pass':None,'model_quality_pass':None,'historical_official_strict_exit_preserved':1}
++    try:
++        build,identity=build_identity(args.build_dir.resolve())
++        base=json.loads((args.correctness/'SUMMARY.json').read_text())
++        repeat=json.loads((args.repeat_contract/'summary.json').read_text())
++        for value in [base.get('scoped_qualification_pass'),repeat.get('runtime_contract_pass')]:
++            if value is False:result['scoped_correctness_pass']=False
++            require(value is True,'Required preceding correctness/cache gate missing or failed')
++        require(base['local_provenance']['build_manifest_sha256']==identity['build_manifest_sha256'] and
++                repeat['selected_build_manifest_sha256']==identity['build_manifest_sha256'],'Preceding gates use another signed build')
++        histories={}
++        for name,analysis,tokens,run in [('primary',args.primary_analysis,args.tokens_primary,args.primary_run),
++                                        ('independent',args.independent_analysis,args.tokens_independent,args.independent_run)]:
++            token_identity(tokens);data=json.loads((analysis/'SUMMARY.json').read_text())
++            if data.get('scoped_stock_compatibility_pass') is False:result['scoped_correctness_pass']=False
++            require(data.get('scoped_stock_compatibility_pass') is True and data['strict_scoped_exit_code']==0 and
++                    all(v is True for v in data['checks'].values()),'Same-process Q4/QB proof incomplete: '+name)
++            require(data['tokens_sha256']==sha256(tokens) and data['model_sha256']==PUBLIC_MODEL_SHA256 and
++                    data['q_library_sha256']==build['shader_products_sha256']['q-stock4x1.metallib'],'History/model/library identity mismatch')
++            verify_run_binding(run,data,identity,build,sha256(tokens))
++            histories[name]={'tokens_sha256':sha256(tokens),'same_process_scoped_pass':True,'analysis_sha256':sha256(analysis/'SUMMARY.json')}
++        evidence={}
++        for root in [args.correctness,args.repeat_contract,args.primary_analysis,args.independent_analysis,args.primary_run,args.independent_run]:
++            for file in sorted(root.rglob('*')):
++                if file.is_file() and file.suffix in ('.json','.log','.f32','.tq2'):
++                    evidence[str(file.resolve())]=sha256(file)
++        result.update(scoped_correctness_pass=True,build_manifest_sha256=identity['build_manifest_sha256'],
++                      app_files_sha256=build['app_files_sha256'],framework_sha256=build['framework_sha256'],
++                      model_sha256=PUBLIC_MODEL_SHA256,q_library_sha256=build['shader_products_sha256']['q-stock4x1.metallib'],
++                      histories=histories,evidence_sha256=evidence)
++        code=0
++    except (OSError,RuntimeError,ValueError,KeyError,TypeError) as error:
++        result['error']=str(error);code=1 if result['scoped_correctness_pass'] is False else 2
++    args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text(json.dumps(result,indent=2)+'\n')
++    print(json.dumps({k:v for k,v in result.items() if k not in ('app_files_sha256','evidence_sha256')},indent=2));return code
++
++
++if __name__=='__main__':raise SystemExit(main())
+diff --git a/bitnet/actquant/run_phone.py b/bitnet/actquant/run_phone.py
+index 605379d..9f64ce2 100644
+--- a/bitnet/actquant/run_phone.py
++++ b/bitnet/actquant/run_phone.py
+@@ -7,6 +7,7 @@ Use analyze_op.py or compare_model.py on the fetched local artifacts separately.
+ Raw tensors, tokens, signed binaries and device logs must remain local.
+ """
+ import argparse
++import csv
+ import datetime
+ import json
+ import math
+@@ -131,6 +132,30 @@ def operator_gate(run_directory, analysis_path, build):
+             "fixture_manifest_sha256": sha256(fixture_path), "required_cases": len(expected), "operator_cases_gate_pass": True}
+ 
+ 
++def attribution_gate(path, build, tokens_sha256):
++    require(path is not None, "Attribution measurement requires a fresh same-build Q4/QB correctness gate")
++    gate = json.loads(path.read_text())
++    require(gate.get("schema") == 1 and gate.get("scoped_correctness_pass") is True and
++            gate.get("official_source_model_output_pass") is None and gate.get("historical_official_strict_exit_preserved") == 1,
++            "Incomplete scoped attribution gate")
++    require(gate["framework_sha256"] == build["framework_sha256"] and gate["app_files_sha256"] == build["app_files_sha256"] and
++            gate["model_sha256"] == PUBLIC_MODEL_SHA256 and
++            gate["q_library_sha256"] == build["shader_products_sha256"]["q-stock4x1.metallib"], "Attribution gate build/model/library mismatch")
++    require(len(gate["histories"]) == 2 and all(v["same_process_scoped_pass"] is True for v in gate["histories"].values()) and
++            tokens_sha256 in {v["tokens_sha256"] for v in gate["histories"].values()}, "Attribution history gate incomplete")
++    require(gate["evidence_sha256"], "Attribution gate evidence is missing")
++    for name, digest in gate["evidence_sha256"].items():
++        require(sha256(name) == digest, "Attribution correctness evidence changed")
++    return {"correctness_gate_sha256": sha256(path), "scoped_correctness_gate_pass": True}
++
++
++def attribution_protocol(kind, direct=False):
++    require(kind in ("verify", "formal", "diagnostic", "overhead"), "Invalid attribution kind")
++    return {"warmups": 2, "rounds": 1 if kind in ("verify", "diagnostic") else 3,
++            "pairs": 1 if kind in ("verify", "diagnostic") else 7 if kind == "overhead" else 21,
++            "comparisons": ["AA", "SQB", "SQ4"] + (["QBQ4"] if direct else [])}
++
++
+ def command_plan(args, build, config, remote_fixture, remote_tokens):
+     bundle = build.get("bundle_id", "<bundle-id-from-signed-BUILD.json>")
+     app = build.get("app", "<signed-app-from-BUILD.json>")
+@@ -145,7 +170,7 @@ def command_plan(args, build, config, remote_fixture, remote_tokens):
+         plan.append([*copy, "--source", str(args.fixture), "--destination", "Documents/" + remote_fixture])
+     else:
+         plan.append([*copy, "--source", str(args.tokens), "--destination", "Documents/" + remote_tokens])
+-    if args.operation == "model" and args.q_library is not None:
++    if args.operation in ("model", "attribution") and args.q_library is not None:
+         plan.append([*copy, "--source", str(args.q_library), "--destination", "Documents/" + config["q_library"]])
+     plan.append([*common, "--timeout", str(args.timeout), "device", "process", "launch", "--console", "--terminate-existing",
+                  "--device", args.device, "--environment-variables", json.dumps({"BITNET_CANDIDATE_CONFIG": json.dumps(config, separators=(",", ":"))}), bundle])
+@@ -171,8 +196,9 @@ def validate_collection(args, config, log, device_dir, fixture):
+             result["native_process_exit_code"] == result["process_exit_code"] == 0 and result["execution_pass"] is True,
+             "Native collection did not complete")
+     require(result["model_sha256"] == PUBLIC_MODEL_SHA256 and result["native_run_sha256"] == sha256(runtime_path), "Runtime identity mismatch")
++    expected_measurement = args.operation == "attribution" and args.attribution_kind != "verify"
+     require(native["operation"] == args.operation and native["backend"] == "MTL0" and native["device"] == "Apple A16 GPU" and
+-            native["execution_pass"] is True and native["performance_measurement"] is False, "Expected actual A16 diagnostic execution")
++            native["execution_pass"] is True and native["performance_measurement"] is expected_measurement, "Expected actual A16 execution/scope")
+     require(native["strict_model_exit_code"] == 2, "Native collection must preserve unverified model acceptance")
+     if args.operation == "operator":
+         require(result["fixture_sha256"] == native["fixture_sha256"] == config["fixture_sha256"], "Fixture runtime identity mismatch")
+@@ -187,6 +213,42 @@ def validate_collection(args, config, log, device_dir, fixture):
+             finite_file(path, original["width"] * original["rows"])
+         complete = re.findall(r"ACTQUANT_OPERATOR_COMPLETE case=(\S+) backend=MTL0 values=(\d+) synchronized=1 value_failures=(\d+)", log)
+         require(len(complete) == len(expected) and {v[0] for v in complete} == set(expected), "Missing synchronized operator completion markers")
++    elif args.operation == "attribution":
++        require(native["attribution_kind"] == args.attribution_kind and native["activation_quantization"] is True and
++                native["one_model_and_context"] is True and native["offloaded_layers"] == native["total_offload_layers"] == 31,
++                "Attribution context/offload mismatch")
++        require(native["tokens_sha256"] == config["tokens_sha256"] and native["model_sha256"] == PUBLIC_MODEL_SHA256,
++                "Attribution history/model mismatch")
++        for key in ("q_library_sha256", "q_entry", "q_kernel_contract_version", "q_kernel_config_sha256", "q_grid", "q_threads"):
++            require(native[key] == config[key], "Attribution library/entry mismatch: " + key)
++        require("ACTQUANT_ATTRIBUTION_COMPLETE kind=" + args.attribution_kind in log, "Attribution completion marker missing")
++        if args.attribution_kind == "verify":
++            require(len(native["paths"]) == 6 and native["capture_enabled"] is True and native["trace_enabled"] is True,
++                    "Same-process verification paths missing")
++            for item in native["paths"]:
++                subroot = device_dir / "native" / item["subrun"]
++                subfile = safe_relative(device_dir / "native", item["subrun"] + "/RUN.json")
++                sub = json.loads(subfile.read_text())
++                require(sub["context_id"] == native["context_id"] and sub["execution_pass"] is True and
++                        sub["completed_decode_calls"] == 33 and len(sub["logits"]) == 33, "Incomplete same-context verification subrun")
++                for vector in sub["logits"]:
++                    finite_file(safe_relative(subroot, vector["path"]), 128256)
++        else:
++            protocol = attribution_protocol(args.attribution_kind, args.direct_qb_q4)
++            count = protocol["rounds"] * protocol["pairs"] * 3
++            if args.attribution_kind != "overhead" and args.direct_qb_q4:
++                count = protocol["rounds"] * protocol["pairs"] * 4
++            require(native["sample_pairs"] == count and native["token_rows"] == count * 64 and len(native["paths"]) == count * 2 and
++                    native["capture_enabled"] is False and native["trace_enabled"] is False and
++                    native["correctness_gate_sha256"] == config["correctness_gate_sha256"], "Attribution protocol/gate mismatch")
++            for filename, expected_rows in (("samples.csv", count), ("token-times.csv", count * 64)):
++                path = safe_relative(device_dir / "native", filename)
++                with path.open(newline="") as file:
++                    require(sum(1 for _ in csv.DictReader(file)) == expected_rows, "Attribution raw CSV coverage mismatch")
++            for item in native["paths"]:
++                if item["diagnostic_file"] is not None:
++                    record = json.loads(safe_relative(device_dir / "native", item["diagnostic_file"]).read_text())
++                    require(record["complete"] is True and record["dropped_records"] == 0, "Incomplete backend attribution records")
+     else:
+         tokens = token_identity(args.tokens)
+         ids = tokens["corpus"] if args.workload == "corpus" else tokens["prompt"] + tokens["continuation"]
+@@ -223,7 +285,7 @@ def main(argv=None):
+     action = p.add_mutually_exclusive_group()
+     action.add_argument("--run", action="store_true", help="Explicitly install, transfer, launch and fetch on a physical device")
+     action.add_argument("--plan", action="store_true", help="Default: local checks and planned commands only; no device or Xcode commands")
+-    p.add_argument("--operation", choices=("operator", "model"), default="operator")
++    p.add_argument("--operation", choices=("operator", "model", "attribution"), default="operator")
+     p.add_argument("--build-dir", type=Path, required=True)
+     p.add_argument("--device", required=True)
+     p.add_argument("--model", type=Path, required=True)
+@@ -234,7 +296,10 @@ def main(argv=None):
+     p.add_argument("--output", type=Path, required=True)
+     p.add_argument("--actquant", choices=("on", "off"), default="on")
+     p.add_argument("--workload", choices=("teacher", "corpus"), default="teacher")
+-    p.add_argument("--q-route", choices=("stock", "Q4"), default="stock")
++    p.add_argument("--q-route", choices=("stock", "Q4", "QB"), default="stock")
++    p.add_argument("--attribution-kind", choices=("verify", "formal", "diagnostic", "overhead"), default="formal")
++    p.add_argument("--attribution-gate", type=Path, help="Same-build two-history15-stage/QB/one-process correctness gate")
++    p.add_argument("--direct-qb-q4", action="store_true", help="Append the mixed encoding/shader/scheduling QB-Q4 contrast")
+     p.add_argument("--q-fallback", choices=("none", "missing-library"), default="none")
+     p.add_argument("--capture-scope", choices=("all", "q4-layer0"), default="all")
+     p.add_argument("--q-library", type=Path, help="Optional stock4x1 library; defaults to the signed build shader product for Q4-scoped runs")
+@@ -263,6 +328,11 @@ def main(argv=None):
+                   "model": args.model.name, "model_sha256": PUBLIC_MODEL_SHA256, "actquant": args.actquant,
+                   "capture": args.capture, "trace": args.trace, "workload": args.workload, "prefill": "batched", "kv": "F16",
+                   "q_route": args.q_route, "q_fallback": args.q_fallback, "capture_scope": args.capture_scope}
++        if args.operation == "attribution":
++            require(args.actquant and args.workload == "teacher" and args.q_route == "stock" and args.q_fallback == "none" and
++                    args.capture is (args.attribution_kind == "verify") and args.trace is (args.attribution_kind == "verify"),
++                    "Attribution requires ActQuant ON/teacher, internal route switching and verify-only capture/trace")
++            config.update(attribution_kind=args.attribution_kind, **attribution_protocol(args.attribution_kind, args.direct_qb_q4))
+         require(args.q_route == "stock" or (args.operation == "model" and args.actquant and args.workload == "teacher"), "Q4 requires an ActQuant-ON teacher model run")
+         require(args.q_fallback == "none" or args.q_route == "Q4", "Q fallback requires Q4")
+         fixture = None
+@@ -283,7 +353,7 @@ def main(argv=None):
+         blockers, build = [], {}
+         try:
+             build, identity = build_identity(args.build_dir)
+-            if args.operation == "model" and (args.q_route == "Q4" or args.capture_scope == "q4-layer0" or args.q_library is not None):
++            if args.operation == "attribution" or (args.operation == "model" and (args.q_route in ("Q4", "QB") or args.capture_scope == "q4-layer0" or args.q_library is not None)):
+                 shader_dir = Path(build["shaders"])
+                 args.q_library = (args.q_library or shader_dir / "q-stock4x1.metallib").expanduser().resolve()
+                 shader_manifest = (args.q_library_manifest or shader_dir / "BUILD.json").expanduser().resolve()
+@@ -297,8 +367,11 @@ def main(argv=None):
+                 write_json(args.output / "Q4_LIBRARY_IDENTITY.json", q_identity)
+                 write_json(args.output / "config.json", config)
+             write_json(args.output / "BUILD_IDENTITY.json", identity)
+-            if args.operation == "model":
++            if args.operation in ("model", "attribution"):
+                 write_json(args.output / "OPERATOR_GATE.json", operator_gate(args.operator_run, args.operator_analysis, build))
++            if args.operation == "attribution" and args.attribution_kind != "verify":
++                gate = attribution_gate(args.attribution_gate, build, config["tokens_sha256"])
++                config.update(gate); write_json(args.output / "ATTRIBUTION_GATE.json", gate); write_json(args.output / "config.json", config)
+         except (RuntimeError, OSError, ValueError, KeyError) as error:
+             blockers.append(str(error))
+         plan = command_plan(args, build, config, remote_fixture, remote_tokens)
+@@ -324,6 +397,9 @@ def main(argv=None):
+                        native_process_exit_code=result["native_process_exit_code"], native_device=native["device"],
+                        native_run_sha256=sha256(args.output / "device/native/RUN.json"),
+                        next_step="Run independent analyzer; native0 alone is not numerical/model-semantic acceptance")
++        if args.operation == "attribution":
++            summary.update(attribution_kind=args.attribution_kind, performance_measurement=args.attribution_kind != "verify",
++                           formal_wall_campaign=args.attribution_kind == "formal")
+         write_json(args.output / "summary.json", summary)
+         print(json.dumps(summary, indent=2))
+         return 0
+diff --git a/bitnet/actquant/runner.cpp b/bitnet/actquant/runner.cpp
+index ad95519..c655798 100644
+--- a/bitnet/actquant/runner.cpp
++++ b/bitnet/actquant/runner.cpp
+@@ -19,7 +19,12 @@
+ #include <memory>
+ #include <stdexcept>
+ #include <string>
++#include <time.h>
+ #include <vector>
++#if defined(__OBJC__)
++#import <Foundation/Foundation.h>
++#import <UIKit/UIKit.h>
++#endif
+ 
+ namespace bitnet_actquant {
+ namespace fs = std::filesystem;
+@@ -77,7 +82,7 @@ static std::vector<float> read_tensor(const ggml_tensor * tensor) {
+     require(std::all_of(result.begin(), result.end(), [](float x) { return std::isfinite(x); }), "nonfinite captured tensor"); return result;
+ }
+ static void clear_custom_routes() {
+-    for (const char * key : {"LLAMA_BITNET_ACTQUANT_Q4", "GGML_METAL_BITNET_POC", "GGML_METAL_BITNET_POC_VARIANT", "GGML_METAL_BITNET_Q_GUARD_ONLY", "GGML_METAL_BITNET_POC_ROWS_PER_SIMD", "GGML_METAL_BITNET_POC_SIMD_PER_GROUP", "GGML_METAL_BITNET_POC_METALLIB", "GGML_METAL_BITNET_LAYERS", "GGML_METAL_BITNET_FFN", "GGML_METAL_BITNET_FFN_DECODE", "GGML_METAL_BITNET_FFN_STEP", "GGML_METAL_BITNET_FFN_MECHANISM", "GGML_METAL_BITNET_FFN_ABLATION", "GGML_METAL_BITNET_FFN_SHADOW_DIR", "GGML_METAL_BITNET_FFN_K_SHADOW_DIR", "GGML_METAL_BITNET_QREADBACK_DIR", "GGML_METAL_BITNET_POC_TRACE", "GGML_METAL_BITNET_FFN_TRACE", "GGML_METAL_GRAPH_DEBUG", "GGML_METAL_DEBUG_GRAPH", "GGML_METAL_CAPTURE_COMPUTE", "METAL_CAPTURE_ENABLED"}) { unsetenv(key); }
++    for (const char * key : {"LLAMA_BITNET_ACTQUANT_Q4", "GGML_METAL_BITNET_POC", "GGML_METAL_BITNET_POC_VARIANT", "GGML_METAL_BITNET_Q_GUARD_ONLY", "GGML_METAL_BITNET_Q_ATTRIBUTION", "GGML_METAL_BITNET_POC_ROWS_PER_SIMD", "GGML_METAL_BITNET_POC_SIMD_PER_GROUP", "GGML_METAL_BITNET_POC_METALLIB", "GGML_METAL_BITNET_LAYERS", "GGML_METAL_BITNET_FFN", "GGML_METAL_BITNET_FFN_DECODE", "GGML_METAL_BITNET_FFN_STEP", "GGML_METAL_BITNET_FFN_MECHANISM", "GGML_METAL_BITNET_FFN_ABLATION", "GGML_METAL_BITNET_FFN_SHADOW_DIR", "GGML_METAL_BITNET_FFN_K_SHADOW_DIR", "GGML_METAL_BITNET_QREADBACK_DIR", "GGML_METAL_BITNET_POC_TRACE", "GGML_METAL_BITNET_FFN_TRACE", "GGML_METAL_GRAPH_DEBUG", "GGML_METAL_DEBUG_GRAPH", "GGML_METAL_CAPTURE_COMPUTE", "METAL_CAPTURE_ENABLED"}) { unsetenv(key); }
+ }
+ static int operator_test(const json & config, const fs::path & out) {
+     const fs::path fixture = config.at("fixture").get<std::string>(); const auto manifest = read_json(fixture / "FIXTURES.json");
+@@ -197,7 +202,7 @@ static int model_test(const json & config, const fs::path & out) {
+     const std::string workload = config.value("workload", "teacher"), backend_name = config.value("backend", "MTL0"), prefill = config.value("prefill", "batched"), kv = config.value("kv", "F16");
+     require(workload == "teacher" || workload == "corpus", "bad workload"); require(backend_name == "CPU" || backend_name == "MTL0", "bad backend");
+     require(prefill == "batched" || prefill == "sequential", "bad prefill mode"); require(kv == "F16" || kv == "F32", "bad KV dtype");
+-    require(q_route == "stock" || q_route == "Q4", "bad q_route");
++    require(q_route == "stock" || q_route == "Q4" || q_route == "QB", "bad q_route");
+     require(capture_scope == "all" || capture_scope == "q4-layer0", "bad capture_scope");
+     require(q_fallback == "none" || q_fallback == "missing-library", "bad q_fallback (invalid geometry is a rejected graph contract, not an accepted route)");
+     require(q_fallback == "none" || q_route == "Q4", "Q fallback requires Q4 route");
+@@ -209,14 +214,14 @@ static int model_test(const json & config, const fs::path & out) {
+         const fs::path library = config.at("q_library").get<std::string>();
+         require(library.is_absolute() && fs::is_regular_file(library), "Q library must be an existing absolute file");
+         q_library_sha = hash_file(library); require(q_library_sha == config.at("q_library_sha256").get<std::string>(), "Q library SHA256 mismatch");
+-        if (q_route == "Q4") {
++        if (q_route == "Q4" || q_route == "QB") {
+             const auto selected = q_fallback == "missing-library" ? out / "intentionally-missing.metallib" : library;
+             require(q_fallback == "none" || !fs::exists(selected), "missing-library control path exists");
+             setenv("GGML_METAL_BITNET_POC_METALLIB", selected.c_str(), 1);
+         }
+     }
+     require(q_route == "stock" || !q_library_sha.empty(), "Q4 requires a SHA-verified library (also for intentional missing-library control)");
+-    if (q_route == "Q4") {
++    if (q_route == "Q4" || q_route == "QB") {
+         require(config.value("q_variant", "") == "stock4x1" && config.value("q_library_source_sha256", "").size() == 64 &&
+             config.value("q_library_manifest_sha256", "").size() == 64, "Q4 requires stock4x1 source/build provenance from q4_contract.py");
+         require(config.value("q_kernel_contract_version", 0) == GGML_BITNET_Q_CONFIG_VERSION &&
+@@ -226,8 +231,9 @@ static int model_test(const json & config, const fs::path & out) {
+             config.at("q_threads") == json::array({GGML_BITNET_Q_SIMD_WIDTH,GGML_BITNET_Q4_NSG,1}),
+             "Q4 requires the current canonical entry/version/geometry; old shared-entry products are not runtime aliases");
+     }
+-    if (q_route == "Q4") {
+-        setenv("LLAMA_BITNET_ACTQUANT_Q4", "1", 1); setenv("GGML_METAL_BITNET_POC", "1", 1);
++    if (q_route == "Q4" || q_route == "QB") {
++        setenv("LLAMA_BITNET_ACTQUANT_Q4", "1", 1);
++        setenv(q_route == "QB" ? "GGML_METAL_BITNET_Q_GUARD_ONLY" : "GGML_METAL_BITNET_POC", "1", 1);
+         setenv("GGML_METAL_BITNET_POC_VARIANT", "stock4x1", 1);
+         setenv("GGML_METAL_BITNET_POC_ROWS_PER_SIMD", GGML_BITNET_Q_STRINGIFY(GGML_BITNET_Q4_ROWS), 1);
+         setenv("GGML_METAL_BITNET_POC_SIMD_PER_GROUP", GGML_BITNET_Q_STRINGIFY(GGML_BITNET_Q4_NSG), 1);
+@@ -255,7 +261,7 @@ static int model_test(const json & config, const fs::path & out) {
+     for (auto token : ids) { require(token >= 0 && token < 128256, "token outside vocabulary"); }
+     json record = {{"schema", 1}, {"operation", "model"}, {"workload", workload}, {"backend", backend_name}, {"device", ggml_backend_dev_description(devices[0])}, {"activation_quantization", enabled}, {"model_sha256", MODEL_SHA}, {"tokens_sha256", hash_file(token_file)}, {"prompt_ids", prompt}, {"continuation_ids", continuation}, {"token_ids", ids}, {"prefill", prefill}, {"kv", kv}, {"capture_enabled", capture_enabled}, {"offloaded_layers", log.offloaded}, {"total_offload_layers", log.total}, {"logits", json::array()}, {"performance_measurement", false}, {"CPU_extra_Q8_K_packing_source_expected", backend_name == "CPU"}, {"settings", {{"n_ctx", 512}, {"batch", 128}, {"ubatch", 128}, {"threads", 6}, {"flash_attention", false}}}};
+     record.update(json{{"q_route", q_route}, {"q_fallback", q_fallback}, {"q_library_sha256", q_library_sha}, {"q_target", "Qcur-0"}, {"capture_scope", capture_scope},
+-        {"trace_enabled", config.value("trace", false)}, {"q_rows_per_simd", q_route == "Q4" ? GGML_BITNET_Q4_ROWS : 0}, {"q_simd_per_group", q_route == "Q4" ? GGML_BITNET_Q4_NSG : 0},
++        {"trace_enabled", config.value("trace", false)}, {"q_rows_per_simd", q_route != "stock" ? GGML_BITNET_Q4_ROWS : 0}, {"q_simd_per_group", q_route != "stock" ? GGML_BITNET_Q4_NSG : 0},
+         {"q_kernel_contract_version", GGML_BITNET_Q_CONFIG_VERSION}, {"q_entry", GGML_BITNET_Q_STRINGIFY(GGML_BITNET_Q4_ENTRY)},
+         {"official_source_model_acceptance", nullptr}, {"scoped_stock_compatibility_pass", nullptr}});
+     for (const char * key : {"q_variant", "q_library_source_sha256", "q_library_manifest_sha256", "q_library_sdk", "q_kernel_config_sha256", "q_grid", "q_threads"}) {
+@@ -297,10 +303,11 @@ static int model_test(const json & config, const fs::path & out) {
+     std::printf("ACTQUANT_MODEL_COMPLETE enabled=%d backend=%s workload=%s decode_calls=%d logits=%zu actquant_callbacks=%zu synchronized=1\n", enabled, backend_name.c_str(), workload.c_str(), decode_calls, record["logits"].size(), capture.actquant_callbacks); std::fflush(stdout);
+     return 0;
+ }
++#include "attribution.h"
+ static int run(const json & config, const fs::path & out) {
+     require(!fs::exists(out), "refuse existing output directory"); fs::create_directories(out); write_json(out / "REQUEST.json", config);
+     clear_custom_routes(); setenv("GGML_METAL_ACTQUANT_TRACE", config.value("trace", false) ? "1" : "0", 1); const std::string operation = config.at("operation");
+-    return operation == "operator" ? operator_test(config, out) : operation == "model" ? model_test(config, out) : throw std::runtime_error("unknown operation");
++    return operation == "operator" ? operator_test(config, out) : operation == "model" ? model_test(config, out) : operation == "attribution" ? attribution_test(config, out) : throw std::runtime_error("unknown operation");
+ }
+ }
+ extern "C" int bitnet_actquant_run_config(const char * config_json, const char * output_directory) {
+diff --git a/bitnet/actquant/test_attribution.py b/bitnet/actquant/test_attribution.py
+new file mode 100644
+index 0000000..295ca01
+--- /dev/null
++++ b/bitnet/actquant/test_attribution.py
+@@ -0,0 +1,164 @@
++#!/usr/bin/env python3
++"""Synthetic CPU-only attribution controls; no native/device/GPU execution."""
++import json
++from pathlib import Path
++import sys
++import tempfile
++from types import SimpleNamespace
++import unittest
++
++sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tests'))
++from analyze_q4 import EvidenceError, trace_evidence
++from test_q4_contract import trace
++from analyze_attribution import thermal_groups
++from analyze_attribution_verify import split_trace, stock_abi
++from run_phone import attribution_gate, attribution_protocol, PUBLIC_MODEL_SHA256, sha256
++from run_iphone_attribution import plan, classify, classify_measurement
++from make_attribution_gate import verify_run_binding
++
++
++def qb_trace():
++    text=trace().replace('q_route=Q4','q_route=QB').replace('route=q-custom','route=q-stock')
++    from q4_contract import analysis_contract
++    text=text.replace(analysis_contract()['entry'],'kernel_mul_mv_tq2_0_f32')
++    lines=[]
++    for line in text.splitlines():
++        lines.append(line)
++        if line.startswith('BITNET_ACTQUANT_Q4_GUARD '):
++            lines.append('BITNET_Q_GUARD_PASS node=Qcur-0 checked=1 custom_encoded=0 bounds=1 disjoint=1 candidate_pipeline='+analysis_contract()['entry']+' rows=4 simd=1')
++            lines.append('BITNET_Q_STOCK_ABI node=Qcur-0 guarded=1 pipeline=kernel_mul_mv_tq2_0_f32')
++    return '\n'.join(lines)
++
++
++class AttributionTests(unittest.TestCase):
++    def test_QB_requires_full_guard_and_stock(self):
++        with tempfile.TemporaryDirectory() as temp:
++            file=Path(temp)/'trace.log';file.write_text(qb_trace());result=trace_evidence(file,'QB')
++            self.assertEqual(result['guard_hits'],32);self.assertEqual(result['custom_dispatches'],0)
++            self.assertEqual(result['QB_guard_passes'],32);self.assertEqual(result['QB_guarded_stock_calls'],32)
++
++    def test_QB_missing_full_guard_rejected(self):
++        with tempfile.TemporaryDirectory() as temp:
++            file=Path(temp)/'trace.log';file.write_text(qb_trace().replace('custom_encoded=0','custom_encoded=1',1))
++            with self.assertRaises(EvidenceError):trace_evidence(file,'QB')
++
++    def test_one_context_trace_required(self):
++        text='\n'.join('ACTQUANT_ATTRIBUTION_PATH_BEGIN id=1 route='+r+' capture=1 context=0x123\nbody\nACTQUANT_ATTRIBUTION_PATH_END id=1 route='+r+' synchronized=1' for r in ['stock','QB','Q4'])
++        with tempfile.TemporaryDirectory() as temp:
++            self.assertEqual(set(split_trace(text,Path(temp),'291')),{'stock','QB','Q4'})
++            with self.assertRaises(EvidenceError):split_trace(text.replace('context=0x123','context=0x124',1),Path(temp),'291')
++
++    def test_stock_ABI_coverage(self):
++        with tempfile.TemporaryDirectory() as temp:
++            file=Path(temp)/'abi.log'
++            file.write_text('\n'.join(f'BITNET_Q_STOCK_ABI node=Qcur-0 step={i} guarded=1 pipeline=kernel_mul_mv_tq2_0_f32' for i in range(1,33)))
++            self.assertEqual(len(stock_abi(file,True)),32)
++            file.write_text(file.read_text().replace('step=32','step=31'))
++            with self.assertRaises(EvidenceError):stock_abi(file,True)
++
++    def test_frozen_protocol(self):
++        self.assertEqual((attribution_protocol('formal')['rounds'],attribution_protocol('formal')['pairs']),(3,21))
++        self.assertEqual((attribution_protocol('diagnostic')['rounds'],attribution_protocol('diagnostic')['pairs']),(1,1))
++        self.assertEqual((attribution_protocol('overhead')['rounds'],attribution_protocol('overhead')['pairs']),(3,7))
++        self.assertEqual(attribution_protocol('formal',True)['comparisons'][-1],'QBQ4')
++        with self.assertRaises(RuntimeError):attribution_protocol('unknown')
++
++    def thermal_fixture(self):
++        rows=[];paths={}
++        for pair,state in enumerate(['nominal','serious']):
++            rows.append({'round':'1','contrast':'SQB','pair':str(pair),'order':'AB','a_wall_ms':'10','b_wall_ms':'11'})
++            for side in ['A','B']:paths[(1,'SQB',pair,side)]={'before':{'thermal':state,'low_power':False},'after':{'thermal':state,'low_power':False}}
++        return rows,paths
++
++    def test_thermal_states_never_pooled(self):
++        rows,paths=self.thermal_fixture();result=thermal_groups(rows,paths)
++        self.assertEqual(len(result['stable_strata']),2);self.assertIsNone(result['cross_thermal_pooled_statistics'])
++        self.assertTrue(all(r['statistics']['pairs']==1 for r in result['stable_strata']))
++
++    def test_transition_has_no_performance_statistics(self):
++        rows,paths=self.thermal_fixture();paths[(1,'SQB',0,'A')]['after']['thermal']='fair'
++        result=thermal_groups(rows[:1],paths)
++        self.assertEqual(result['stable_strata'],[]);self.assertEqual(len(result['transition_or_unavailable_pairs']),1)
++
++    def test_unknown_thermal_states_are_not_stable(self):
++        for state in ['unknown','unavailable',None]:
++            rows,paths=self.thermal_fixture()
++            for side in ['A','B']:
++                paths[(1,'SQB',0,side)]['before']['thermal']=state;paths[(1,'SQB',0,side)]['after']['thermal']=state
++            result=thermal_groups(rows[:1],paths)
++            self.assertEqual(result['stable_strata'],[]);self.assertEqual(len(result['transition_or_unavailable_pairs']),1)
++
++    def test_gate_binds_actual_evidence_hash(self):
++        with tempfile.TemporaryDirectory() as temp:
++            root=Path(temp);proof=root/'proof.json';proof.write_text('{}')
++            gate=root/'gate.json';build={'framework_sha256':'framework','app_files_sha256':{},'shader_products_sha256':{'q-stock4x1.metallib':'library'}}
++            gate.write_text(json.dumps({'schema':1,'scoped_correctness_pass':True,'official_source_model_output_pass':None,
++                'historical_official_strict_exit_preserved':1,'framework_sha256':'framework','app_files_sha256':{},
++                'model_sha256':PUBLIC_MODEL_SHA256,'q_library_sha256':'library','histories':{
++                    'primary':{'same_process_scoped_pass':True,'tokens_sha256':'tokens'},
++                    'independent':{'same_process_scoped_pass':True,'tokens_sha256':'different'}},'evidence_sha256':{str(proof):sha256(proof)}}))
++            self.assertIs(attribution_gate(gate,build,'tokens')['scoped_correctness_gate_pass'],True)
++            proof.write_text('{"modified":true}')
++            with self.assertRaises(RuntimeError):attribution_gate(gate,build,'tokens')
++
++    def test_verification_analysis_is_bound_to_current_build_and_actual_RUN(self):
++        with tempfile.TemporaryDirectory() as temp:
++            root=Path(temp);(root/'device/native').mkdir(parents=True)
++            identity={'build_manifest_sha256':'current-build','framework_sha256':'framework','app_files_sha256':{'app':'current'},
++                      'source_files_sha256':{'source':'current'},'package_sources_sha256':{'native':'current'},'object_sha256':{'object':'current'}}
++            (root/'BUILD_IDENTITY.json').write_text(json.dumps(identity))
++            native={'operation':'attribution','attribution_kind':'verify','execution_pass':True,'activation_quantization':True,
++                    'one_model_and_context':True,'device':'Apple A16 GPU','backend':'MTL0','model_sha256':PUBLIC_MODEL_SHA256,
++                    'tokens_sha256':'tokens','q_library_sha256':'library'}
++            file=root/'device/native/RUN.json';file.write_text(json.dumps(native));digest=sha256(file)
++            host={'execution_pass':True,'GPU_executed':True,'native_run_sha256':digest,**{k:0 for k in
++                  ['native_process_exit_code','collection_exit_code','actual_process_exit_code','launch_command_exit_code']}}
++            (root/'summary.json').write_text(json.dumps(host))
++            (root/'device/result.json').write_text(json.dumps({'operation':'actquant','actquant_operation':'attribution',
++                'process_exit_code':0,'native_process_exit_code':0,'execution_pass':True,'native_run_sha256':digest}))
++            analysis={'native_run_sha256':digest};build={'shader_products_sha256':{'q-stock4x1.metallib':'library'}}
++            self.assertEqual(verify_run_binding(root,analysis,identity,build,'tokens'),digest)
++            stale={**identity,'build_manifest_sha256':'old-build'};(root/'BUILD_IDENTITY.json').write_text(json.dumps(stale))
++            with self.assertRaises(RuntimeError):verify_run_binding(root,analysis,identity,build,'tokens')
++            (root/'BUILD_IDENTITY.json').write_text(json.dumps(identity))
++            with self.assertRaises(RuntimeError):verify_run_binding(root,{'native_run_sha256':'old-analysis'},identity,build,'tokens')
++            file.write_text(json.dumps({**native,'tokens_sha256':'different'}))
++            with self.assertRaises(RuntimeError):verify_run_binding(root,analysis,identity,build,'tokens')
++
++    def plan_args(self,through='correctness',qualified=None):
++        return SimpleNamespace(output=Path('/synthetic/output'),qualified_root=qualified,build_dir=Path('/synthetic/build'),device='synthetic',
++            model=Path('/synthetic/model'),developer_dir=None,operator_fixtures=Path('/synthetic/fixtures'),
++            tokens_primary=Path('/synthetic/primary'),tokens_independent=Path('/synthetic/independent'),through=through,direct_qb_q4=False)
++
++    def test_stages_expose_correctness_before_timing(self):
++        stages,_=plan(self.plan_args('formal'));names=[r[0] for r in stages]
++        self.assertEqual(len(stages),19);self.assertEqual(names[:2],['correctness','cache-repeat'])
++        self.assertLess(names.index('timing-gate'),names.index('diagnostic-primary'))
++        self.assertLess(names.index('overhead-independent-analysis'),names.index('formal-primary'))
++
++    def test_qualified_resume_skips_expensive_correctness(self):
++        stages,_=plan(self.plan_args('formal',Path('/synthetic/qualified')))
++        self.assertEqual(len(stages),12);self.assertEqual(stages[0][0],'diagnostic-primary')
++
++    def test_missing_failed_stage_evidence_is_null(self):
++        with tempfile.TemporaryDirectory() as temp:
++            args=SimpleNamespace(output=Path(temp))
++            self.assertIsNone(classify(args,'correctness'))
++            (Path(temp)/'correctness').mkdir();(Path(temp)/'correctness/SUMMARY.json').write_text('{"scoped_qualification_pass":false}')
++            self.assertIs(classify(args,'correctness'),False)
++
++    def test_measurement_failure_is_distinct_from_correctness(self):
++        with tempfile.TemporaryDirectory() as temp:
++            args=SimpleNamespace(output=Path(temp));name='formal-primary-analysis'
++            self.assertIsNone(classify_measurement(args,name))
++            folder=Path(temp)/name;folder.mkdir();path=folder/'SUMMARY.json'
++            path.write_text('{"measurement_integrity_pass":false}')
++            self.assertIs(classify_measurement(args,name),False)
++            self.assertIsNone(classify(args,name))
++            path.write_text('{"measurement_integrity_pass":null}')
++            self.assertIsNone(classify_measurement(args,name))
++            path.write_text('{invalid')
++            self.assertIsNone(classify_measurement(args,name))
++
++
++if __name__=='__main__':unittest.main()
+diff --git a/bitnet/ios/src/CandidateReplay.mm b/bitnet/ios/src/CandidateReplay.mm
+index 83d5ec1..9310899 100644
+--- a/bitnet/ios/src/CandidateReplay.mm
++++ b/bitnet/ios/src/CandidateReplay.mm
+@@ -138,7 +138,7 @@ static int run(){
+ 
+  if([c[@"operation"]isEqual:@"actquant"]){
+   o.model=actquantDocumentPath(docs,c[@"model"],false);
+-  const std::string kind=str(c[@"actquant_operation"]);require(kind=="operator"||kind=="model","invalid ActQuant operation");
++  const std::string kind=str(c[@"actquant_operation"]);require(kind=="operator"||kind=="model"||kind=="attribution","invalid ActQuant operation");
+   require([c[@"backend"]isEqual:@"MTL0"]&&[c[@"kv"]isEqual:@"F16"]&&[c[@"prefill"]isEqual:@"batched"],"ActQuant phone requires MTL0/F16/batched");
+   require([c[@"workload"]isEqual:@"teacher"]||[c[@"workload"]isEqual:@"corpus"],"invalid ActQuant workload");
+   NSMutableDictionary*native=[@{@"operation":@(kind.c_str()),@"backend":@"MTL0",@"model":@(o.model.c_str()),@"kv":@"F16",@"prefill":@"batched",@"workload":c[@"workload"],@"actquant":@(flag(c,@"actquant")),@"capture":@(flag(c,@"capture")),@"trace":@(flag(c,@"trace"))}mutableCopy];
+@@ -154,10 +154,10 @@ static int run(){
+    const std::string qr=c[@"q_route"]?str(c[@"q_route"]):"stock";
+    const std::string qf=c[@"q_fallback"]?str(c[@"q_fallback"]):"none";
+    const std::string qs=c[@"capture_scope"]?str(c[@"capture_scope"]):"all";
+-   require(qr=="stock"||qr=="Q4","invalid ActQuant Q route");
++   require(qr=="stock"||qr=="Q4"||qr=="QB","invalid ActQuant Q route");
+    require(qf=="none"||qf=="missing-library","invalid ActQuant Q fallback");
+    require(qs=="all"||qs=="q4-layer0","invalid ActQuant capture scope");
+-   require(qr!="Q4"||flag(c,@"actquant"),"Q4 requires ActQuant ON");
++   require(qr=="stock"||flag(c,@"actquant"),"Q4/QB requires ActQuant ON");
+    native[@"q_route"]=@(qr.c_str());native[@"q_fallback"]=@(qf.c_str());native[@"capture_scope"]=@(qs.c_str());
+    if(c[@"q_library"]){
+     const auto library=actquantDocumentPath(docs,c[@"q_library"],false);NSString*librarySHA=hashFile(library);
+@@ -173,12 +173,17 @@ static int run(){
+     require([c[@"q_grid"]isKindOfClass:NSArray.class]&&[c[@"q_threads"]isKindOfClass:NSArray.class],"Q4 geometry metadata missing");
+     native[@"q_kernel_contract_version"]=c[@"q_kernel_contract_version"];native[@"q_grid"]=c[@"q_grid"];native[@"q_threads"]=c[@"q_threads"];
+    }
+-   require(qr!="Q4"||native[@"q_library"]!=nil,"Q4 library missing");
++   require((qr=="stock"&&kind!="attribution")||native[@"q_library"]!=nil,"Q4/QB attribution library missing");
++   if(kind=="attribution"){
++    require([c[@"attribution_kind"]isKindOfClass:NSString.class],"attribution kind missing");native[@"attribution_kind"]=c[@"attribution_kind"];
++    for(NSString*key in @[@"correctness_gate_sha256",@"rounds",@"pairs",@"warmups",@"comparisons"]){if(c[key])native[key]=c[key];}
++   }
+   }
+   json(o.out/"native-config.json",native);
+   NSData*encoded=[NSJSONSerialization dataWithJSONObject:native options:NSJSONWritingSortedKeys error:nil];require(encoded!=nil,"ActQuant config serialization failed");
+   const int code=bitnet_actquant_run_config([[[NSString alloc]initWithData:encoded encoding:NSUTF8StringEncoding]UTF8String],(o.out/"native").c_str());
+   NSMutableDictionary*record=[@{@"schema":@1,@"operation":@"actquant",@"actquant_operation":@(kind.c_str()),@"native_process_exit_code":@(code),@"process_exit_code":@(code),@"execution_pass":@NO,@"model_sha256":modelSHA,@"backend":@"MTL0",@"actquant":@(flag(c,@"actquant")),@"capture":@(flag(c,@"capture")),@"workload":c[@"workload"],@"parity_pass":[NSNull null],@"fp64_pass":[NSNull null],@"model_output_pass":[NSNull null],@"semantic_acceptance_pass":[NSNull null],@"strict_model_exit_code":@2,@"performance_measurement":@NO,@"iOS":UIDevice.currentDevice.systemVersion,@"thermal_after":@(thermal().c_str())}mutableCopy];
++  record[@"performance_measurement"]=@(kind=="attribution"&&![c[@"attribution_kind"]isEqual:@"verify"]);
+   [record addEntriesFromDictionary:identity];
+   if(fs::is_regular_file(o.out/"native/RUN.json")){
+    NSDictionary*runtime=actquantReadJSON(o.out/"native/RUN.json",64*1024*1024);record[@"native_run_sha256"]=hashFile(o.out/"native/RUN.json");record[@"device"]=runtime[@"device"]?:[NSNull null];
+diff --git a/bitnet/tests/build_q_contract.py b/bitnet/tests/build_q_contract.py
+index 13e05b3..036b934 100644
+--- a/bitnet/tests/build_q_contract.py
++++ b/bitnet/tests/build_q_contract.py
+@@ -33,7 +33,9 @@ def sha(path):
+ 
+ def native_identity():
+     result = source_identity()
+-    result['bitnet/actquant/runner.cpp'] = sha(ROOT / 'bitnet/actquant/runner.cpp')
++    for path in (ROOT / 'bitnet/actquant').glob('*'):
++        if path.is_file() and path.suffix in {'.cpp', '.h'}:
++            result[str(path.relative_to(ROOT))] = sha(path)
+     return result
+ 
+ 
+diff --git a/bitnet/tests/inventory_metal_graph.py b/bitnet/tests/inventory_metal_graph.py
+new file mode 100644
+index 0000000..ee43003
+--- /dev/null
++++ b/bitnet/tests/inventory_metal_graph.py
+@@ -0,0 +1,265 @@
++#!/usr/bin/env python3
++"""Inventory observed Metal graph work without assigning per-op GPU times.
++
++This CPU-only tool reads saved diagnostics. Node visits, encoded dispatch traces,
++pipeline compilation, and command-buffer completion are separate observations.
++"""
++
++import argparse
++from collections import Counter, defaultdict
++import hashlib
++import json
++import math
++from pathlib import Path
++import re
++
++
++SOURCE_ROOT = Path(__file__).resolve().parents[2]
++METADATA_OPS = {"NONE", "RESHAPE", "VIEW", "PERMUTE", "TRANSPOSE"}
++RELEVANT_OPS = {
++    "ADD", "MUL", "SQR", "RMS_NORM", "MUL_MAT", "CPY", "CONT",
++    "RESHAPE", "VIEW", "PERMUTE", "TRANSPOSE", "GET_ROWS", "SET_ROWS",
++    "SOFT_MAX", "ROPE", "FLASH_ATTN_EXT", "UNARY", "ACT_QUANT",
++}
++EXPECTED_FAMILIES = {
++    "output_head", "attention_projection", "attention_core", "attention_rope",
++    "ffn_projection", "ffn_elementwise", "normalization", "act_quant",
++    "residual", "kv_store", "embedding_lookup", "memory_movement",
++}
++
++
++def sha256(path):
++    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
++
++
++def enum_ids(header):
++    text = Path(header).read_text()
++    body = text.split("enum ggml_op {", 1)[1].split("};", 1)[0]
++    body = re.sub(r"/\*.*?\*/|//[^\n]*", "", body, flags=re.S)
++    ids = {}
++    value = -1
++    for entry in body.split(","):
++        entry = entry.strip()
++        if not entry:
++            continue
++        match = re.fullmatch(r"GGML_OP_(\w+)(?:\s*=\s*(\d+))?", entry)
++        if not match:
++            raise ValueError(f"Unsupported ggml_op enum entry: {entry!r}")
++        value = int(match[2]) if match[2] else value + 1
++        ids[match[1]] = value
++    return ids
++
++
++def classify(op, name, weight=""):
++    """Return a family for this op, never from a tensor name alone."""
++    op = op.removeprefix("GGML_OP_")
++    if op in METADATA_OPS:
++        return "metadata_noop"
++    if op == "ACT_QUANT":
++        return "act_quant"
++    if op == "MUL_MAT":
++        if name == "result_output" or weight == "output.weight":
++            return "output_head"
++        if re.search(r"\.attn_(q|k|v|output)\.weight$", weight) or re.fullmatch(r"(?:[QKV]cur|attn_out)-\d+", name):
++            return "attention_projection"
++        if re.search(r"\.ffn_(gate|up|down)\.weight$", weight) or re.fullmatch(r"ffn_(?:gate|up|down)-\d+", name):
++            return "ffn_projection"
++        if re.fullmatch(r"(?:kq|kqv)(?:_mla)?-\d+", name):
++            return "attention_core"
++        return "other_matmul"
++    if op == "FLASH_ATTN_EXT" or op == "SOFT_MAX":
++        return "attention_core"
++    if op == "ROPE":
++        return "attention_rope"
++    if op == "RMS_NORM" or (op == "MUL" and re.fullmatch(r"(?:(?:attn|ffn)(?:_sub)?_norm-\d+|result_norm)", name)):
++        return "normalization"
++    if op in {"UNARY", "SQR", "MUL"} and re.fullmatch(r"ffn_(?:relu|sqr\(relu\)|sub_out|gate_par)-\d+", name):
++        return "ffn_elementwise"
++    if op == "ADD" and re.fullmatch(r"(?:ffn_inp|l_out)-\d+", name):
++        return "residual"
++    if op in {"SET_ROWS", "CPY"} and re.search(r"cache_[kv]|(?:^|_)kv(?:_|$)", name):
++        return "kv_store"
++    if op == "GET_ROWS" and (name == "inp_embd" or name == "node_1"):
++        return "embedding_lookup"
++    if op in {"CPY", "CONT", "DUP", "GET_ROWS", "SET_ROWS"}:
++        return "memory_movement"
++    return "other"
++
++
++def fields(text):
++    return dict(re.findall(r"(\w+)=([^\s]+)", text))
++
++
++def natural_command_buffers(path):
++    """Read native attribution diagnostics; GPU intervals keep their own clock."""
++    data = json.loads(Path(path).read_text())
++    if data.get("schema") != 1 or data.get("clock") != "CLOCK_UPTIME_RAW":
++        raise ValueError("Unsupported natural-command-buffer diagnostic schema")
++    tasks = data.get("tasks", [])
++    records = data.get("command_buffers", [])
++    cpu = defaultdict(Counter)
++    for task in tasks:
++        for family in task.get("operator_family_cpu", []):
++            cpu[task["mode"]][(family["family"], "encode_calls")] += family["encode_calls"]
++            cpu[task["mode"]][(family["family"], "encode_ns")] += family["encode_ns"]
++    intervals = defaultdict(list)
++    invalid = []
++    seen = set()
++    for i, record in enumerate(records):
++        start, end = record.get("gpu_start_s"), record.get("gpu_end_s")
++        identity = tuple(record.get(k) for k in ["command", "graph", "step", "slice_start", "slice_end", "encode_start_ns"])
++        if identity in seen:
++            invalid.append({"record_index": i, "reason": "duplicate_natural_CB_record"})
++            continue
++        seen.add(identity)
++        if not record.get("completed") or record.get("status") != 4 or not all(isinstance(v, (int, float)) and math.isfinite(v) for v in [start, end]) or not 0 < start <= end:
++            invalid.append({"record_index": i, "reason": "incomplete_or_invalid_GPU_interval"})
++            continue
++        intervals[record["step"]].append((start, end))
++    gpu = []
++    for step, values in sorted(intervals.items()):
++        values.sort()
++        start, end = values[0]
++        union = 0.0
++        for a, b in values[1:]:
++            if a > end:
++                union += end - start
++                start, end = a, b
++            else:
++                end = max(end, b)
++        union += end - start
++        span = max(b for _, b in values) - values[0][0]
++        gpu.append({"step": step, "natural_CB_records": len(values), "CB_interval_union_us": union * 1e6, "first_start_to_last_end_us": span * 1e6, "gaps_outside_all_CB_intervals_us": max(0.0, span - union) * 1e6})
++    return {
++        "input": {"file_name": Path(path).name, "sha256": sha256(path)},
++        "native_complete": data.get("complete"),
++        "native_dropped_records": data.get("dropped_records"),
++        "native_CB_drops": data.get("command_buffer_drops"),
++        "invalid_records": invalid,
++        "all_observed_CB_intervals_valid": bool(records) and not invalid,
++        "CPU_worker_family_intervals": [
++            {"mode": mode, "family": family, "encode_calls": counter[(family, "encode_calls")], "encode_ns": counter[(family, "encode_ns")]}
++            for mode, counter in sorted(cpu.items())
++            for family in sorted({f for f, _ in counter})
++        ],
++        "GPU_command_buffer_intervals_by_step": gpu,
++        "interpretation": [
++            "CPU worker intervals are diagnostic work, not model critical-path shares; concurrent or nested intervals are not wall-clock additive.",
++            "CB interval union describes elapsed CB execution envelopes, not measured GPU busy cycles or per-family GPU latency.",
++            "Gaps outside CB intervals do not independently identify a CPU cause; submission, scheduling and other device work remain possibilities.",
++            "CLOCK_UPTIME_RAW CPU timestamps are not subtracted from Metal GPU timestamp seconds; cross-domain queue latency is unavailable.",
++            "Per-operator GPU timing remains unavailable even when each natural CB has family counts.",
++        ],
++    }
++
++
++def inventory(path, header):
++    ids = enum_ids(header)
++    counts = defaultdict(Counter)
++    phase_counts = defaultdict(Counter)
++    pipelines = set()
++    completions = Counter()
++    phase_serial = 0
++    phase = "unscoped"
++    phase_metadata = {}
++    for raw in Path(path).read_text(errors="replace").splitlines():
++        line = raw.strip()
++        if "ACTQUANT_Q_PHASE_BEGIN " in line:
++            phase_serial += 1
++            f = fields(line)
++            phase = f"{phase_serial}:{f.get('phase', 'unknown')}:{f.get('decode_step', '?')}"
++            phase_metadata[phase] = {k: f[k] for k in ["phase", "decode_step", "input_position", "count", "q_route"] if k in f}
++        match = re.search(r"node\[\s*(\d+)\]\s*-\s*([A-Z][A-Z0-9_]*)\s+(.+)$", line)
++        if match:
++            op = match[2]
++            name = match[3].split()[0]
++            family = "metadata_noop" if name == "(noop)" else classify(op, name)
++            counts["graph_debug_node_visits"][(family, op)] += 1
++            phase_counts[("graph_debug_node_visits", phase)][family] += 1
++        if "ACT_QUANT_ENCODE " in line:
++            f = fields(line)
++            counts["targeted_encode_events"][("act_quant", "ACT_QUANT")] += 1
++            phase_counts[("targeted_encode_events", phase)]["act_quant"] += 1
++            if f.get("kernel"):
++                pipelines.add(f["kernel"])
++        elif "BITNET_MULTILAYER_ENCODE " in line:
++            f = fields(line)
++            name = f.get("node", f.get("output", ""))
++            family = classify("MUL_MAT", name, f.get("weight", ""))
++            counts["targeted_encode_events"][(family, "MUL_MAT")] += 1
++            phase_counts[("targeted_encode_events", phase)][family] += 1
++            if f.get("pipeline"):
++                pipelines.add(f["pipeline"])
++        if "compiling pipeline: " in line:
++            match = re.search(r"name = '([^']+)'", line)
++            if match:
++                pipelines.add(match[1])
++        for tag in ["BITNET_MULTILAYER_COMPLETE", "ACT_QUANT_COMPLETE", "FFN_ABLATION_GPU"]:
++            if tag + " " in line:
++                f = fields(line)
++                completions[(tag, f.get("completed", "unknown"))] += 1
++
++    observed = {family for counter in counts.values() for family, _ in counter}
++    has_debug = bool(counts.get("graph_debug_node_visits"))
++    has_targeted = bool(counts.get("targeted_encode_events"))
++    return {
++        "schema_version": 1,
++        "input": {"file_name": Path(path).name, "sha256": sha256(path)},
++        "ggml_header_sha256": sha256(header),
++        "current_source_op_ids": {k: ids[k] for k in sorted(RELEVANT_OPS)},
++        "coverage": {
++            "kind": "graph_debug_observations" if has_debug else "targeted_partial" if has_targeted else "no_supported_observations",
++            "complete_graph_confirmed": False,
++            "unobserved_families_are_not_zero_work": True,
++            "unobserved_families": sorted(EXPECTED_FAMILIES - observed),
++            "per_operator_GPU_time": "unavailable",
++            "critical_path_family_shares": "unavailable",
++            "hardware_counters": "not_collected_by_this_tool",
++        },
++        "observations_by_origin": {
++            origin: {
++                "count": sum(counter.values()),
++                "counts": [{"family": family, "op": op, "op_id": ids.get(op), "count": count} for (family, op), count in sorted(counter.items())],
++            }
++            for origin, counter in sorted(counts.items())
++        },
++        "phase_observations": [
++            {"origin": origin, "scope": phase, "metadata": phase_metadata.get(phase), "families": dict(sorted(counter.items()))}
++            for (origin, phase), counter in sorted(phase_counts.items())
++        ],
++        "pipeline_names_seen_in_compile_or_targeted_logs": sorted(pipelines),
++        "completion_events_not_kernel_durations": [
++            {"tag": tag, "completed": completed, "count": count} for (tag, completed), count in sorted(completions.items())
++        ],
++        "interpretation": [
++            "Origins overlap; do not add node visits to targeted encode events.",
++            "Graph node visits are not dispatch counts: fusion consumes nodes and metadata ops are noops.",
++            "Pipeline compilation is not evidence of dispatch frequency or GPU elapsed time.",
++            "Targeted traces cover selected Q/FFN/ActQuant nodes, not all model work.",
++            "Completion events may repeat the same enclosing command buffer; never sum them as per-op GPU time.",
++            "A command-buffer interval containing mixed families cannot be divided into per-family GPU times from node counts.",
++        ],
++    }
++
++
++def main():
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--log", type=Path)
++    parser.add_argument("--diagnostics", type=Path, help="Saved schema-1 Q-attribution JSON; no native execution")
++    parser.add_argument("--header", type=Path, default=SOURCE_ROOT / "ggml/include/ggml.h")
++    parser.add_argument("--output", required=True, type=Path)
++    args = parser.parse_args()
++    if not args.log and not args.diagnostics:
++        parser.error("provide --log and/or --diagnostics")
++    result = inventory(args.log, args.header) if args.log else {"schema_version": 1}
++    if args.diagnostics:
++        result["natural_command_buffer_diagnostics"] = natural_command_buffers(args.diagnostics)
++    if args.output.exists():
++        parser.error("--output must be a fresh path")
++    args.output.parent.mkdir(parents=True, exist_ok=True)
++    args.output.write_text(json.dumps(result, indent=2) + "\n")
++    print(json.dumps({"output": str(args.output), "coverage": result.get("coverage", {}).get("kind", "natural_CB_diagnostics_only"), "origins": {k: v["count"] for k, v in result.get("observations_by_origin", {}).items()}}))
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/bitnet/tests/run_iphone_attribution.py b/bitnet/tests/run_iphone_attribution.py
+new file mode 100644
+index 0000000..1cd1aaf
+--- /dev/null
++++ b/bitnet/tests/run_iphone_attribution.py
+@@ -0,0 +1,166 @@
++#!/usr/bin/env python3
++"""Plan staged A16 Q guard attribution. Device execution requires explicit --run.
++
++Start with --through correctness; reuse its immutable --qualified-root for later
++diagnostic/formal stages. Every intended command is written to PLAN.json for
++manual one-stage-at-a-time execution. Raw data stays in the selected local output.
++No isolated-kernel benchmark, new algorithm, official-model or quality gate is
++implied. Existing isolated Q timing remains a separate optional experiment.
++"""
++import argparse
++import json
++from pathlib import Path
++import subprocess
++import sys
++
++ROOT=Path(__file__).resolve().parents[2]
++sys.path.insert(0,str(ROOT/'bitnet/actquant'))
++sys.path.insert(0,str(Path(__file__).resolve().parent))
++from run_q_fix_phone import prepare, failed_stage_gate
++from run_phone import attribution_gate, build_identity
++
++
++def save(path,value):
++    path.write_text(json.dumps(value,indent=2,allow_nan=False)+'\n')
++
++
++def plan(args):
++    py=sys.executable;out=args.output;qualified=args.qualified_root or out
++    common=['--build-dir',str(args.build_dir),'--device',args.device,'--model',str(args.model)]
++    developer=['--developer-dir',str(args.developer_dir)] if args.developer_dir else []
++    stage=[];correctness=qualified/'correctness';gate=qualified/'TIMING_GATE.json'
++    if args.qualified_root is None:
++        stage.append(('correctness',[py,str(ROOT/'bitnet/tests/run_q_fix_phone.py'),'--run',*common,
++                     '--operator-fixtures',str(args.operator_fixtures),'--tokens-primary',str(args.tokens_primary),
++                     '--tokens-independent',str(args.tokens_independent),'--output',str(correctness),*developer]))
++        stage.append(('cache-repeat',[py,str(ROOT/'bitnet/ios/run.py'),'--mode','q-contract','--install',
++                     '--build-dir',str(args.build_dir),'--device',args.device,'--output',str(out/'cache-repeat'),*developer]))
++    native=[py,str(ROOT/'bitnet/actquant/run_phone.py'),'--run','--operation','attribution',*common,
++            '--actquant','on','--workload','teacher','--capture-scope','q4-layer0','--reuse-model',
++            '--operator-run',str(correctness/'operator'),'--operator-analysis',str(correctness/'operator-analysis/SUMMARY.json'),*developer]
++    if args.qualified_root is None:
++        for history,tokens in [('primary',args.tokens_primary),('independent',args.tokens_independent)]:
++            run=out/('verify-'+history)
++            stage.append(('verify-'+history,[*native,'--tokens',str(tokens),'--attribution-kind','verify',
++                          '--capture','--trace','--output',str(run)]))
++            stage.append(('verify-'+history+'-analysis',[py,str(ROOT/'bitnet/actquant/analyze_attribution_verify.py'),
++                          '--run',str(run),'--log',str(run/'logs/launch.log'),
++                          '--stock-null',str(correctness/(history+'-stock-plain')),
++                          '--missing-library',str(correctness/(history+'-Q4-missing-library')),
++                          '--missing-library-log',str(correctness/(history+'-Q4-missing-library/logs/launch.log')),
++                          '--output',str(out/('verify-'+history+'-analysis'))]))
++        stage.append(('timing-gate',[py,str(ROOT/'bitnet/actquant/make_attribution_gate.py'),
++                      '--build-dir',str(args.build_dir),'--correctness',str(correctness),'--repeat-contract',str(out/'cache-repeat'),
++                      '--primary-analysis',str(out/'verify-primary-analysis'),'--independent-analysis',str(out/'verify-independent-analysis'),
++                      '--primary-run',str(out/'verify-primary'),'--independent-run',str(out/'verify-independent'),
++                      '--tokens-primary',str(args.tokens_primary),'--tokens-independent',str(args.tokens_independent),'--output',str(gate)]))
++    kinds=[] if args.through=='correctness' else ['diagnostic','overhead'] if args.through=='diagnostic' else ['diagnostic','overhead','formal']
++    for kind in kinds:
++        for history,tokens in [('primary',args.tokens_primary),('independent',args.tokens_independent)]:
++            run=out/(kind+'-'+history);direct=['--direct-qb-q4'] if args.direct_qb_q4 and kind!='overhead' else []
++            stage.append((kind+'-'+history,[*native,'--tokens',str(tokens),'--attribution-kind',kind,
++                          '--attribution-gate',str(gate),'--output',str(run),*direct]))
++            stage.append((kind+'-'+history+'-analysis',[py,str(ROOT/'bitnet/actquant/analyze_attribution.py'),
++                          '--run',str(run),'--output',str(out/(kind+'-'+history+'-analysis')),
++                          *(['--telemetry-only'] if kind=='diagnostic' else ['--gate',str(gate)])]))
++    return stage,qualified
++
++
++def classify(args,name):
++    if name=='correctness':
++        path=args.output/'correctness/SUMMARY.json';field='scoped_qualification_pass'
++    elif name=='cache-repeat':
++        path=args.output/'cache-repeat/summary.json';field='runtime_contract_pass'
++    elif name.startswith('verify-') and name.endswith('-analysis'):
++        path=args.output/name/'SUMMARY.json';field='scoped_stock_compatibility_pass'
++    elif name=='timing-gate':path=args.output/'TIMING_GATE.json';field='scoped_correctness_pass'
++    else:return None
++    try:
++        value=json.loads(path.read_text()).get(field)
++        return False if value is False else None
++    except (OSError,ValueError,AttributeError):return None
++
++
++def classify_measurement(args,name):
++    if not name.endswith('-analysis') or not name.startswith(('diagnostic-','overhead-','formal-')):return None
++    try:
++        value=json.loads((args.output/name/'SUMMARY.json').read_text()).get('measurement_integrity_pass')
++        return False if value is False else None
++    except (OSError,ValueError,AttributeError):return None
++
++
++def main():
++    p=argparse.ArgumentParser(description=__doc__);mode=p.add_mutually_exclusive_group()
++    mode.add_argument('--run',action='store_true');mode.add_argument('--plan',action='store_true')
++    for name in ['build-dir','model','operator-fixtures','tokens-primary','tokens-independent','output']:
++        p.add_argument('--'+name,type=Path,required=True)
++    p.add_argument('--device',required=True);p.add_argument('--developer-dir',type=Path)
++    p.add_argument('--through',choices=('correctness','diagnostic','formal'),default='correctness')
++    p.add_argument('--qualified-root',type=Path,help='Reuse an already passed same-build TIMING_GATE.json and correctness/operator under this root')
++    p.add_argument('--direct-qb-q4',action='store_true',help='Additional mixed encoding/shader/scheduling comparison')
++    args=p.parse_args()
++    for key,value in vars(args).items():
++        if isinstance(value,Path):setattr(args,key,value.expanduser().resolve())
++    if args.output.exists():p.error('--output must be fresh')
++    args.output.mkdir(parents=True)
++    result={'scope':'Staged current ActQuant-ON A16 Q attribution','plan_only':not args.run,'through':args.through,
++            'scoped_correctness_pass':None,'measurement_integrity_pass':None,'speedup_established':None,
++            'official_source_model_output_pass':None,'full_model_FP64_pass':None,'model_quality_pass':None,
++            'historical_official_strict_exit_preserved':1,'all_stages_completed':False,
++            'device_commands_requested':args.run,'device_commands_executed':False,'collection_command_started':False,
++            'errors':[],'stages':[]}
++    try:
++        result['local_provenance']=prepare(args)
++        tasks,qualified=plan(args)
++        if args.qualified_root is not None:
++            build,_=build_identity(args.build_dir)
++            for tokens in [args.tokens_primary,args.tokens_independent]:
++                from run_phone import sha256
++                attribution_gate(qualified/'TIMING_GATE.json',build,sha256(tokens))
++            result.update(scoped_correctness_pass=True,reused_correctness=True)
++        save(args.output/'PLAN.json',{'device_commands_executed':False,'stage_count':len(tasks),
++                                     'stages':[{'name':name,'argv':command} for name,command in tasks],
++                                     'timing_gate':str(qualified/'TIMING_GATE.json'),
++                                     'optional_isolated_operator':'Not automated here; use existing q-verify/q-benchmark after new same-build correctness'})
++        if not args.run:
++            result.update(planning_pass=True,exit_code=0);return 0
++        logdir=args.output/'logs';logdir.mkdir()
++        for name,command in tasks:
++            record={'name':name,'argv':command,'cwd':str(ROOT)};save(logdir/(name+'.command.json'),record)
++            with (logdir/(name+'.log')).open('w') as log:
++                process=subprocess.run(command,cwd=ROOT,stdout=log,stderr=subprocess.STDOUT)
++            if not name.endswith('-analysis') and name!='timing-gate':
++                result.update(collection_command_started=True,device_commands_executed=None)
++            record['exit_code']=process.returncode;save(logdir/(name+'.command.json'),record)
++            (logdir/(name+'.exit-code')).write_text(str(process.returncode)+'\n')
++            result['stages'].append({'name':name,'exit_code':process.returncode})
++            save(args.output/'SUMMARY.json',result);print(name+': exit '+str(process.returncode),flush=True)
++            if process.returncode:
++                observed=classify(args,name)
++                if observed is False:result['scoped_correctness_pass']=False
++                if classify_measurement(args,name) is False:result['measurement_integrity_pass']=False
++                result.update(failed_stage=name,execution_failed=True,exit_code=process.returncode if process.returncode>0 else 1)
++                return result['exit_code']
++            if name=='timing-gate':
++                if json.loads((qualified/'TIMING_GATE.json').read_text()).get('scoped_correctness_pass') is not True:
++                    raise ValueError('Timing gate child did not produce verified correctness')
++                result['scoped_correctness_pass']=True
++        gate=json.loads((qualified/'TIMING_GATE.json').read_text())
++        if gate.get('scoped_correctness_pass') is not True:raise ValueError('Completed stages lack a correctness gate')
++        result.update(scoped_correctness_pass=True,all_stages_completed=True,execution_failed=False,exit_code=0)
++        if tasks:result['device_commands_executed']=True
++        if args.through!='correctness':
++            for kind in ['diagnostic','overhead']+(['formal'] if args.through=='formal' else []):
++                for history in ['primary','independent']:
++                    data=json.loads((args.output/(kind+'-'+history+'-analysis/SUMMARY.json')).read_text())
++                    if data.get('measurement_integrity_pass') is not True:raise ValueError('Measurement evidence incomplete')
++            result['measurement_integrity_pass']=True
++        return 0
++    except (OSError,RuntimeError,ValueError,KeyError,TypeError) as error:
++        result['errors'].append(str(error));result.update(exit_code=2,execution_failed=args.run,all_stages_completed=False)
++        return 2
++    finally:
++        save(args.output/'SUMMARY.json',result);print(json.dumps(result,indent=2),flush=True)
++
++
++if __name__=='__main__':raise SystemExit(main())
+diff --git a/bitnet/tests/test_actquant_q_backend.py b/bitnet/tests/test_actquant_q_backend.py
+new file mode 100644
+index 0000000..2ad6e2b
+--- /dev/null
++++ b/bitnet/tests/test_actquant_q_backend.py
+@@ -0,0 +1,148 @@
++#!/usr/bin/env python3
++"""CPU-only controls of the production ActQuant Q-route predicate.
++
++The production functions are extracted verbatim and compiled with minimal tensor
++mocks. This checks selector/producer policy, not GGML allocation or GPU execution.
++"""
++
++import os
++from pathlib import Path
++import re
++import shutil
++import subprocess
++import tempfile
++import unittest
++
++
++ROOT = Path(__file__).resolve().parents[2]
++SOURCE = ROOT / "ggml/src/ggml-metal/ggml-metal-ops.cpp"
++
++
++def function(source: str, name: str) -> str:
++    match = re.search(r"^static bool " + re.escape(name) + r"\s*\(", source, re.M)
++    if match is None:
++        raise ValueError(f"Production function not found: {name}")
++    start = source.index("{", match.end())
++    depth = 1
++    end = start + 1
++    while depth:
++        depth += (source[end] == "{") - (source[end] == "}")
++        end += 1
++    return source[match.start():end]
++
++
++class BackendActQuantQContract(unittest.TestCase):
++    def test_actual_predicate_controls(self) -> None:
++        compiler = shutil.which(os.environ.get("CXX", "clang++"))
++        self.assertIsNotNone(compiler, "A local C++ compiler is required")
++        source = SOURCE.read_text()
++        functions = "\n".join(function(source, name) for name in (
++            "ggml_metal_bitnet_weight_name", "ggml_metal_bitnet_poc_flag",
++            "ggml_metal_bitnet_actquant_q4_contract"))
++        prefix = r'''
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <cstdint>
++#include <initializer_list>
++enum ggml_type { GGML_TYPE_F32, GGML_TYPE_F16 };
++enum ggml_op { GGML_OP_NONE, GGML_OP_MUL_MAT, GGML_OP_ACT_QUANT };
++struct ggml_tensor {
++    char name[96] = {};
++    ggml_type type = GGML_TYPE_F32;
++    ggml_op op = GGML_OP_NONE;
++    ggml_tensor * src[2] = {};
++    int64_t ne[4] = {2560,1,1,1};
++    unsigned char op_params[16] = {};
++    bool contiguous = true;
++};
++static bool ggml_is_contiguous(const ggml_tensor * t) { return t->contiguous; }
++static bool ggml_are_same_shape(const ggml_tensor * a, const ggml_tensor * b) {
++    return std::memcmp(a->ne,b->ne,sizeof(a->ne))==0;
++}
++'''
++        controls = r'''
++static int total=0, failures=0;
++static void check(const char * name, bool actual, bool expected) {
++    ++total;
++    if (actual!=expected) { ++failures; std::fprintf(stderr,"FAIL %s\n",name); }
++}
++static void env(const char * name, const char * value) {
++    if (value) { setenv(name,value,1); } else { unsetenv(name); }
++}
++int main() {
++    ggml_tensor original, quantized, weight, op;
++    const char * const flags[] = {"LLAMA_BITNET_ACTQUANT","LLAMA_BITNET_ACTQUANT_Q4",
++        "GGML_METAL_BITNET_POC","GGML_METAL_BITNET_Q_GUARD_ONLY","GGML_METAL_BITNET_LAYERS",
++        "GGML_METAL_BITNET_FFN","GGML_METAL_BITNET_FFN_MECHANISM","GGML_METAL_BITNET_FFN_ABLATION"};
++    auto reset = [&]() {
++        for (auto name:flags) { unsetenv(name); }
++        original=ggml_tensor{}; quantized=ggml_tensor{}; weight=ggml_tensor{}; op=ggml_tensor{};
++        std::strcpy(weight.name,"blk.0.attn_q.weight"); std::strcpy(op.name,"Qcur-0");
++        std::strcpy(quantized.name,"actq_qkv_out-0");
++        op.op=GGML_OP_MUL_MAT; op.src[0]=&weight; op.src[1]=&quantized;
++        quantized.op=GGML_OP_ACT_QUANT; quantized.src[0]=&original;
++        const float eps=1e-5f; std::memcpy(quantized.op_params,&eps,sizeof(eps));
++        env("LLAMA_BITNET_ACTQUANT","1"); env("LLAMA_BITNET_ACTQUANT_Q4","1");
++        env("GGML_METAL_BITNET_POC","1"); env("GGML_METAL_BITNET_LAYERS","0");
++    };
++    auto run = [&](bool guard=false,int rows=4,int groups=1) {
++        return ggml_metal_bitnet_actquant_q4_contract(&op,rows,groups,guard,false);
++    };
++    reset(); check("valid Q4",run(),true);
++    reset(); env("GGML_METAL_BITNET_POC","0"); env("GGML_METAL_BITNET_Q_GUARD_ONLY","1");
++    check("valid QB",run(true),true);
++    check("QB argument mismatch",run(false),false);
++    reset(); check("Q4 argument mismatch",run(true),false);
++    reset(); env("GGML_METAL_BITNET_Q_GUARD_ONLY","1"); check("both routes",run(true),false);
++    reset(); env("GGML_METAL_BITNET_POC","0"); check("no route",run(),false);
++    reset(); env("LLAMA_BITNET_ACTQUANT_Q4",nullptr); check("missing permission",run(),false);
++    reset(); env("LLAMA_BITNET_ACTQUANT","0"); check("permission without ActQuant",run(),false);
++    reset(); env("LLAMA_BITNET_ACTQUANT","0"); env("LLAMA_BITNET_ACTQUANT_Q4","0");
++    check("legacy scope unchanged",run(),true);
++    for (auto bad:{"","2","true","-1"}) {
++        reset(); env("GGML_METAL_BITNET_Q_GUARD_ONLY",bad); check("malformed QB selector",run(),false);
++        reset(); env("GGML_METAL_BITNET_POC",bad); env("GGML_METAL_BITNET_Q_GUARD_ONLY","1");
++        check("malformed custom selector",run(true),false);
++    }
++    for (auto layers:{"","1","0-3","0-29"}) {
++        reset(); env("GGML_METAL_BITNET_LAYERS",layers); check("wrong layers",run(),false);
++    }
++    reset(); env("GGML_METAL_BITNET_LAYERS",nullptr); check("missing layers",run(),false);
++    reset(); check("4x2 reject",run(false,4,2),false); check("4x4 reject",run(false,4,4),false);
++    check("8x2 reject",run(false,8,2),false);
++    reset(); std::strcpy(op.name,"Qcur-1"); check("wrong node",run(),false);
++    reset(); std::strcpy(weight.name,"blk.1.attn_q.weight"); check("wrong weight",run(),false);
++    reset(); op.op=GGML_OP_NONE; check("wrong operation",run(),false);
++    reset(); op.src[1]=nullptr; check("missing input",run(),false);
++    reset(); quantized.op=GGML_OP_NONE; check("missing quantizer",run(),false);
++    reset(); std::strcpy(quantized.name,"actq_qkv_out-1"); check("wrong producer name",run(),false);
++    reset(); quantized.type=GGML_TYPE_F16; check("wrong activation type",run(),false);
++    reset(); quantized.src[0]=nullptr; check("missing quantizer input",run(),false);
++    reset(); original.type=GGML_TYPE_F16; check("wrong producer input type",run(),false);
++    reset(); original.contiguous=false; check("noncontiguous producer input",run(),false);
++    reset(); original.ne[0]=1280; check("wrong producer input shape",run(),false);
++    reset(); const float bad_eps=1e-4f; std::memcpy(quantized.op_params,&bad_eps,sizeof(bad_eps));
++    check("wrong eps",run(),false);
++    for (auto name:{"GGML_METAL_BITNET_FFN","GGML_METAL_BITNET_FFN_MECHANISM","GGML_METAL_BITNET_FFN_ABLATION"}) {
++        for (auto active:{"1","C","2"}) { reset(); env(name,active); check("FFN route forbidden",run(),false); }
++        reset(); env(name,"0"); check("inactive FFN selector",run(),true);
++    }
++    std::printf("actual_backend_predicate_cases=%d failures=%d GPU_executed=false\n",total,failures);
++    return failures?1:0;
++}
++'''
++        with tempfile.TemporaryDirectory(prefix="bitnet-actquant-q-backend-") as tmp:
++            cpp = Path(tmp) / "test.cpp"
++            binary = Path(tmp) / "test"
++            cpp.write_text(prefix + functions + controls)
++            build = subprocess.run([str(compiler), "-std=c++17", "-Wall", "-Wextra", "-Werror",
++                                    str(cpp), "-o", str(binary)], capture_output=True, text=True)
++            self.assertEqual(build.returncode, 0, build.stdout + build.stderr)
++            result = subprocess.run([str(binary)], capture_output=True, text=True)
++            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
++            print(result.stdout.strip())
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/bitnet/tests/test_actquant_q_startup.py b/bitnet/tests/test_actquant_q_startup.py
+new file mode 100644
+index 0000000..d132bcb
+--- /dev/null
++++ b/bitnet/tests/test_actquant_q_startup.py
+@@ -0,0 +1,68 @@
++#!/usr/bin/env python3
++"""Exercise the actual model's Q4/QB startup predicate without Metal."""
++from pathlib import Path
++import subprocess
++import tempfile
++
++ROOT = Path(__file__).resolve().parents[2]
++source = (ROOT / 'src/models/bitnet.cpp').read_text()
++start = source.index('static bool bitnet_actquant_q_route_contract(bool permission) {')
++end = source.index('\nvoid llama_model_bitnet::load_arch_hparams', start)
++function = source[start:end]
++program = r'''
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <initializer_list>
++'''+function+r'''
++int main() {
++    const char * keys[] = {
++        "GGML_METAL_BITNET_POC", "GGML_METAL_BITNET_Q_GUARD_ONLY",
++        "GGML_METAL_BITNET_POC_VARIANT", "GGML_METAL_BITNET_POC_ROWS_PER_SIMD",
++        "GGML_METAL_BITNET_POC_SIMD_PER_GROUP", "GGML_METAL_BITNET_LAYERS",
++        "GGML_METAL_BITNET_FFN_ABLATION"
++    };
++    int cases = 0;
++    auto check = [&](const char * custom, const char * guard, const char * variant,
++                     const char * rows, const char * groups, const char * layers,
++                     const char * ablation, bool permission, bool expected) {
++        const char * values[] = {custom,guard,variant,rows,groups,layers,ablation};
++        for (int i=0;i<7;++i) {
++            if(values[i]) setenv(keys[i],values[i],1); else unsetenv(keys[i]);
++        }
++        ++cases;
++        if(bitnet_actquant_q_route_contract(permission)!=expected) {
++            std::fprintf(stderr,"FAIL actual startup predicate case=%d\n",cases);
++            std::exit(1);
++        }
++    };
++    check("1","0","stock4x1","4","1","0",nullptr,true,true);
++    check("0","1","stock4x1","4","1","0",nullptr,true,true);
++    check(nullptr,"1",nullptr,"4","1","0","0",true,true);
++    check("1",nullptr,nullptr,"4","1","0",nullptr,true,true);
++    check("1","1","stock4x1","4","1","0",nullptr,true,false);
++    check("0","0","stock4x1","4","1","0",nullptr,true,false);
++    check("0","1","stock4x1","4","1","0",nullptr,false,false);
++    check("1","0","stock4x1","4","1","0",nullptr,false,false);
++    check("0","1","c8x2","4","1","0",nullptr,true,false);
++    check("0","1","stock4x1","4","2","0",nullptr,true,false);
++    check("0","1","stock4x1","4","4","0",nullptr,true,false);
++    check("0","1","stock4x1","8","2","0",nullptr,true,false);
++    check("0","1","stock4x1","4","1","0-29",nullptr,true,false);
++    check("0","1","stock4x1","4","1","0","1",true,false);
++    check("0","1","stock4x1",nullptr,"1","0",nullptr,true,false);
++    check("0","1","stock4x1","4",nullptr,"0",nullptr,true,false);
++    check("0","1","stock4x1","4","1",nullptr,nullptr,true,false);
++    check("0","2","stock4x1","4","1","0",nullptr,true,false);
++    check("2","1","stock4x1","4","1","0",nullptr,true,false);
++    check("0","true","stock4x1","4","1","0",nullptr,true,false);
++    check("0","1","","4","1","0",nullptr,true,false);
++    std::printf("PASS %d actual ActQuant-ON startup Q4/QB predicate cases; CPU-only\n",cases);
++}
++'''
++with tempfile.TemporaryDirectory(prefix='bitnet-q-startup-') as folder:
++    cpp = Path(folder) / 'startup.cpp'
++    binary = Path(folder) / 'startup'
++    cpp.write_text(program)
++    subprocess.run(['c++', '-std=c++17', '-O0', '-Wall', '-Wextra', '-Werror', str(cpp), '-o', str(binary)], check=True)
++    subprocess.run([str(binary)], check=True)
+diff --git a/bitnet/tests/test_inventory_metal_graph.py b/bitnet/tests/test_inventory_metal_graph.py
+new file mode 100644
+index 0000000..99d2969
+--- /dev/null
++++ b/bitnet/tests/test_inventory_metal_graph.py
+@@ -0,0 +1,105 @@
++import importlib.util
++import json
++from pathlib import Path
++import tempfile
++import unittest
++
++
++SPEC = importlib.util.spec_from_file_location("inventory_metal_graph", Path(__file__).with_name("inventory_metal_graph.py"))
++MODULE = importlib.util.module_from_spec(SPEC)
++SPEC.loader.exec_module(MODULE)
++
++
++class InventoryTests(unittest.TestCase):
++    def test_reused_q_name_requires_op(self):
++        self.assertEqual(MODULE.classify("MUL_MAT", "Qcur-0"), "attention_projection")
++        self.assertEqual(MODULE.classify("ROPE", "Qcur-0"), "attention_rope")
++        self.assertEqual(MODULE.classify("RESHAPE", "Qcur-0"), "metadata_noop")
++
++    def test_ffn_weight_and_norm_boundaries(self):
++        self.assertEqual(MODULE.classify("MUL_MAT", "unnamed", "blk.29.ffn_up.weight"), "ffn_projection")
++        self.assertEqual(MODULE.classify("MUL", "ffn_sub_norm-29"), "normalization")
++        self.assertEqual(MODULE.classify("MUL", "ffn_sub_out-29"), "ffn_elementwise")
++
++    def test_head_is_not_attention_matmul(self):
++        self.assertEqual(MODULE.classify("MUL_MAT", "result_output"), "output_head")
++        self.assertEqual(MODULE.classify("MUL_MAT", "kqv-0"), "attention_core")
++        self.assertEqual(MODULE.classify("MUL_MAT", "unknown"), "other_matmul")
++
++    def test_partial_coverage_and_completion_not_added(self):
++        text = """ACTQUANT_Q_PHASE_BEGIN phase=decode decode_step=16 count=1 q_route=stock
++ACT_QUANT_ENCODE node=actq_qkv_out-0 kernel=kernel_act_quant_f32
++BITNET_MULTILAYER_ENCODE node=Qcur-0 weight=blk.0.attn_q.weight pipeline=kernel_mul_mv_tq2_0_f32 command=0x1
++BITNET_MULTILAYER_COMPLETE node=Qcur-0 command=0x1 completed=1
++BITNET_MULTILAYER_COMPLETE node=Qcur-0 command=0x1 completed=1
++"""
++        with tempfile.TemporaryDirectory() as folder:
++            path = Path(folder) / "trace.log"
++            path.write_text(text)
++            result = MODULE.inventory(path, MODULE.SOURCE_ROOT / "ggml/include/ggml.h")
++        self.assertEqual(result["coverage"]["kind"], "targeted_partial")
++        self.assertEqual(result["coverage"]["per_operator_GPU_time"], "unavailable")
++        self.assertIn("output_head", result["coverage"]["unobserved_families"])
++        self.assertEqual(result["observations_by_origin"]["targeted_encode_events"]["count"], 2)
++        self.assertEqual(result["completion_events_not_kernel_durations"][0]["count"], 2)
++
++    def test_debug_and_targeted_origins_stay_separate(self):
++        text = """ggml_metal_op_encode: node[   12] - MUL_MAT Qcur-0 (concurrent)
++ggml_metal_op_encode: node[   13] - VIEW (noop)
++BITNET_MULTILAYER_ENCODE node=Qcur-0 weight=blk.0.attn_q.weight pipeline=kernel_mul_mv_tq2_0_f32
++"""
++        with tempfile.TemporaryDirectory() as folder:
++            path = Path(folder) / "trace.log"
++            path.write_text(text)
++            result = MODULE.inventory(path, MODULE.SOURCE_ROOT / "ggml/include/ggml.h")
++        self.assertEqual(result["observations_by_origin"]["graph_debug_node_visits"]["count"], 2)
++        self.assertEqual(result["observations_by_origin"]["targeted_encode_events"]["count"], 1)
++        self.assertFalse(result["coverage"]["complete_graph_confirmed"])
++
++    def test_repeated_phase_has_distinct_scope(self):
++        line = "ACTQUANT_Q_PHASE_BEGIN phase=prefill decode_step=0 count=27\nACT_QUANT_ENCODE node=actq_qkv_out-0\n"
++        with tempfile.TemporaryDirectory() as folder:
++            path = Path(folder) / "trace.log"
++            path.write_text(line * 2)
++            result = MODULE.inventory(path, MODULE.SOURCE_ROOT / "ggml/include/ggml.h")
++        self.assertEqual(len(result["phase_observations"]), 2)
++
++    def test_enum_ids_come_from_source(self):
++        ids = MODULE.enum_ids(MODULE.SOURCE_ROOT / "ggml/include/ggml.h")
++        self.assertEqual(ids["NONE"], 0)
++        self.assertLess(ids["ACT_QUANT"], ids["COUNT"])
++        self.assertEqual(len(set(ids.values())), len(ids))
++
++    def test_unsupported_enum_expression_rejected(self):
++        with tempfile.TemporaryDirectory() as folder:
++            header = Path(folder) / "ggml.h"
++            header.write_text("enum ggml_op { GGML_OP_NONE = 0, GGML_OP_BAD = GGML_OP_NONE + 4, };")
++            with self.assertRaises(ValueError):
++                MODULE.enum_ids(header)
++
++    def test_natural_CB_overlapping_intervals_are_not_summed(self):
++        data = {"schema": 1, "clock": "CLOCK_UPTIME_RAW", "complete": True, "tasks": [{"mode": "S", "operator_family_cpu": [{"family": "output_head", "encode_calls": 1, "encode_ns": 123}]}], "command_buffers": []}
++        for command, start, end in [(1, 10.0, 10.2), (2, 10.1, 10.3), (3, 10.4, 10.5)]:
++            data["command_buffers"].append({"command": command, "graph": 1, "step": 16, "slice_start": command, "slice_end": command + 1, "encode_start_ns": 400, "completed": True, "status": 4, "gpu_start_s": start, "gpu_end_s": end})
++        with tempfile.TemporaryDirectory() as folder:
++            path = Path(folder) / "diag.json"
++            path.write_text(json.dumps(data))
++            result = MODULE.natural_command_buffers(path)
++        self.assertTrue(result["all_observed_CB_intervals_valid"])
++        measured = result["GPU_command_buffer_intervals_by_step"][0]
++        self.assertAlmostEqual(measured["CB_interval_union_us"], 400000)
++        self.assertAlmostEqual(measured["gaps_outside_all_CB_intervals_us"], 100000)
++        self.assertNotIn("queue_latency_us", measured)
++
++    def test_duplicate_and_failed_CB_records_are_explicit(self):
++        record = {"command": 1, "graph": 1, "step": 1, "slice_start": 0, "slice_end": 9, "encode_start_ns": 100, "completed": False, "status": 5, "gpu_start_s": 0, "gpu_end_s": None}
++        with tempfile.TemporaryDirectory() as folder:
++            path = Path(folder) / "diag.json"
++            path.write_text(json.dumps({"schema": 1, "clock": "CLOCK_UPTIME_RAW", "tasks": [], "command_buffers": [record, record]}))
++            result = MODULE.natural_command_buffers(path)
++        self.assertFalse(result["all_observed_CB_intervals_valid"])
++        self.assertEqual(len(result["invalid_records"]), 2)
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/ggml/include/ggml-metal.h b/ggml/include/ggml-metal.h
+index 74cb700..68aefb8 100644
+--- a/ggml/include/ggml-metal.h
++++ b/ggml/include/ggml-metal.h
+@@ -59,6 +59,10 @@ GGML_BACKEND_API double ggml_backend_metal_bitnet_ffn_take_us(void);
+ // stage 0 is normalized FFN input through down, stage 1 is the Transformer block.
+ GGML_BACKEND_API double ggml_backend_metal_bitnet_take_us(int stage, int layer);
+ 
++// Optional Q-route diagnostics. Reset/write only after normal synchronization, outside timers.
++GGML_BACKEND_API void ggml_backend_metal_q_attribution_diag_reset(void);
++GGML_BACKEND_API int ggml_backend_metal_q_attribution_diag_write(const char * path);
++
+ GGML_BACKEND_API ggml_backend_reg_t ggml_backend_metal_reg(void);
+ 
+ #ifdef GGML_METAL_CUSTOM_OPS
+diff --git a/ggml/src/ggml-metal/ggml-metal-bitnet-q-attribution.h b/ggml/src/ggml-metal/ggml-metal-bitnet-q-attribution.h
+new file mode 100644
+index 0000000..64b5035
+--- /dev/null
++++ b/ggml/src/ggml-metal/ggml-metal-bitnet-q-attribution.h
+@@ -0,0 +1,29 @@
++#pragma once
++
++#include <stdint.h>
++#include <stdio.h>
++#include <time.h>
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++// One host clock domain. Metal GPU timestamps remain a separate domain.
++static inline uint64_t ggml_metal_q_attribution_now(void) {
++    return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
++}
++
++struct ggml_metal_q_cache_metrics {
++    uint64_t lock_wait_ns, snapshot_key_ns, lookup_ns, load_ns, capability_ns;
++    uint64_t cache_hits, cache_misses, invalid_paths, stable_load_failures;
++};
++
++void ggml_metal_q_attribution_cache_metrics(struct ggml_metal_q_cache_metrics * metrics);
++int ggml_metal_q_attribution_device_reset(void);
++int ggml_metal_q_attribution_device_write(FILE * file);
++void ggml_metal_q_attribution_commit(void * command, const void * graph,
++        int slice_start, int slice_end, uint64_t encode_start_ns, uint64_t encode_end_ns);
++
++#ifdef __cplusplus
++}
++#endif
+diff --git a/ggml/src/ggml-metal/ggml-metal-context.m b/ggml/src/ggml-metal/ggml-metal-context.m
+index c49c864..24d94db 100644
+--- a/ggml/src/ggml-metal/ggml-metal-context.m
++++ b/ggml/src/ggml-metal/ggml-metal-context.m
+@@ -8,6 +8,7 @@
+ #import "ggml-metal-ops.h"
+ #import "ggml-metal-fusion.h"
+ #import "ggml-metal.h"
++#import "ggml-metal-bitnet-q-attribution.h"
+ 
+ #import <Foundation/Foundation.h>
+ #import <TargetConditionals.h>
+@@ -864,6 +865,9 @@ void ggml_metal_set_n_cb(ggml_metal_t ctx, int n_cb) {
+         }
+ 
+         id<MTLCommandBuffer> cmd_buf = ctx->cmd_bufs[cb_idx].obj;
++        const char * q_diag=getenv("GGML_METAL_BITNET_Q_ATTRIBUTION");
++        const bool q_attribution=q_diag && strcmp(q_diag,"1")==0;
++        const uint64_t q_encode_start=q_attribution?ggml_metal_q_attribution_now():0;
+ 
+         ggml_metal_op_t ctx_op = ggml_metal_op_init(
+             ctx->dev,
+@@ -886,9 +890,14 @@ void ggml_metal_set_n_cb(ggml_metal_t ctx, int n_cb) {
+         }
+ 
+         ggml_metal_op_free(ctx_op);
++        const uint64_t q_encode_end=q_attribution?ggml_metal_q_attribution_now():0;
+ 
+         if (cb_idx < 2 || ctx->abort_callback == NULL) {
+-            [cmd_buf commit];
++            if (q_attribution) {
++                ggml_metal_q_attribution_commit(cmd_buf,ctx->gf,idx_start,idx_end,q_encode_start,q_encode_end);
++            } else {
++                [cmd_buf commit];
++            }
+         }
+       } // @autoreleasepool
+     });
+diff --git a/ggml/src/ggml-metal/ggml-metal-device.m b/ggml/src/ggml-metal/ggml-metal-device.m
+index 16b4440..5dd2ff3 100644
+--- a/ggml/src/ggml-metal/ggml-metal-device.m
++++ b/ggml/src/ggml-metal/ggml-metal-device.m
+@@ -1,6 +1,7 @@
+ #import "ggml-metal-device.h"
+ #import "ggml-metal-fusion.h"
+ #import "ggml-metal-bitnet-q-contract.h"
++#import "ggml-metal-bitnet-q-attribution.h"
+ 
+ #import "ggml-impl.h"
+ #import "ggml-backend-impl.h"
+@@ -15,6 +16,112 @@
+ #include <Metal/Metal.h>
+ 
+ #include <stdatomic.h>
++#include <pthread.h>
++#include <math.h>
++
++static _Thread_local struct ggml_metal_q_cache_metrics * bitnet_q_cache_metrics;
++void ggml_metal_q_attribution_cache_metrics(struct ggml_metal_q_cache_metrics * metrics) {
++    bitnet_q_cache_metrics=metrics;
++}
++
++#define BITNET_Q_ATTR_CB_CAPACITY 2048
++struct bitnet_q_attr_command {
++    uint64_t command, graph, encode_start_ns, encode_end_ns, commit_start_ns, commit_end_ns;
++    uint64_t scheduled_host_ns, completed_host_ns;
++    int step, slice_start, slice_end;
++    unsigned long status;
++    double gpu_start_s, gpu_end_s;
++    bool completed;
++};
++static struct bitnet_q_attr_command * bitnet_q_commands;
++static size_t bitnet_q_command_count, bitnet_q_command_drops, bitnet_q_pending_handlers;
++static pthread_mutex_t bitnet_q_command_lock=PTHREAD_MUTEX_INITIALIZER;
++static dispatch_group_t bitnet_q_attribution_group(void) {
++    static dispatch_group_t group;
++    static dispatch_once_t once;
++    dispatch_once(&once, ^{ group=dispatch_group_create(); });
++    return group;
++}
++
++int ggml_metal_q_attribution_device_reset(void) {
++    const long wait_status=dispatch_group_wait(bitnet_q_attribution_group(),dispatch_time(DISPATCH_TIME_NOW,5*NSEC_PER_SEC));
++    pthread_mutex_lock(&bitnet_q_command_lock);
++    if (wait_status || bitnet_q_pending_handlers) {
++        pthread_mutex_unlock(&bitnet_q_command_lock); return 1;
++    }
++    if (!bitnet_q_commands) { bitnet_q_commands=calloc(BITNET_Q_ATTR_CB_CAPACITY,sizeof(*bitnet_q_commands)); }
++    bitnet_q_command_count=0; bitnet_q_command_drops=0;
++    const bool ready=bitnet_q_commands!=NULL;
++    pthread_mutex_unlock(&bitnet_q_command_lock);
++    return ready?0:1;
++}
++
++void ggml_metal_q_attribution_commit(void * raw, const void * graph,
++        int slice_start, int slice_end, uint64_t encode_start_ns, uint64_t encode_end_ns) {
++    id<MTLCommandBuffer> command=(id<MTLCommandBuffer>)raw;
++    struct bitnet_q_attr_command * r=NULL;
++    pthread_mutex_lock(&bitnet_q_command_lock);
++    if (bitnet_q_commands && bitnet_q_command_count<BITNET_Q_ATTR_CB_CAPACITY) {
++        r=&bitnet_q_commands[bitnet_q_command_count++];
++        *r=(struct bitnet_q_attr_command){0};
++    } else { ++bitnet_q_command_drops; }
++    pthread_mutex_unlock(&bitnet_q_command_lock);
++    if (!r) { [command commit]; return; }
++    r->command=(uintptr_t)command; r->graph=(uintptr_t)graph;
++    r->slice_start=slice_start; r->slice_end=slice_end;
++    r->encode_start_ns=encode_start_ns; r->encode_end_ns=encode_end_ns;
++    const char * step=getenv("GGML_METAL_BITNET_FFN_STEP"); r->step=step?atoi(step):-1;
++    dispatch_group_t group=bitnet_q_attribution_group();
++    dispatch_group_enter(group);
++    dispatch_group_enter(group);
++    pthread_mutex_lock(&bitnet_q_command_lock); bitnet_q_pending_handlers+=2; pthread_mutex_unlock(&bitnet_q_command_lock);
++    [command addScheduledHandler:^(id<MTLCommandBuffer> done) {
++        GGML_UNUSED(done);
++        pthread_mutex_lock(&bitnet_q_command_lock);
++        r->scheduled_host_ns=ggml_metal_q_attribution_now();
++        --bitnet_q_pending_handlers;
++        pthread_mutex_unlock(&bitnet_q_command_lock);
++        dispatch_group_leave(group);
++    }];
++    [command addCompletedHandler:^(id<MTLCommandBuffer> done) {
++        const uint64_t completed_ns=ggml_metal_q_attribution_now();
++        pthread_mutex_lock(&bitnet_q_command_lock);
++        r->completed_host_ns=completed_ns; r->status=done.status;
++        r->gpu_start_s=done.GPUStartTime; r->gpu_end_s=done.GPUEndTime;
++        r->completed=done.status==MTLCommandBufferStatusCompleted;
++        --bitnet_q_pending_handlers;
++        pthread_mutex_unlock(&bitnet_q_command_lock);
++        dispatch_group_leave(group);
++    }];
++    r->commit_start_ns=ggml_metal_q_attribution_now();
++    [command commit];
++    pthread_mutex_lock(&bitnet_q_command_lock);
++    r->commit_end_ns=ggml_metal_q_attribution_now();
++    pthread_mutex_unlock(&bitnet_q_command_lock);
++}
++
++int ggml_metal_q_attribution_device_write(FILE * f) {
++    // Called after the model's normal completion wait and outside its timer.
++    const long wait_status=dispatch_group_wait(bitnet_q_attribution_group(),dispatch_time(DISPATCH_TIME_NOW,5*NSEC_PER_SEC));
++    pthread_mutex_lock(&bitnet_q_command_lock);
++    fprintf(f,"\"command_buffer_capacity\":%d,\"command_buffer_drops\":%zu,\"pending_callback_handlers\":%zu,\"callback_wait_timed_out\":%s,\"command_buffers\":[",BITNET_Q_ATTR_CB_CAPACITY,bitnet_q_command_drops,bitnet_q_pending_handlers,wait_status?"true":"false");
++    bool complete=!wait_status && !bitnet_q_pending_handlers && bitnet_q_commands && bitnet_q_command_count>0 && bitnet_q_command_drops==0;
++    for (size_t i=0;i<bitnet_q_command_count;++i) {
++        const struct bitnet_q_attr_command * r=&bitnet_q_commands[i];
++        char gpu_start[64],gpu_end[64];
++        if (isfinite(r->gpu_start_s)) { snprintf(gpu_start,sizeof(gpu_start),"%.17g",r->gpu_start_s); } else { strcpy(gpu_start,"null"); }
++        if (isfinite(r->gpu_end_s)) { snprintf(gpu_end,sizeof(gpu_end),"%.17g",r->gpu_end_s); } else { strcpy(gpu_end,"null"); }
++        fprintf(f,"%s{\"command\":%llu,\"graph\":%llu,\"step\":%d,\"slice_start\":%d,\"slice_end\":%d,\"encode_start_ns\":%llu,\"encode_end_ns\":%llu,\"commit_start_ns\":%llu,\"commit_end_ns\":%llu,\"scheduled_host_ns\":%llu,\"completed_host_ns\":%llu,\"status\":%lu,\"completed\":%s,\"gpu_start_s\":%s,\"gpu_end_s\":%s}",
++            i?",":"",(unsigned long long)r->command,(unsigned long long)r->graph,r->step,r->slice_start,r->slice_end,
++            (unsigned long long)r->encode_start_ns,(unsigned long long)r->encode_end_ns,
++            (unsigned long long)r->commit_start_ns,(unsigned long long)r->commit_end_ns,
++            (unsigned long long)r->scheduled_host_ns,(unsigned long long)r->completed_host_ns,
++            r->status,r->completed?"true":"false",gpu_start,gpu_end);
++        if (!r->completed || !isfinite(r->gpu_start_s) || !isfinite(r->gpu_end_s) || r->gpu_start_s<=0 || r->gpu_end_s<r->gpu_start_s) { complete=false; }
++    }
++    fputs("]",f); pthread_mutex_unlock(&bitnet_q_command_lock);
++    return complete?0:1;
++}
+ 
+ #ifndef TARGET_OS_VISION
+ #define TARGET_OS_VISION 0
+@@ -876,15 +983,24 @@ static struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_exte
+     struct ggml_metal_pipeline_with_params result = { 0 };
+     struct ggml_metal_bitnet_file_snapshot before;
+     char cache_key[2 * PATH_MAX];
+-
++    struct ggml_metal_q_cache_metrics * metrics=bitnet_q_cache_metrics;
++    uint64_t stamp=metrics?ggml_metal_q_attribution_now():0;
+     [lib->lock lock];
++    if (metrics) { metrics->lock_wait_ns+=ggml_metal_q_attribution_now()-stamp; stamp=ggml_metal_q_attribution_now(); }
+     if (!ggml_metal_bitnet_file_snapshot_get(path, &before) ||
+             !ggml_metal_bitnet_external_key(&before, name, contract, cache_key, sizeof(cache_key))) {
++        if (metrics) { metrics->snapshot_key_ns+=ggml_metal_q_attribution_now()-stamp; ++metrics->invalid_paths; }
+         [lib->lock unlock];
+         return result;
+     }
++    if (metrics) { metrics->snapshot_key_ns+=ggml_metal_q_attribution_now()-stamp; stamp=ggml_metal_q_attribution_now(); }
+     result.pipeline = ggml_metal_pipelines_get(lib->pipelines, cache_key);
++    if (metrics) {
++        metrics->lookup_ns+=ggml_metal_q_attribution_now()-stamp;
++        if (result.pipeline) { ++metrics->cache_hits; } else { ++metrics->cache_misses; }
++    }
+     if (!result.pipeline) {
++        if (metrics) { stamp=ggml_metal_q_attribution_now(); }
+         @autoreleasepool {
+             id<MTLDevice> device = ggml_metal_device_get_obj(lib->dev);
+             NSError * error = nil;
+@@ -910,6 +1026,7 @@ static struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_exte
+                 result.pipeline->trace_name = strdup(name);
+                 ggml_metal_pipelines_add(lib->pipelines, cache_key, result.pipeline);
+             } else {
++                if (metrics) { ++metrics->stable_load_failures; }
+                 GGML_LOG_WARN("BitNet external pipeline %s unavailable: stable_read=%d stable_load=%d bytes=%llu expected=%llu device=%d library=%d function=%d pipeline=%d width=%lu max_threads=%lu min_threads=%d error=%s\n",
+                     name, stable_read, stable_load, (unsigned long long) bytes.length, (unsigned long long) before.size,
+                     device != nil, kernels != nil, function != nil, pipeline != nil,
+@@ -920,12 +1037,15 @@ static struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_exte
+             [function release];
+             [kernels release];
+         }
++        if (metrics) { metrics->load_ns+=ggml_metal_q_attribution_now()-stamp; }
+     }
+     [lib->lock unlock];
++    if (metrics) { stamp=ggml_metal_q_attribution_now(); }
+     if (result.pipeline && (result.pipeline->obj.threadExecutionWidth != 32 ||
+             result.pipeline->obj.maxTotalThreadsPerThreadgroup < (NSUInteger) min_threads)) {
+         result.pipeline = NULL;
+     }
++    if (metrics) { metrics->capability_ns+=ggml_metal_q_attribution_now()-stamp; }
+     return result;
+ }
+ 
+diff --git a/ggml/src/ggml-metal/ggml-metal-ops.cpp b/ggml/src/ggml-metal/ggml-metal-ops.cpp
+index c3fc37b..c180b7a 100644
+--- a/ggml/src/ggml-metal/ggml-metal-ops.cpp
++++ b/ggml/src/ggml-metal/ggml-metal-ops.cpp
+@@ -8,6 +8,7 @@
+ #include "ggml-metal-common.h"
+ #include "ggml-metal-device.h"
+ #include "ggml-metal-bitnet-q-contract.h"
++#include "ggml-metal-bitnet-q-attribution.h"
+ #include "ggml-metal-fusion.h"
+ #include "ggml-metal-tuning.h"
+ 
+@@ -125,6 +126,106 @@ extern "C" __attribute__((visibility("default"))) int ggml_backend_metal_ffn_abl
+     std::fputs("]}\n", f); const bool bad = std::ferror(f); std::fclose(f); return bad ? 1 : 0;
+ }
+ static bool bitnet_abc_flag(const char * name) { const char * v=std::getenv(name); return v && std::strcmp(v,"0")!=0; }
++
++static constexpr size_t bitnet_q_attr_capacity = 8192;
++struct bitnet_q_attr_task {
++    uint64_t task = 0, thread = 0, graph = 0, command = 0;
++    int step = -1, slice_start = 0, slice_end = 0;
++    char mode = 'S';
++    uint64_t native_encode_calls = 0, native_encode_ns = 0, matvec_calls = 0, q_identity_calls = 0;
++    uint64_t outer_eligible = 0, guard_attempts = 0, guard_passes = 0, guard_rejects = 0;
++    uint64_t custom_dispatches = 0, stock_target_dispatches = 0;
++    uint64_t guard_ns = 0, guard_tensor_buffer_ns = 0, getter_ns = 0, native_target_encode_ns = 0;
++    uint64_t family_calls[7] = {}, family_ns[7] = {};
++};
++struct bitnet_q_attr_call {
++    uint64_t task = 0, start_ns = 0, end_ns = 0;
++    int step = -1;
++    bool identity = false, outer_eligible = false, guard_attempt = false, guard_pass = false, custom = false, stock = false;
++    uint64_t tensor_buffer_ns = 0, getter_ns = 0, capability_ns = 0;
++    ggml_metal_q_cache_metrics cache = {};
++};
++static std::mutex bitnet_q_attr_mutex;
++static std::vector<bitnet_q_attr_task> bitnet_q_attr_tasks;
++static std::vector<bitnet_q_attr_call> bitnet_q_attr_calls;
++static std::atomic<uint64_t> bitnet_q_attr_next{0};
++static uint64_t bitnet_q_attr_drops = 0;
++static bool bitnet_q_attr_ready = false;
++
++extern "C" __attribute__((visibility("default"))) void ggml_backend_metal_q_attribution_diag_reset(void) {
++    const int device_result=ggml_metal_q_attribution_device_reset();
++    std::lock_guard<std::mutex> lock(bitnet_q_attr_mutex);
++    bitnet_q_attr_tasks.clear(); bitnet_q_attr_tasks.reserve(bitnet_q_attr_capacity);
++    bitnet_q_attr_calls.clear(); bitnet_q_attr_calls.reserve(bitnet_q_attr_capacity);
++    bitnet_q_attr_drops = 0; bitnet_q_attr_next.store(0); bitnet_q_attr_ready = device_result==0;
++}
++
++extern "C" __attribute__((visibility("default"))) int ggml_backend_metal_q_attribution_diag_write(const char * path) {
++    if (!path) { return 1; }
++    std::vector<uint64_t> costs; costs.reserve(10000);
++    for (int i = 0; i < 10000; ++i) {
++        const auto a = ggml_metal_q_attribution_now(); const auto b = ggml_metal_q_attribution_now(); costs.push_back(b-a);
++    }
++    std::sort(costs.begin(), costs.end());
++    const auto positive = std::upper_bound(costs.begin(), costs.end(), uint64_t(0));
++    struct timespec resolution = {};
++    const int clock_status = clock_getres(CLOCK_UPTIME_RAW, &resolution);
++    FILE * f = std::fopen(path, "w"); if (!f) { return 1; }
++    std::lock_guard<std::mutex> lock(bitnet_q_attr_mutex);
++    std::fprintf(f, "{\"schema\":1,\"units\":\"nanoseconds\",\"clock\":\"CLOCK_UPTIME_RAW\",\"capacity_per_record_kind\":%zu,\"dropped_records\":%llu,\"calibration\":{\"pairs\":10000,\"min_ns\":%llu,\"p50_ns\":%llu,\"p95_ns\":%llu,\"min_positive_ns\":%llu,\"resolution_ns\":%llu,\"clock_getres_status\":%d},\"interval_note\":\"Raw diagnostic host worker intervals; nested and concurrent intervals are nonadditive. GPU timestamps use their separate Metal clock domain. No per-dispatch synchronization or command-buffer splits added.\",\"tasks\":[",
++        bitnet_q_attr_capacity, (unsigned long long)bitnet_q_attr_drops,
++        (unsigned long long)costs.front(), (unsigned long long)costs[5000], (unsigned long long)costs[9500],
++        (unsigned long long)(positive==costs.end()?0:*positive),
++        (unsigned long long)(uint64_t(resolution.tv_sec)*1000000000ULL+resolution.tv_nsec), clock_status);
++    bool first = true;
++    for (const auto & r : bitnet_q_attr_tasks) {
++        std::fprintf(f, "%s{\"mode\":\"%s\",\"step\":%d,\"slice_start\":%d,\"slice_end\":%d", first?"":",",
++            r.mode=='B'?"QB":r.mode=='Q'?"Q4":"S", r.step,r.slice_start,r.slice_end); first=false;
++#define Q_ATTR_FIELD(x) std::fprintf(f, ",\"" #x "\":%llu", (unsigned long long)r.x)
++        Q_ATTR_FIELD(task); Q_ATTR_FIELD(thread); Q_ATTR_FIELD(graph); Q_ATTR_FIELD(command);
++        Q_ATTR_FIELD(native_encode_calls); Q_ATTR_FIELD(native_encode_ns); Q_ATTR_FIELD(matvec_calls); Q_ATTR_FIELD(q_identity_calls);
++        Q_ATTR_FIELD(outer_eligible); Q_ATTR_FIELD(guard_attempts); Q_ATTR_FIELD(guard_passes); Q_ATTR_FIELD(guard_rejects);
++        Q_ATTR_FIELD(custom_dispatches); Q_ATTR_FIELD(stock_target_dispatches);
++        Q_ATTR_FIELD(guard_ns); Q_ATTR_FIELD(guard_tensor_buffer_ns); Q_ATTR_FIELD(getter_ns); Q_ATTR_FIELD(native_target_encode_ns);
++#undef Q_ATTR_FIELD
++        std::fputs(",\"operator_family_cpu\":[",f);
++        const char * families[] = {"output_head","attention_projection","ffn_projection","attention","normalization","actquant","other"};
++        for (int i=0;i<7;++i) {
++            std::fprintf(f,"%s{\"family\":\"%s\",\"encode_calls\":%llu,\"encode_ns\":%llu}",i?",":"",families[i],
++                (unsigned long long)r.family_calls[i],(unsigned long long)r.family_ns[i]);
++        }
++        std::fputs("]}",f);
++    }
++    std::fputs("],\"q_calls\":[",f); first=true;
++    for (const auto & r : bitnet_q_attr_calls) {
++        std::fprintf(f,"%s{\"task\":%llu,\"step\":%d,\"start_ns\":%llu,\"end_ns\":%llu,\"identity\":%s,\"outer_eligible\":%s,\"guard_attempt\":%s,\"guard_pass\":%s,\"custom\":%s,\"stock\":%s,\"tensor_buffer_ns\":%llu,\"getter_ns\":%llu,\"capability_ns\":%llu,\"cache\":{",
++            first?"":",",(unsigned long long)r.task,r.step,(unsigned long long)r.start_ns,(unsigned long long)r.end_ns,
++            r.identity?"true":"false",r.outer_eligible?"true":"false",r.guard_attempt?"true":"false",r.guard_pass?"true":"false",r.custom?"true":"false",r.stock?"true":"false",
++            (unsigned long long)r.tensor_buffer_ns,(unsigned long long)r.getter_ns,(unsigned long long)r.capability_ns); first=false;
++        std::fprintf(f,"\"lock_wait_ns\":%llu,\"snapshot_key_ns\":%llu,\"lookup_ns\":%llu,\"load_ns\":%llu,\"capability_ns\":%llu,\"hits\":%llu,\"misses\":%llu,\"invalid_paths\":%llu,\"stable_load_failures\":%llu}}",
++            (unsigned long long)r.cache.lock_wait_ns,(unsigned long long)r.cache.snapshot_key_ns,
++            (unsigned long long)r.cache.lookup_ns,(unsigned long long)r.cache.load_ns,(unsigned long long)r.cache.capability_ns,
++            (unsigned long long)r.cache.cache_hits,(unsigned long long)r.cache.cache_misses,
++            (unsigned long long)r.cache.invalid_paths,(unsigned long long)r.cache.stable_load_failures);
++    }
++    std::fputs("],",f);
++    const int device_result = ggml_metal_q_attribution_device_write(f);
++    const bool complete = bitnet_q_attr_ready && !bitnet_q_attr_tasks.empty() && bitnet_q_attr_drops==0 && device_result==0 && clock_status==0 && positive!=costs.end();
++    std::fprintf(f,",\"complete\":%s}\n",complete?"true":"false");
++    const bool failed = std::ferror(f); std::fclose(f); return failed || !complete ? 1 : 0;
++}
++
++static int bitnet_q_attr_family(const ggml_tensor * node) {
++    if (node->op==GGML_OP_MUL_MAT && std::strcmp(node->name,"result_output")==0) { return 0; }
++    if (node->op==GGML_OP_MUL_MAT && (std::strncmp(node->name,"Qcur-",5)==0 || std::strncmp(node->name,"Kcur-",5)==0 || std::strncmp(node->name,"Vcur-",5)==0 || std::strncmp(node->name,"attn_out-",9)==0)) { return 1; }
++    if (node->op==GGML_OP_MUL_MAT && std::strncmp(node->name,"ffn_",4)==0) { return 2; }
++    if (node->op==GGML_OP_RMS_NORM || node->op==GGML_OP_NORM ||
++            (node->op==GGML_OP_MUL && std::strstr(node->name,"norm"))) { return 4; }
++    if (node->op==GGML_OP_ROPE || node->op==GGML_OP_SOFT_MAX || node->op==GGML_OP_FLASH_ATTN_EXT || std::strncmp(node->name,"attn",4)==0 ||
++            (node->op==GGML_OP_MUL_MAT && (std::strncmp(node->name,"kq-",3)==0 || std::strncmp(node->name,"kqv-",4)==0))) { return 3; }
++    if (node->op==GGML_OP_ACT_QUANT) { return 5; }
++    return 6;
++}
+ static int bitnet_abc_ffn_node_layer(const ggml_tensor * node) {
+     for (const char * p : {"ffn_gate-", "ffn_up-", "ffn_down-", "ffn_relu-", "ffn_sqr(relu)-", "ffn_sub_out-", "ffn_sub_norm-"}) {
+         const int l=ggml_metal_bitnet_layer(node->name,p); if(l>=0) { return l; }
+@@ -185,6 +286,18 @@ struct ggml_metal_op {
+         this->numerics_capture = ggml_metal_bitnet_numerics_active();
+         this->q_readback = ggml_metal_bitnet_q_readback_active();
+         this->gf              = gf;
++        const char * q_diag = std::getenv("GGML_METAL_BITNET_Q_ATTRIBUTION");
++        q_attribution = bitnet_q_attr_ready && q_diag && std::strcmp(q_diag,"1")==0;
++        if (q_attribution) {
++            q_stats.task = bitnet_q_attr_next.fetch_add(1);
++            pthread_threadid_np(nullptr,&q_stats.thread);
++            q_stats.graph = (uintptr_t)gf; q_stats.command = (uintptr_t)cmd_buf;
++            q_stats.slice_start=idx_start; q_stats.slice_end=idx_end;
++            const char * st=std::getenv("GGML_METAL_BITNET_FFN_STEP"); q_stats.step=st?std::atoi(st):-1;
++            const char * guard=std::getenv("GGML_METAL_BITNET_Q_GUARD_ONLY");
++            const char * custom=std::getenv("GGML_METAL_BITNET_POC");
++            q_stats.mode=guard && std::strcmp(guard,"1")==0?'B':custom && std::strcmp(custom,"1")==0?'Q':'S';
++        }
+         const char * abc = std::getenv("GGML_METAL_BITNET_FFN_ABLATION");
+         if (abc) {
+             if (abc[1] || (abc[0]!='A' && abc[0]!='B' && abc[0]!='C')) { GGML_ABORT("invalid FFN ablation mode"); }
+@@ -224,6 +337,11 @@ struct ggml_metal_op {
+     }
+ 
+     ~ggml_metal_op() {
++        if (q_attribution) {
++            std::lock_guard<std::mutex> lock(bitnet_q_attr_mutex);
++            if (bitnet_q_attr_tasks.size()<bitnet_q_attr_capacity) { bitnet_q_attr_tasks.push_back(q_stats); }
++            else { ++bitnet_q_attr_drops; }
++        }
+         if (ablation_count) {
+             if(ablation_cpu) { ablation_stats.task_end_ns=bitnet_abc_now(); }
+             std::lock_guard<std::mutex> lock(bitnet_abc_stats_mutex);
+@@ -295,6 +413,9 @@ struct ggml_metal_op {
+     bool use_capture;
+     bool numerics_capture = false;
+     bool q_readback = false;
++    bool q_attribution = false;
++    bitnet_q_attr_task q_stats;
++    bitnet_q_attr_call * q_call = nullptr;
+ 
+     int debug_graph;
+ 
+@@ -833,6 +954,7 @@ static void ggml_metal_bitnet_q_readback_after(ggml_metal_op_t ctx, int idx, int
+ 
+ int ggml_metal_op_encode(ggml_metal_op_t ctx, int idx) {
+     const auto * abc_node = ctx->node(idx);
++    const uint64_t q_start=ctx->q_attribution?ggml_metal_q_attribution_now():0;
+     const int abc_layer = (ctx->ablation_count || ctx->ablation_trace) ? bitnet_abc_ffn_node_layer(abc_node) : -1;
+     if (ctx->ablation_count) { ++ctx->ablation_stats.encode_calls; if (abc_layer>=0) { ++ctx->ablation_stats.ffn_encode_calls; } }
+     if (ctx->ablation_trace) { ggml_metal_encoder_ffn_ablation_node(ctx->enc, abc_node, abc_layer, ctx->graph_idx(idx)); }
+@@ -858,6 +980,12 @@ int ggml_metal_op_encode(ggml_metal_op_t ctx, int idx) {
+ 
+     if (abc_start) { ctx->ablation_stats.ffn_encode_ns += bitnet_abc_now()-abc_start; ++ctx->ablation_stats.encode_timers; }
+     if (ctx->ablation_trace) { ggml_metal_encoder_ffn_ablation_node(ctx->enc, nullptr, -1, -1); }
++    if (ctx->q_attribution) {
++        const uint64_t elapsed=ggml_metal_q_attribution_now()-q_start;
++        const int family=bitnet_q_attr_family(abc_node);
++        ++ctx->q_stats.native_encode_calls; ctx->q_stats.native_encode_ns+=elapsed;
++        ++ctx->q_stats.family_calls[family]; ctx->q_stats.family_ns[family]+=elapsed;
++    }
+     return res;
+ }
+ 
+@@ -3421,14 +3549,20 @@ static bool ggml_metal_bitnet_actquant_q4_contract(const ggml_tensor * op,
+     if (input && input->op == GGML_OP_ACT_QUANT) {
+         std::memcpy(&eps, input->op_params, sizeof(eps));
+     }
+-    bool valid = enabled && permission && !guard_only && rows == 4 && groups == 1 &&
+-        ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_POC") && layers && std::strcmp(layers, "0") == 0 &&
++    const bool custom = ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_POC");
++    const bool guard_flag = ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_Q_GUARD_ONLY");
++    const char * custom_value=std::getenv("GGML_METAL_BITNET_POC");
++    const char * guard_value=std::getenv("GGML_METAL_BITNET_Q_GUARD_ONLY");
++    const bool selector_strings=(!custom_value || std::strcmp(custom_value,"0")==0 || std::strcmp(custom_value,"1")==0) &&
++        (!guard_value || std::strcmp(guard_value,"0")==0 || std::strcmp(guard_value,"1")==0);
++    bool valid = enabled && permission && selector_strings && (custom != guard_flag) && guard_only == guard_flag && rows == 4 && groups == 1 &&
++        layers && std::strcmp(layers, "0") == 0 &&
+         op->op == GGML_OP_MUL_MAT && std::strcmp(op->name, "Qcur-0") == 0 &&
+         ggml_metal_bitnet_weight_name(op->src[0], 0, "attn_q") && input && input->op == GGML_OP_ACT_QUANT &&
+         std::strcmp(input->name, "actq_qkv_out-0") == 0 && input->type == GGML_TYPE_F32 &&
+         input->src[0] && input->src[0]->type == GGML_TYPE_F32 && ggml_is_contiguous(input->src[0]) &&
+         ggml_are_same_shape(input, input->src[0]) && eps == 1e-5f;
+-    for (const char * name : { "GGML_METAL_BITNET_Q_GUARD_ONLY", "GGML_METAL_BITNET_FFN",
++    for (const char * name : { "GGML_METAL_BITNET_FFN",
+             "GGML_METAL_BITNET_FFN_MECHANISM", "GGML_METAL_BITNET_FFN_ABLATION" }) {
+         const char * value = std::getenv(name);
+         if (value && value[0] != '\0' && std::strcmp(value, "0") != 0) {
+@@ -3923,7 +4057,68 @@ static bool ggml_metal_try_bitnet_ffn_fused(ggml_metal_op_t ctx, int idx, bool t
+     return true;
+ }
+ 
++struct bitnet_q_attr_call_scope {
++    ggml_metal_op_t ctx;
++    bitnet_q_attr_call event;
++    bitnet_q_attr_call * previous;
++    bool active;
++    bitnet_q_attr_call_scope(ggml_metal_op_t ctx, const ggml_tensor * op) : ctx(ctx), previous(ctx->q_call) {
++        active=ctx->q_attribution && std::strcmp(op->name,"Qcur-0")==0;
++        if (ctx->q_attribution) { ++ctx->q_stats.matvec_calls; }
++        if (active) {
++            event.task=ctx->q_stats.task; event.step=ctx->q_stats.step;
++            event.start_ns=ggml_metal_q_attribution_now(); ctx->q_call=&event;
++        }
++    }
++    ~bitnet_q_attr_call_scope() {
++        if (active) {
++            event.end_ns=ggml_metal_q_attribution_now();
++            ctx->q_stats.native_target_encode_ns+=event.end_ns-event.start_ns;
++            ctx->q_call=previous;
++            std::lock_guard<std::mutex> lock(bitnet_q_attr_mutex);
++            if (bitnet_q_attr_calls.size()<bitnet_q_attr_capacity) { bitnet_q_attr_calls.push_back(event); }
++            else { ++bitnet_q_attr_drops; }
++        }
++    }
++};
++
++struct bitnet_q_attr_guard_scope {
++    ggml_metal_op_t ctx;
++    uint64_t start = 0;
++    bool getter_started = false, passed = false, finished = false;
++    bitnet_q_attr_guard_scope(ggml_metal_op_t ctx) : ctx(ctx) {
++        if (ctx->q_attribution) {
++            ++ctx->q_stats.guard_attempts; start=ggml_metal_q_attribution_now();
++            if (ctx->q_call) { ctx->q_call->guard_attempt=true; }
++        }
++    }
++    void before_getter() {
++        if (ctx->q_attribution) {
++            const uint64_t elapsed=ggml_metal_q_attribution_now()-start;
++            ctx->q_stats.guard_tensor_buffer_ns+=elapsed;
++            if (ctx->q_call) { ctx->q_call->tensor_buffer_ns=elapsed; }
++            getter_started=true;
++        }
++    }
++    void finish() {
++        if (ctx->q_attribution && !finished) {
++            const uint64_t elapsed=ggml_metal_q_attribution_now()-start;
++            ctx->q_stats.guard_ns+=elapsed;
++            if (!getter_started) {
++                ctx->q_stats.guard_tensor_buffer_ns+=elapsed;
++                if (ctx->q_call) { ctx->q_call->tensor_buffer_ns=elapsed; }
++            }
++            if (passed) { ++ctx->q_stats.guard_passes; }
++            else { ++ctx->q_stats.guard_rejects; }
++            if (ctx->q_call) { ctx->q_call->guard_pass=passed; }
++            finished=true;
++        }
++    }
++    ~bitnet_q_attr_guard_scope() { finish(); }
++};
++
+ static bool ggml_metal_try_bitnet_poc(ggml_metal_op_t ctx, const ggml_tensor * op, bool trace, bool guard_only = false) {
++    bitnet_q_attr_guard_scope attribution(ctx);
+     // This isolated experiment may only replace layer-0 Q, regardless of a broader layer selection.
+     if (ggml_metal_bitnet_layer(op->name, "Qcur-") != 0) {
+         return false;
+@@ -3975,13 +4170,23 @@ static bool ggml_metal_try_bitnet_poc(ggml_metal_op_t ctx, const ggml_tensor * o
+         return false;
+     }
+ 
++    attribution.before_getter();
++    const uint64_t getter_start=ctx->q_attribution?ggml_metal_q_attribution_now():0;
++    if (ctx->q_attribution && ctx->q_call) { ggml_metal_q_attribution_cache_metrics(&ctx->q_call->cache); }
+     const auto pipeline = ggml_metal_library_get_bitnet_poc_pipeline(ctx->lib, &contract);
++    if (ctx->q_attribution) {
++        ggml_metal_q_attribution_cache_metrics(nullptr);
++        const uint64_t elapsed=ggml_metal_q_attribution_now()-getter_start;
++        ctx->q_stats.getter_ns+=elapsed;
++        if (ctx->q_call) { ctx->q_call->getter_ns=elapsed; }
++    }
+     if (!pipeline.pipeline) {
+         if (trace) {
+             std::fprintf(stderr, "BITNET_Q_FALLBACK node=%s layer=%d reason=pipeline\n", op->name, ggml_metal_bitnet_layer(op->name, "Qcur-"));
+         }
+         return false;
+     }
++    const uint64_t capability_start=ctx->q_attribution?ggml_metal_q_attribution_now():0;
+     const int execution_width = ggml_metal_pipeline_thread_execution_width(pipeline);
+     const int max_threads = ggml_metal_pipeline_max_theads_per_threadgroup(pipeline);
+     if (!ggml_metal_bitnet_q_launch_valid(&contract, op->ne[0], op->src[0]->ne[0], execution_width, max_threads)) {
+@@ -3991,6 +4196,9 @@ static bool ggml_metal_try_bitnet_poc(ggml_metal_op_t ctx, const ggml_tensor * o
+         }
+         return false;
+     }
++    if (ctx->q_attribution && ctx->q_call) { ctx->q_call->capability_ns=ggml_metal_q_attribution_now()-capability_start; }
++    attribution.passed=true;
++    attribution.finish();
+ 
+     if (guard_only) {
+         if (trace) {
+@@ -4008,6 +4216,10 @@ static bool ggml_metal_try_bitnet_poc(ggml_metal_op_t ctx, const ggml_tensor * o
+     ggml_metal_encoder_set_buffer(ctx->enc, y, 2);
+     const int grid_x = contract.grid_x;
+     ggml_metal_encoder_dispatch_threadgroups(ctx->enc, grid_x, 1, 1, contract.threads_x, contract.groups, 1);
++    if (ctx->q_attribution) {
++        ++ctx->q_stats.custom_dispatches;
++        if (ctx->q_call) { ctx->q_call->custom=true; }
++    }
+     if (trace) {
+         std::fprintf(stderr, "BITNET_Q_GEOMETRY node=%s variant=%s contract=%d entry=%s rows_per_simd=%d simd_per_group=%d grid=%d threads=%d width=%d max_threads=%d checked=1\n",
+                 op->name, contract.variant, contract.version, contract.entry, rows_per_simdgroup, simdgroups_per_threadgroup,
+@@ -4033,6 +4245,7 @@ static void ggml_metal_op_mul_mat_mv_encode(
+         const ggml_tensor * norm,
+         const ggml_tensor * w,
+         bool stock_only = false) {
++    bitnet_q_attr_call_scope q_attribution(ctx,op);
+     ggml_metal_library_t lib = ctx->lib;
+     ggml_metal_encoder_t enc = ctx->enc;
+ 
+@@ -4048,6 +4261,8 @@ static void ggml_metal_op_mul_mat_mv_encode(
+     const bool add = dst != op;
+ 
+     const bool target = ggml_metal_bitnet_poc_target(op);
++    if (ctx->q_attribution && target) { ++ctx->q_stats.q_identity_calls; }
++    if (ctx->q_call) { ctx->q_call->identity=target; }
+     const bool trace = target && ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_POC_TRACE");
+     const bool guard_only = ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_Q_GUARD_ONLY");
+     const bool custom_q = ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_POC");
+@@ -4056,6 +4271,8 @@ static void ggml_metal_op_mul_mat_mv_encode(
+     if (!stock_only && !std::getenv("GGML_METAL_BITNET_FFN_MECHANISM") && target && ne11 == 1 && !add && !norm &&
+         ggml_metal_bitnet_selected_layer(ggml_metal_bitnet_layer(op->name, "Qcur-")) &&
+         ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_FFN_DECODE")) {
++        if (ctx->q_attribution) { ++ctx->q_stats.outer_eligible; }
++        if (ctx->q_call) { ctx->q_call->outer_eligible=true; }
+         if (guard_only) {
+             guarded_stock = ggml_metal_try_bitnet_poc(ctx, op, trace, true);
+         } else if (custom_q && ggml_metal_try_bitnet_poc(ctx, op, trace)) {
+@@ -4124,6 +4341,7 @@ static void ggml_metal_op_mul_mat_mv_encode(
+         const int grid_y = (ne11 + nr1 - 1)/nr1;
+         const int grid_z = ne12*ne13;
+         ggml_metal_encoder_dispatch_threadgroups(enc, grid_x, grid_y, grid_z, 32, nsg, 1);
++        if (ctx->q_attribution && ctx->q_call) { ++ctx->q_stats.stock_target_dispatches; ctx->q_call->stock=true; }
+         if (ctx->numerics_capture) {ggml_metal_bitnet_numerics_dispatch(ctx,op,dst,pipeline,grid_x,grid_y,grid_z,32,nsg,add,norm!=nullptr,1);}
+         if (trace) {
+             if (ggml_metal_bitnet_layer(op->name, "Qcur-") == 0 && ne11 == 1) {
+diff --git a/ggml/src/ggml-metal/ggml-metal.cpp b/ggml/src/ggml-metal/ggml-metal.cpp
+index 4cf6200..35d79a7 100644
+--- a/ggml/src/ggml-metal/ggml-metal.cpp
++++ b/ggml/src/ggml-metal/ggml-metal.cpp
+@@ -1082,6 +1082,12 @@ static uint64_t ggml_backend_metal_fwht_fusion_count(ggml_backend_t backend) {
+ }
+ 
+ static void * ggml_backend_metal_get_proc_address(ggml_backend_reg_t reg, const char * name) {
++    if (strcmp(name, "ggml_backend_metal_q_attribution_diag_reset") == 0) {
++        return (void *)ggml_backend_metal_q_attribution_diag_reset;
++    }
++    if (strcmp(name, "ggml_backend_metal_q_attribution_diag_write") == 0) {
++        return (void *)ggml_backend_metal_q_attribution_diag_write;
++    }
+     if (strcmp(name, "ggml_backend_get_features") == 0) {
+         return (void *)ggml_backend_metal_get_features;
+     }
+diff --git a/src/models/bitnet.cpp b/src/models/bitnet.cpp
+index 4af918b..abedfe8 100644
+--- a/src/models/bitnet.cpp
++++ b/src/models/bitnet.cpp
+@@ -6,6 +6,24 @@
+ #include <mutex>
+ #include <stdexcept>
+ 
++static bool bitnet_actquant_q_route_contract(bool permission) {
++    const char * custom = std::getenv("GGML_METAL_BITNET_POC");
++    const char * guard = std::getenv("GGML_METAL_BITNET_Q_GUARD_ONLY");
++    const char * variant = std::getenv("GGML_METAL_BITNET_POC_VARIANT");
++    const char * rows = std::getenv("GGML_METAL_BITNET_POC_ROWS_PER_SIMD");
++    const char * groups = std::getenv("GGML_METAL_BITNET_POC_SIMD_PER_GROUP");
++    const char * layers = std::getenv("GGML_METAL_BITNET_LAYERS");
++    const char * ablation = std::getenv("GGML_METAL_BITNET_FFN_ABLATION");
++    const bool custom_on = custom && std::strcmp(custom, "1") == 0;
++    const bool guard_on = guard && std::strcmp(guard, "1") == 0;
++    const bool selectors_valid = (!custom || std::strcmp(custom, "0") == 0 || custom_on) &&
++        (!guard || std::strcmp(guard, "0") == 0 || guard_on);
++    return permission && selectors_valid && custom_on != guard_on &&
++        (!variant || std::strcmp(variant, "stock4x1") == 0) && rows && std::strcmp(rows, "4") == 0 &&
++        groups && std::strcmp(groups, "1") == 0 && layers && std::strcmp(layers, "0") == 0 &&
++        (!ablation || ablation[0] == '\0' || std::strcmp(ablation, "0") == 0);
++}
++
+ void llama_model_bitnet::load_arch_hparams(llama_model_loader & ml) {
+     ml.get_key(LLM_KV_ATTENTION_LAYERNORM_RMS_EPS, hparams.f_norm_rms_eps);
+ 
+@@ -104,30 +122,24 @@ llama_model_bitnet::graph::graph(const llama_model & model, const llm_graph_para
+                 }
+             }
+         }
+-        for (const char * name : { "GGML_METAL_BITNET_Q_GUARD_ONLY",
+-                "GGML_METAL_BITNET_FFN", "GGML_METAL_BITNET_FFN_MECHANISM" }) {
++        for (const char * name : { "GGML_METAL_BITNET_FFN", "GGML_METAL_BITNET_FFN_MECHANISM" }) {
+             const char * value = std::getenv(name);
+             if (value && value[0] != '\0' && std::strcmp(value, "0") != 0) {
+                 throw std::runtime_error("experimental ActQuant cannot be combined with custom Q or FFN routes");
+             }
+         }
+         const char * custom_q = std::getenv("GGML_METAL_BITNET_POC");
+-        if (custom_q && custom_q[0] != '\0' && std::strcmp(custom_q, "0") != 0) {
+-            const char * variant = std::getenv("GGML_METAL_BITNET_POC_VARIANT");
+-            const char * rows = std::getenv("GGML_METAL_BITNET_POC_ROWS_PER_SIMD");
+-            const char * groups = std::getenv("GGML_METAL_BITNET_POC_SIMD_PER_GROUP");
+-            const char * layers = std::getenv("GGML_METAL_BITNET_LAYERS");
+-            const char * ablation = std::getenv("GGML_METAL_BITNET_FFN_ABLATION");
+-            if (!act_quant_q4 || std::strcmp(custom_q, "1") != 0 ||
+-                    (variant && std::strcmp(variant, "stock4x1") != 0) || !rows || std::strcmp(rows, "4") != 0 ||
+-                    !groups || std::strcmp(groups, "1") != 0 || !layers || std::strcmp(layers, "0") != 0 ||
+-                    (ablation && ablation[0] != '\0' && std::strcmp(ablation, "0") != 0)) {
+-                throw std::runtime_error("ActQuant custom Q requires explicit Q4 permission, rows=4, groups=1, layer=0 and no FFN ablation");
++        const char * guard_q = std::getenv("GGML_METAL_BITNET_Q_GUARD_ONLY");
++        const bool custom_requested = custom_q && custom_q[0] != '\0' && std::strcmp(custom_q, "0") != 0;
++        const bool guard_requested = guard_q && guard_q[0] != '\0' && std::strcmp(guard_q, "0") != 0;
++        if (custom_requested || guard_requested) {
++            if (!bitnet_actquant_q_route_contract(act_quant_q4)) {
++                throw std::runtime_error("ActQuant Q4/QB requires explicit Q4 permission, exactly one route, rows=4, groups=1, layer=0 and no FFN ablation");
+             }
+             static std::once_flag q4_log_once;
+             std::call_once(q4_log_once, []() {
+                 LLAMA_LOG_INFO("BitNet ActQuant Q4: allow only layer-0 single-token Qcur-0, stock-helper rows=4/groups=1; "
+-                        "runtime quantizer, layout and buffer guards remain required.\n");
++                        "matched guard-only stock is permitted; runtime quantizer, layout and buffer guards remain required.\n");
+             });
+         }
+         static std::once_flag log_once;

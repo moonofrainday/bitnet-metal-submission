@@ -6,6 +6,8 @@ The source baseline is `tetherto/qvac-fabric-llm.cpp@2db8b046d555316019ae75d1be9
 
 **Current safety revision (16 November):** the optional Q launch/cache contract has been fixed and requalified on Mac. The new signed iPhone build is **not yet device-qualified or performance-measured**. The proposal PDF/Word and earlier A16 timing describe the previous measured build. See [the contract fix and evening gate](bitnet/docs/Q_KERNEL_CONTRACT_FIX.md).
 
+**Evening attribution preparation:** [staged A16 plan](bitnet/docs/IPHONE_ATTRIBUTION_PLAN.md) and [Chinese checklist](bitnet/analysis/iphone-attribution-preparation-2026-11-16/PLAN_ZH.md) cover the new same-profile stock/guard/Q4 control. Mac correctness and collector integrity pass; the new signed phone build remains untested on A16. No new performance result is claimed.
+
 ## Start here
 
 | Location | What to inspect |

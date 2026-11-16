@@ -74,3 +74,7 @@ This is a quantizer repair, not a new INT8 matmul or a complete model-fidelity f
 ## Q launch/cache safety revision
 
 The optional Q4/C8 route now uses canonical versioned entries and exact launch descriptors; the external pipeline cache binds current file identity before lookup. The shared headers are `ggml-metal-bitnet-q-config.h` and `ggml-metal-bitnet-q-contract.h`. Shader arithmetic and stock defaults are preserved. Mac correctness is requalified, new phone runtime/performance pending; see [the safety note](Q_KERNEL_CONTRACT_FIX.md) for failures, patch, tests and scope.
+
+## A16 attribution preparation
+
+Default-off guard/getter/encode and natural-command-buffer diagnostics, same-context ActQuant-ON S/QB/Q4 replay and source-bound staged qualification are described in [the evening plan](IPHONE_ATTRIBUTION_PLAN.md). QB now requires the same exact Q4/producer contract and explicit permission while retaining actual stock dispatch. No shader arithmetic or frozen tolerance changes.

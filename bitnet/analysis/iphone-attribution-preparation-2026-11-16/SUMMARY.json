@@ -1,0 +1,105 @@
+{
+  "schema": 1,
+  "experiment": "iphone-attribution-2026-11-16_143121+0900",
+  "baseline_commit": "ad4e0238b987e52ea3bf12bbf9c79612255ad27f",
+  "QVAC_commit": "2db8b046d555316019ae75d1be90484adc8b9330",
+  "preparation_source_commit": "14a9f103c23b5a24bd0da1e0dbc5a0d5a37ade3a",
+  "model_sha256": "52257df879ab4366d97228e7bda94a9a3c6a9065ec44e7879a8b87d54e568cd2",
+  "shader_arithmetic_changed": false,
+  "tolerance_changed": false,
+  "daytime_Mac_scope": "Build, same-process numerical/route verification and collector integrity; no inference performance comparison reported",
+  "Mac_readiness": {
+    "Mac_correctness_readiness_pass": true,
+    "histories": {
+      "primary": {
+        "scoped_pass": true,
+        "checks": {
+          "QB_scoped_pass": true,
+          "Q4_scoped_pass": true,
+          "same_process_stock_PSO_pass": true,
+          "same_stock_ABI_launch_pass": true,
+          "same_stock_live_bindings_pass": true,
+          "callback_null_stock_bitwise_pass": true
+        }
+      },
+      "independent": {
+        "scoped_pass": true,
+        "checks": {
+          "QB_scoped_pass": true,
+          "Q4_scoped_pass": true,
+          "same_process_stock_PSO_pass": true,
+          "same_stock_ABI_launch_pass": true,
+          "same_stock_live_bindings_pass": true,
+          "callback_null_stock_bitwise_pass": true
+        }
+      }
+    },
+    "actual18casecache_pass": true,
+    "backend_TQ2_cases": 59,
+    "backend_ACT_QUANT_cases": 16,
+    "telemetry_integrity_pass": true,
+    "Mac_performance_campaign": false,
+    "A16_run": false,
+    "historical_official_reference_strict_exit_preserved": 1
+  },
+  "CPU_startup_predicate_cases": 21,
+  "CPU_backend_predicate_cases": 49,
+  "CPU_inventory_tests": 10,
+  "fresh_Mac_build": true,
+  "signed_iOS_build": true,
+  "iOS_framework_sha256": "fcba6cc634f5a1e1b87cdb5de809adc648c8358642e9fafbeec3eae74694b588",
+  "phone_runtime_pass": null,
+  "phone_performance_measured": false,
+  "operator_critical_path_shares": null,
+  "hardware_counters": "unavailable in retained evidence; not re-collected today",
+  "historical_official_reference_strict_exit_preserved": 1,
+  "local_evidence": {
+    "INPUT_IDENTITY.json": {
+      "sha256": "83e7898325dbd4ff95cb90fea643b38ef329223a19eebd861781c588867aac1e"
+    },
+    "FROZEN_COMPILED_SOURCE_CHECK.json": {
+      "sha256": "0ed28634c3441aaf9e4c94224f3354752b398efc14e83b4db9b383fcdc3606ff"
+    },
+    "mac-readiness/SUMMARY.json": {
+      "sha256": "c04b62785ceda614b80237d61d11a27605ffb61b85f0da059bb94c128dafa631"
+    },
+    "mac-readiness/TELEMETRY_INTEGRITY.json": {
+      "sha256": "798e9e987277b9fca07e5154905d076f7803a256be2f4a3c112784710e69c87f"
+    },
+    "mac-readiness/primary/analysis/SUMMARY.json": {
+      "sha256": "c81f97efe76b23a35b3207174bb272688d2bf80035016f293c9e40dde403c811"
+    },
+    "mac-readiness/independent/analysis/SUMMARY.json": {
+      "sha256": "291e01d45013ebff10867c29ab2765bf9280d5d7ea1f0b0f581c181b19b3e071"
+    },
+    "TOOLING_PREFLIGHT.json": {
+      "sha256": "6094133300988cd0e25d9a3f61ef50551d5f0aa9fe39593a56d31830dbd5a7d9"
+    },
+    "ios-signed-v2/BUILD.json": {
+      "sha256": "e0eb767adebca63c609aad2c488053b8a62057730ea64992a19ff6f8ed0ec0b8"
+    },
+    "mac-telemetry-independent-analysis/SUMMARY.json": {
+      "sha256": "c31cb28b282a8ae8fa9e0ce7d9d81d9e50f530dea01f413186b422401a3c7834"
+    },
+    "ATTRIBUTION_CPU_TESTS_BOUND_GATE.log": {
+      "sha256": "6913e3e16e7d3cf30f1f0e487d01d26347f5c3b2c5120923f79f3bb18cd23168"
+    },
+    "ROOT_FINAL_ATTRIBUTION_CPU_TESTS.log": {
+      "sha256": "5588b256ee4b948aa406c335ef3d6d9593702e739835e5d99e2b8255b3339813"
+    },
+    "evening-plan-full/PLAN.json": {
+      "sha256": "be5c465cee7d97f0114feeec2e348d1f198ac41ae2969b48c2a2325eb191c179"
+    }
+  },
+  "raw_data_uploaded": false,
+  "compiled_binary_embedded_parent_commit": "ad4e0238b987e52ea3bf12bbf9c79612255ad27f",
+  "compiled_source_matches_committed_code": true,
+  "CPU_attribution_evidence_controls": 14,
+  "evening_plan_stage_count": 19,
+  "evening_plan_has_device_calls": false,
+  "patch": {
+    "path": "bitnet/patches/a16-q-attribution-preparation.patch",
+    "base": "ad4e0238b987e52ea3bf12bbf9c79612255ad27f",
+    "sha256": "112905a114df45905fd4196fb15094e643df56ac984d8ea2eccd76e2ba82f8ad"
+  }
+}
