@@ -20,7 +20,10 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path.insert(0, str(ROOT / "bitnet/ios"))
 from common import PUBLIC_MODEL_SHA256, Commands, developer_environment, require, sha256, write_json
-from q4_contract import q4_library_identity
+if __package__:
+    from .q4_contract import q4_library_identity
+else:
+    from q4_contract import q4_library_identity
 
 OFFICIAL_ACTQUANT_SHA256 = "a8b3170f1824f010701f4e033fbc33d199bc2ea344ddbf2554594b66fada8b1c"
 
