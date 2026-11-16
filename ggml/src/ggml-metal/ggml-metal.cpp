@@ -1082,6 +1082,12 @@ static uint64_t ggml_backend_metal_fwht_fusion_count(ggml_backend_t backend) {
 }
 
 static void * ggml_backend_metal_get_proc_address(ggml_backend_reg_t reg, const char * name) {
+    if (strcmp(name, "ggml_backend_metal_q_attribution_diag_reset") == 0) {
+        return (void *)ggml_backend_metal_q_attribution_diag_reset;
+    }
+    if (strcmp(name, "ggml_backend_metal_q_attribution_diag_write") == 0) {
+        return (void *)ggml_backend_metal_q_attribution_diag_write;
+    }
     if (strcmp(name, "ggml_backend_get_features") == 0) {
         return (void *)ggml_backend_metal_get_features;
     }

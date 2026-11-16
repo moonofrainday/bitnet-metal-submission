@@ -33,7 +33,9 @@ def sha(path):
 
 def native_identity():
     result = source_identity()
-    result['bitnet/actquant/runner.cpp'] = sha(ROOT / 'bitnet/actquant/runner.cpp')
+    for path in (ROOT / 'bitnet/actquant').glob('*'):
+        if path.is_file() and path.suffix in {'.cpp', '.h'}:
+            result[str(path.relative_to(ROOT))] = sha(path)
     return result
 
 

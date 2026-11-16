@@ -7,6 +7,7 @@ Use analyze_op.py or compare_model.py on the fetched local artifacts separately.
 Raw tensors, tokens, signed binaries and device logs must remain local.
 """
 import argparse
+import csv
 import datetime
 import json
 import math
@@ -131,6 +132,30 @@ def operator_gate(run_directory, analysis_path, build):
             "fixture_manifest_sha256": sha256(fixture_path), "required_cases": len(expected), "operator_cases_gate_pass": True}
 
 
+def attribution_gate(path, build, tokens_sha256):
+    require(path is not None, "Attribution measurement requires a fresh same-build Q4/QB correctness gate")
+    gate = json.loads(path.read_text())
+    require(gate.get("schema") == 1 and gate.get("scoped_correctness_pass") is True and
+            gate.get("official_source_model_output_pass") is None and gate.get("historical_official_strict_exit_preserved") == 1,
+            "Incomplete scoped attribution gate")
+    require(gate["framework_sha256"] == build["framework_sha256"] and gate["app_files_sha256"] == build["app_files_sha256"] and
+            gate["model_sha256"] == PUBLIC_MODEL_SHA256 and
+            gate["q_library_sha256"] == build["shader_products_sha256"]["q-stock4x1.metallib"], "Attribution gate build/model/library mismatch")
+    require(len(gate["histories"]) == 2 and all(v["same_process_scoped_pass"] is True for v in gate["histories"].values()) and
+            tokens_sha256 in {v["tokens_sha256"] for v in gate["histories"].values()}, "Attribution history gate incomplete")
+    require(gate["evidence_sha256"], "Attribution gate evidence is missing")
+    for name, digest in gate["evidence_sha256"].items():
+        require(sha256(name) == digest, "Attribution correctness evidence changed")
+    return {"correctness_gate_sha256": sha256(path), "scoped_correctness_gate_pass": True}
+
+
+def attribution_protocol(kind, direct=False):
+    require(kind in ("verify", "formal", "diagnostic", "overhead"), "Invalid attribution kind")
+    return {"warmups": 2, "rounds": 1 if kind in ("verify", "diagnostic") else 3,
+            "pairs": 1 if kind in ("verify", "diagnostic") else 7 if kind == "overhead" else 21,
+            "comparisons": ["AA", "SQB", "SQ4"] + (["QBQ4"] if direct else [])}
+
+
 def command_plan(args, build, config, remote_fixture, remote_tokens):
     bundle = build.get("bundle_id", "<bundle-id-from-signed-BUILD.json>")
     app = build.get("app", "<signed-app-from-BUILD.json>")
@@ -145,7 +170,7 @@ def command_plan(args, build, config, remote_fixture, remote_tokens):
         plan.append([*copy, "--source", str(args.fixture), "--destination", "Documents/" + remote_fixture])
     else:
         plan.append([*copy, "--source", str(args.tokens), "--destination", "Documents/" + remote_tokens])
-    if args.operation == "model" and args.q_library is not None:
+    if args.operation in ("model", "attribution") and args.q_library is not None:
         plan.append([*copy, "--source", str(args.q_library), "--destination", "Documents/" + config["q_library"]])
     plan.append([*common, "--timeout", str(args.timeout), "device", "process", "launch", "--console", "--terminate-existing",
                  "--device", args.device, "--environment-variables", json.dumps({"BITNET_CANDIDATE_CONFIG": json.dumps(config, separators=(",", ":"))}), bundle])
@@ -171,8 +196,9 @@ def validate_collection(args, config, log, device_dir, fixture):
             result["native_process_exit_code"] == result["process_exit_code"] == 0 and result["execution_pass"] is True,
             "Native collection did not complete")
     require(result["model_sha256"] == PUBLIC_MODEL_SHA256 and result["native_run_sha256"] == sha256(runtime_path), "Runtime identity mismatch")
+    expected_measurement = args.operation == "attribution" and args.attribution_kind != "verify"
     require(native["operation"] == args.operation and native["backend"] == "MTL0" and native["device"] == "Apple A16 GPU" and
-            native["execution_pass"] is True and native["performance_measurement"] is False, "Expected actual A16 diagnostic execution")
+            native["execution_pass"] is True and native["performance_measurement"] is expected_measurement, "Expected actual A16 execution/scope")
     require(native["strict_model_exit_code"] == 2, "Native collection must preserve unverified model acceptance")
     if args.operation == "operator":
         require(result["fixture_sha256"] == native["fixture_sha256"] == config["fixture_sha256"], "Fixture runtime identity mismatch")
@@ -187,6 +213,42 @@ def validate_collection(args, config, log, device_dir, fixture):
             finite_file(path, original["width"] * original["rows"])
         complete = re.findall(r"ACTQUANT_OPERATOR_COMPLETE case=(\S+) backend=MTL0 values=(\d+) synchronized=1 value_failures=(\d+)", log)
         require(len(complete) == len(expected) and {v[0] for v in complete} == set(expected), "Missing synchronized operator completion markers")
+    elif args.operation == "attribution":
+        require(native["attribution_kind"] == args.attribution_kind and native["activation_quantization"] is True and
+                native["one_model_and_context"] is True and native["offloaded_layers"] == native["total_offload_layers"] == 31,
+                "Attribution context/offload mismatch")
+        require(native["tokens_sha256"] == config["tokens_sha256"] and native["model_sha256"] == PUBLIC_MODEL_SHA256,
+                "Attribution history/model mismatch")
+        for key in ("q_library_sha256", "q_entry", "q_kernel_contract_version", "q_kernel_config_sha256", "q_grid", "q_threads"):
+            require(native[key] == config[key], "Attribution library/entry mismatch: " + key)
+        require("ACTQUANT_ATTRIBUTION_COMPLETE kind=" + args.attribution_kind in log, "Attribution completion marker missing")
+        if args.attribution_kind == "verify":
+            require(len(native["paths"]) == 6 and native["capture_enabled"] is True and native["trace_enabled"] is True,
+                    "Same-process verification paths missing")
+            for item in native["paths"]:
+                subroot = device_dir / "native" / item["subrun"]
+                subfile = safe_relative(device_dir / "native", item["subrun"] + "/RUN.json")
+                sub = json.loads(subfile.read_text())
+                require(sub["context_id"] == native["context_id"] and sub["execution_pass"] is True and
+                        sub["completed_decode_calls"] == 33 and len(sub["logits"]) == 33, "Incomplete same-context verification subrun")
+                for vector in sub["logits"]:
+                    finite_file(safe_relative(subroot, vector["path"]), 128256)
+        else:
+            protocol = attribution_protocol(args.attribution_kind, args.direct_qb_q4)
+            count = protocol["rounds"] * protocol["pairs"] * 3
+            if args.attribution_kind != "overhead" and args.direct_qb_q4:
+                count = protocol["rounds"] * protocol["pairs"] * 4
+            require(native["sample_pairs"] == count and native["token_rows"] == count * 64 and len(native["paths"]) == count * 2 and
+                    native["capture_enabled"] is False and native["trace_enabled"] is False and
+                    native["correctness_gate_sha256"] == config["correctness_gate_sha256"], "Attribution protocol/gate mismatch")
+            for filename, expected_rows in (("samples.csv", count), ("token-times.csv", count * 64)):
+                path = safe_relative(device_dir / "native", filename)
+                with path.open(newline="") as file:
+                    require(sum(1 for _ in csv.DictReader(file)) == expected_rows, "Attribution raw CSV coverage mismatch")
+            for item in native["paths"]:
+                if item["diagnostic_file"] is not None:
+                    record = json.loads(safe_relative(device_dir / "native", item["diagnostic_file"]).read_text())
+                    require(record["complete"] is True and record["dropped_records"] == 0, "Incomplete backend attribution records")
     else:
         tokens = token_identity(args.tokens)
         ids = tokens["corpus"] if args.workload == "corpus" else tokens["prompt"] + tokens["continuation"]
@@ -223,7 +285,7 @@ def main(argv=None):
     action = p.add_mutually_exclusive_group()
     action.add_argument("--run", action="store_true", help="Explicitly install, transfer, launch and fetch on a physical device")
     action.add_argument("--plan", action="store_true", help="Default: local checks and planned commands only; no device or Xcode commands")
-    p.add_argument("--operation", choices=("operator", "model"), default="operator")
+    p.add_argument("--operation", choices=("operator", "model", "attribution"), default="operator")
     p.add_argument("--build-dir", type=Path, required=True)
     p.add_argument("--device", required=True)
     p.add_argument("--model", type=Path, required=True)
@@ -234,7 +296,10 @@ def main(argv=None):
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--actquant", choices=("on", "off"), default="on")
     p.add_argument("--workload", choices=("teacher", "corpus"), default="teacher")
-    p.add_argument("--q-route", choices=("stock", "Q4"), default="stock")
+    p.add_argument("--q-route", choices=("stock", "Q4", "QB"), default="stock")
+    p.add_argument("--attribution-kind", choices=("verify", "formal", "diagnostic", "overhead"), default="formal")
+    p.add_argument("--attribution-gate", type=Path, help="Same-build two-history15-stage/QB/one-process correctness gate")
+    p.add_argument("--direct-qb-q4", action="store_true", help="Append the mixed encoding/shader/scheduling QB-Q4 contrast")
     p.add_argument("--q-fallback", choices=("none", "missing-library"), default="none")
     p.add_argument("--capture-scope", choices=("all", "q4-layer0"), default="all")
     p.add_argument("--q-library", type=Path, help="Optional stock4x1 library; defaults to the signed build shader product for Q4-scoped runs")
@@ -263,6 +328,11 @@ def main(argv=None):
                   "model": args.model.name, "model_sha256": PUBLIC_MODEL_SHA256, "actquant": args.actquant,
                   "capture": args.capture, "trace": args.trace, "workload": args.workload, "prefill": "batched", "kv": "F16",
                   "q_route": args.q_route, "q_fallback": args.q_fallback, "capture_scope": args.capture_scope}
+        if args.operation == "attribution":
+            require(args.actquant and args.workload == "teacher" and args.q_route == "stock" and args.q_fallback == "none" and
+                    args.capture is (args.attribution_kind == "verify") and args.trace is (args.attribution_kind == "verify"),
+                    "Attribution requires ActQuant ON/teacher, internal route switching and verify-only capture/trace")
+            config.update(attribution_kind=args.attribution_kind, **attribution_protocol(args.attribution_kind, args.direct_qb_q4))
         require(args.q_route == "stock" or (args.operation == "model" and args.actquant and args.workload == "teacher"), "Q4 requires an ActQuant-ON teacher model run")
         require(args.q_fallback == "none" or args.q_route == "Q4", "Q fallback requires Q4")
         fixture = None
@@ -283,7 +353,7 @@ def main(argv=None):
         blockers, build = [], {}
         try:
             build, identity = build_identity(args.build_dir)
-            if args.operation == "model" and (args.q_route == "Q4" or args.capture_scope == "q4-layer0" or args.q_library is not None):
+            if args.operation == "attribution" or (args.operation == "model" and (args.q_route in ("Q4", "QB") or args.capture_scope == "q4-layer0" or args.q_library is not None)):
                 shader_dir = Path(build["shaders"])
                 args.q_library = (args.q_library or shader_dir / "q-stock4x1.metallib").expanduser().resolve()
                 shader_manifest = (args.q_library_manifest or shader_dir / "BUILD.json").expanduser().resolve()
@@ -297,8 +367,11 @@ def main(argv=None):
                 write_json(args.output / "Q4_LIBRARY_IDENTITY.json", q_identity)
                 write_json(args.output / "config.json", config)
             write_json(args.output / "BUILD_IDENTITY.json", identity)
-            if args.operation == "model":
+            if args.operation in ("model", "attribution"):
                 write_json(args.output / "OPERATOR_GATE.json", operator_gate(args.operator_run, args.operator_analysis, build))
+            if args.operation == "attribution" and args.attribution_kind != "verify":
+                gate = attribution_gate(args.attribution_gate, build, config["tokens_sha256"])
+                config.update(gate); write_json(args.output / "ATTRIBUTION_GATE.json", gate); write_json(args.output / "config.json", config)
         except (RuntimeError, OSError, ValueError, KeyError) as error:
             blockers.append(str(error))
         plan = command_plan(args, build, config, remote_fixture, remote_tokens)
@@ -324,6 +397,9 @@ def main(argv=None):
                        native_process_exit_code=result["native_process_exit_code"], native_device=native["device"],
                        native_run_sha256=sha256(args.output / "device/native/RUN.json"),
                        next_step="Run independent analyzer; native0 alone is not numerical/model-semantic acceptance")
+        if args.operation == "attribution":
+            summary.update(attribution_kind=args.attribution_kind, performance_measurement=args.attribution_kind != "verify",
+                           formal_wall_campaign=args.attribution_kind == "formal")
         write_json(args.output / "summary.json", summary)
         print(json.dumps(summary, indent=2))
         return 0

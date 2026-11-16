@@ -6,6 +6,24 @@
 #include <mutex>
 #include <stdexcept>
 
+static bool bitnet_actquant_q_route_contract(bool permission) {
+    const char * custom = std::getenv("GGML_METAL_BITNET_POC");
+    const char * guard = std::getenv("GGML_METAL_BITNET_Q_GUARD_ONLY");
+    const char * variant = std::getenv("GGML_METAL_BITNET_POC_VARIANT");
+    const char * rows = std::getenv("GGML_METAL_BITNET_POC_ROWS_PER_SIMD");
+    const char * groups = std::getenv("GGML_METAL_BITNET_POC_SIMD_PER_GROUP");
+    const char * layers = std::getenv("GGML_METAL_BITNET_LAYERS");
+    const char * ablation = std::getenv("GGML_METAL_BITNET_FFN_ABLATION");
+    const bool custom_on = custom && std::strcmp(custom, "1") == 0;
+    const bool guard_on = guard && std::strcmp(guard, "1") == 0;
+    const bool selectors_valid = (!custom || std::strcmp(custom, "0") == 0 || custom_on) &&
+        (!guard || std::strcmp(guard, "0") == 0 || guard_on);
+    return permission && selectors_valid && custom_on != guard_on &&
+        (!variant || std::strcmp(variant, "stock4x1") == 0) && rows && std::strcmp(rows, "4") == 0 &&
+        groups && std::strcmp(groups, "1") == 0 && layers && std::strcmp(layers, "0") == 0 &&
+        (!ablation || ablation[0] == '\0' || std::strcmp(ablation, "0") == 0);
+}
+
 void llama_model_bitnet::load_arch_hparams(llama_model_loader & ml) {
     ml.get_key(LLM_KV_ATTENTION_LAYERNORM_RMS_EPS, hparams.f_norm_rms_eps);
 
@@ -104,30 +122,24 @@ llama_model_bitnet::graph::graph(const llama_model & model, const llm_graph_para
                 }
             }
         }
-        for (const char * name : { "GGML_METAL_BITNET_Q_GUARD_ONLY",
-                "GGML_METAL_BITNET_FFN", "GGML_METAL_BITNET_FFN_MECHANISM" }) {
+        for (const char * name : { "GGML_METAL_BITNET_FFN", "GGML_METAL_BITNET_FFN_MECHANISM" }) {
             const char * value = std::getenv(name);
             if (value && value[0] != '\0' && std::strcmp(value, "0") != 0) {
                 throw std::runtime_error("experimental ActQuant cannot be combined with custom Q or FFN routes");
             }
         }
         const char * custom_q = std::getenv("GGML_METAL_BITNET_POC");
-        if (custom_q && custom_q[0] != '\0' && std::strcmp(custom_q, "0") != 0) {
-            const char * variant = std::getenv("GGML_METAL_BITNET_POC_VARIANT");
-            const char * rows = std::getenv("GGML_METAL_BITNET_POC_ROWS_PER_SIMD");
-            const char * groups = std::getenv("GGML_METAL_BITNET_POC_SIMD_PER_GROUP");
-            const char * layers = std::getenv("GGML_METAL_BITNET_LAYERS");
-            const char * ablation = std::getenv("GGML_METAL_BITNET_FFN_ABLATION");
-            if (!act_quant_q4 || std::strcmp(custom_q, "1") != 0 ||
-                    (variant && std::strcmp(variant, "stock4x1") != 0) || !rows || std::strcmp(rows, "4") != 0 ||
-                    !groups || std::strcmp(groups, "1") != 0 || !layers || std::strcmp(layers, "0") != 0 ||
-                    (ablation && ablation[0] != '\0' && std::strcmp(ablation, "0") != 0)) {
-                throw std::runtime_error("ActQuant custom Q requires explicit Q4 permission, rows=4, groups=1, layer=0 and no FFN ablation");
+        const char * guard_q = std::getenv("GGML_METAL_BITNET_Q_GUARD_ONLY");
+        const bool custom_requested = custom_q && custom_q[0] != '\0' && std::strcmp(custom_q, "0") != 0;
+        const bool guard_requested = guard_q && guard_q[0] != '\0' && std::strcmp(guard_q, "0") != 0;
+        if (custom_requested || guard_requested) {
+            if (!bitnet_actquant_q_route_contract(act_quant_q4)) {
+                throw std::runtime_error("ActQuant Q4/QB requires explicit Q4 permission, exactly one route, rows=4, groups=1, layer=0 and no FFN ablation");
             }
             static std::once_flag q4_log_once;
             std::call_once(q4_log_once, []() {
                 LLAMA_LOG_INFO("BitNet ActQuant Q4: allow only layer-0 single-token Qcur-0, stock-helper rows=4/groups=1; "
-                        "runtime quantizer, layout and buffer guards remain required.\n");
+                        "matched guard-only stock is permitted; runtime quantizer, layout and buffer guards remain required.\n");
             });
         }
         static std::once_flag log_once;

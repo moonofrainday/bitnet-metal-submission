@@ -8,6 +8,7 @@
 #include "ggml-metal-common.h"
 #include "ggml-metal-device.h"
 #include "ggml-metal-bitnet-q-contract.h"
+#include "ggml-metal-bitnet-q-attribution.h"
 #include "ggml-metal-fusion.h"
 #include "ggml-metal-tuning.h"
 
@@ -125,6 +126,106 @@ extern "C" __attribute__((visibility("default"))) int ggml_backend_metal_ffn_abl
     std::fputs("]}\n", f); const bool bad = std::ferror(f); std::fclose(f); return bad ? 1 : 0;
 }
 static bool bitnet_abc_flag(const char * name) { const char * v=std::getenv(name); return v && std::strcmp(v,"0")!=0; }
+
+static constexpr size_t bitnet_q_attr_capacity = 8192;
+struct bitnet_q_attr_task {
+    uint64_t task = 0, thread = 0, graph = 0, command = 0;
+    int step = -1, slice_start = 0, slice_end = 0;
+    char mode = 'S';
+    uint64_t native_encode_calls = 0, native_encode_ns = 0, matvec_calls = 0, q_identity_calls = 0;
+    uint64_t outer_eligible = 0, guard_attempts = 0, guard_passes = 0, guard_rejects = 0;
+    uint64_t custom_dispatches = 0, stock_target_dispatches = 0;
+    uint64_t guard_ns = 0, guard_tensor_buffer_ns = 0, getter_ns = 0, native_target_encode_ns = 0;
+    uint64_t family_calls[7] = {}, family_ns[7] = {};
+};
+struct bitnet_q_attr_call {
+    uint64_t task = 0, start_ns = 0, end_ns = 0;
+    int step = -1;
+    bool identity = false, outer_eligible = false, guard_attempt = false, guard_pass = false, custom = false, stock = false;
+    uint64_t tensor_buffer_ns = 0, getter_ns = 0, capability_ns = 0;
+    ggml_metal_q_cache_metrics cache = {};
+};
+static std::mutex bitnet_q_attr_mutex;
+static std::vector<bitnet_q_attr_task> bitnet_q_attr_tasks;
+static std::vector<bitnet_q_attr_call> bitnet_q_attr_calls;
+static std::atomic<uint64_t> bitnet_q_attr_next{0};
+static uint64_t bitnet_q_attr_drops = 0;
+static bool bitnet_q_attr_ready = false;
+
+extern "C" __attribute__((visibility("default"))) void ggml_backend_metal_q_attribution_diag_reset(void) {
+    const int device_result=ggml_metal_q_attribution_device_reset();
+    std::lock_guard<std::mutex> lock(bitnet_q_attr_mutex);
+    bitnet_q_attr_tasks.clear(); bitnet_q_attr_tasks.reserve(bitnet_q_attr_capacity);
+    bitnet_q_attr_calls.clear(); bitnet_q_attr_calls.reserve(bitnet_q_attr_capacity);
+    bitnet_q_attr_drops = 0; bitnet_q_attr_next.store(0); bitnet_q_attr_ready = device_result==0;
+}
+
+extern "C" __attribute__((visibility("default"))) int ggml_backend_metal_q_attribution_diag_write(const char * path) {
+    if (!path) { return 1; }
+    std::vector<uint64_t> costs; costs.reserve(10000);
+    for (int i = 0; i < 10000; ++i) {
+        const auto a = ggml_metal_q_attribution_now(); const auto b = ggml_metal_q_attribution_now(); costs.push_back(b-a);
+    }
+    std::sort(costs.begin(), costs.end());
+    const auto positive = std::upper_bound(costs.begin(), costs.end(), uint64_t(0));
+    struct timespec resolution = {};
+    const int clock_status = clock_getres(CLOCK_UPTIME_RAW, &resolution);
+    FILE * f = std::fopen(path, "w"); if (!f) { return 1; }
+    std::lock_guard<std::mutex> lock(bitnet_q_attr_mutex);
+    std::fprintf(f, "{\"schema\":1,\"units\":\"nanoseconds\",\"clock\":\"CLOCK_UPTIME_RAW\",\"capacity_per_record_kind\":%zu,\"dropped_records\":%llu,\"calibration\":{\"pairs\":10000,\"min_ns\":%llu,\"p50_ns\":%llu,\"p95_ns\":%llu,\"min_positive_ns\":%llu,\"resolution_ns\":%llu,\"clock_getres_status\":%d},\"interval_note\":\"Raw diagnostic host worker intervals; nested and concurrent intervals are nonadditive. GPU timestamps use their separate Metal clock domain. No per-dispatch synchronization or command-buffer splits added.\",\"tasks\":[",
+        bitnet_q_attr_capacity, (unsigned long long)bitnet_q_attr_drops,
+        (unsigned long long)costs.front(), (unsigned long long)costs[5000], (unsigned long long)costs[9500],
+        (unsigned long long)(positive==costs.end()?0:*positive),
+        (unsigned long long)(uint64_t(resolution.tv_sec)*1000000000ULL+resolution.tv_nsec), clock_status);
+    bool first = true;
+    for (const auto & r : bitnet_q_attr_tasks) {
+        std::fprintf(f, "%s{\"mode\":\"%s\",\"step\":%d,\"slice_start\":%d,\"slice_end\":%d", first?"":",",
+            r.mode=='B'?"QB":r.mode=='Q'?"Q4":"S", r.step,r.slice_start,r.slice_end); first=false;
+#define Q_ATTR_FIELD(x) std::fprintf(f, ",\"" #x "\":%llu", (unsigned long long)r.x)
+        Q_ATTR_FIELD(task); Q_ATTR_FIELD(thread); Q_ATTR_FIELD(graph); Q_ATTR_FIELD(command);
+        Q_ATTR_FIELD(native_encode_calls); Q_ATTR_FIELD(native_encode_ns); Q_ATTR_FIELD(matvec_calls); Q_ATTR_FIELD(q_identity_calls);
+        Q_ATTR_FIELD(outer_eligible); Q_ATTR_FIELD(guard_attempts); Q_ATTR_FIELD(guard_passes); Q_ATTR_FIELD(guard_rejects);
+        Q_ATTR_FIELD(custom_dispatches); Q_ATTR_FIELD(stock_target_dispatches);
+        Q_ATTR_FIELD(guard_ns); Q_ATTR_FIELD(guard_tensor_buffer_ns); Q_ATTR_FIELD(getter_ns); Q_ATTR_FIELD(native_target_encode_ns);
+#undef Q_ATTR_FIELD
+        std::fputs(",\"operator_family_cpu\":[",f);
+        const char * families[] = {"output_head","attention_projection","ffn_projection","attention","normalization","actquant","other"};
+        for (int i=0;i<7;++i) {
+            std::fprintf(f,"%s{\"family\":\"%s\",\"encode_calls\":%llu,\"encode_ns\":%llu}",i?",":"",families[i],
+                (unsigned long long)r.family_calls[i],(unsigned long long)r.family_ns[i]);
+        }
+        std::fputs("]}",f);
+    }
+    std::fputs("],\"q_calls\":[",f); first=true;
+    for (const auto & r : bitnet_q_attr_calls) {
+        std::fprintf(f,"%s{\"task\":%llu,\"step\":%d,\"start_ns\":%llu,\"end_ns\":%llu,\"identity\":%s,\"outer_eligible\":%s,\"guard_attempt\":%s,\"guard_pass\":%s,\"custom\":%s,\"stock\":%s,\"tensor_buffer_ns\":%llu,\"getter_ns\":%llu,\"capability_ns\":%llu,\"cache\":{",
+            first?"":",",(unsigned long long)r.task,r.step,(unsigned long long)r.start_ns,(unsigned long long)r.end_ns,
+            r.identity?"true":"false",r.outer_eligible?"true":"false",r.guard_attempt?"true":"false",r.guard_pass?"true":"false",r.custom?"true":"false",r.stock?"true":"false",
+            (unsigned long long)r.tensor_buffer_ns,(unsigned long long)r.getter_ns,(unsigned long long)r.capability_ns); first=false;
+        std::fprintf(f,"\"lock_wait_ns\":%llu,\"snapshot_key_ns\":%llu,\"lookup_ns\":%llu,\"load_ns\":%llu,\"capability_ns\":%llu,\"hits\":%llu,\"misses\":%llu,\"invalid_paths\":%llu,\"stable_load_failures\":%llu}}",
+            (unsigned long long)r.cache.lock_wait_ns,(unsigned long long)r.cache.snapshot_key_ns,
+            (unsigned long long)r.cache.lookup_ns,(unsigned long long)r.cache.load_ns,(unsigned long long)r.cache.capability_ns,
+            (unsigned long long)r.cache.cache_hits,(unsigned long long)r.cache.cache_misses,
+            (unsigned long long)r.cache.invalid_paths,(unsigned long long)r.cache.stable_load_failures);
+    }
+    std::fputs("],",f);
+    const int device_result = ggml_metal_q_attribution_device_write(f);
+    const bool complete = bitnet_q_attr_ready && !bitnet_q_attr_tasks.empty() && bitnet_q_attr_drops==0 && device_result==0 && clock_status==0 && positive!=costs.end();
+    std::fprintf(f,",\"complete\":%s}\n",complete?"true":"false");
+    const bool failed = std::ferror(f); std::fclose(f); return failed || !complete ? 1 : 0;
+}
+
+static int bitnet_q_attr_family(const ggml_tensor * node) {
+    if (node->op==GGML_OP_MUL_MAT && std::strcmp(node->name,"result_output")==0) { return 0; }
+    if (node->op==GGML_OP_MUL_MAT && (std::strncmp(node->name,"Qcur-",5)==0 || std::strncmp(node->name,"Kcur-",5)==0 || std::strncmp(node->name,"Vcur-",5)==0 || std::strncmp(node->name,"attn_out-",9)==0)) { return 1; }
+    if (node->op==GGML_OP_MUL_MAT && std::strncmp(node->name,"ffn_",4)==0) { return 2; }
+    if (node->op==GGML_OP_RMS_NORM || node->op==GGML_OP_NORM ||
+            (node->op==GGML_OP_MUL && std::strstr(node->name,"norm"))) { return 4; }
+    if (node->op==GGML_OP_ROPE || node->op==GGML_OP_SOFT_MAX || node->op==GGML_OP_FLASH_ATTN_EXT || std::strncmp(node->name,"attn",4)==0 ||
+            (node->op==GGML_OP_MUL_MAT && (std::strncmp(node->name,"kq-",3)==0 || std::strncmp(node->name,"kqv-",4)==0))) { return 3; }
+    if (node->op==GGML_OP_ACT_QUANT) { return 5; }
+    return 6;
+}
 static int bitnet_abc_ffn_node_layer(const ggml_tensor * node) {
     for (const char * p : {"ffn_gate-", "ffn_up-", "ffn_down-", "ffn_relu-", "ffn_sqr(relu)-", "ffn_sub_out-", "ffn_sub_norm-"}) {
         const int l=ggml_metal_bitnet_layer(node->name,p); if(l>=0) { return l; }
@@ -185,6 +286,18 @@ struct ggml_metal_op {
         this->numerics_capture = ggml_metal_bitnet_numerics_active();
         this->q_readback = ggml_metal_bitnet_q_readback_active();
         this->gf              = gf;
+        const char * q_diag = std::getenv("GGML_METAL_BITNET_Q_ATTRIBUTION");
+        q_attribution = bitnet_q_attr_ready && q_diag && std::strcmp(q_diag,"1")==0;
+        if (q_attribution) {
+            q_stats.task = bitnet_q_attr_next.fetch_add(1);
+            pthread_threadid_np(nullptr,&q_stats.thread);
+            q_stats.graph = (uintptr_t)gf; q_stats.command = (uintptr_t)cmd_buf;
+            q_stats.slice_start=idx_start; q_stats.slice_end=idx_end;
+            const char * st=std::getenv("GGML_METAL_BITNET_FFN_STEP"); q_stats.step=st?std::atoi(st):-1;
+            const char * guard=std::getenv("GGML_METAL_BITNET_Q_GUARD_ONLY");
+            const char * custom=std::getenv("GGML_METAL_BITNET_POC");
+            q_stats.mode=guard && std::strcmp(guard,"1")==0?'B':custom && std::strcmp(custom,"1")==0?'Q':'S';
+        }
         const char * abc = std::getenv("GGML_METAL_BITNET_FFN_ABLATION");
         if (abc) {
             if (abc[1] || (abc[0]!='A' && abc[0]!='B' && abc[0]!='C')) { GGML_ABORT("invalid FFN ablation mode"); }
@@ -224,6 +337,11 @@ struct ggml_metal_op {
     }
 
     ~ggml_metal_op() {
+        if (q_attribution) {
+            std::lock_guard<std::mutex> lock(bitnet_q_attr_mutex);
+            if (bitnet_q_attr_tasks.size()<bitnet_q_attr_capacity) { bitnet_q_attr_tasks.push_back(q_stats); }
+            else { ++bitnet_q_attr_drops; }
+        }
         if (ablation_count) {
             if(ablation_cpu) { ablation_stats.task_end_ns=bitnet_abc_now(); }
             std::lock_guard<std::mutex> lock(bitnet_abc_stats_mutex);
@@ -295,6 +413,9 @@ struct ggml_metal_op {
     bool use_capture;
     bool numerics_capture = false;
     bool q_readback = false;
+    bool q_attribution = false;
+    bitnet_q_attr_task q_stats;
+    bitnet_q_attr_call * q_call = nullptr;
 
     int debug_graph;
 
@@ -833,6 +954,7 @@ static void ggml_metal_bitnet_q_readback_after(ggml_metal_op_t ctx, int idx, int
 
 int ggml_metal_op_encode(ggml_metal_op_t ctx, int idx) {
     const auto * abc_node = ctx->node(idx);
+    const uint64_t q_start=ctx->q_attribution?ggml_metal_q_attribution_now():0;
     const int abc_layer = (ctx->ablation_count || ctx->ablation_trace) ? bitnet_abc_ffn_node_layer(abc_node) : -1;
     if (ctx->ablation_count) { ++ctx->ablation_stats.encode_calls; if (abc_layer>=0) { ++ctx->ablation_stats.ffn_encode_calls; } }
     if (ctx->ablation_trace) { ggml_metal_encoder_ffn_ablation_node(ctx->enc, abc_node, abc_layer, ctx->graph_idx(idx)); }
@@ -858,6 +980,12 @@ int ggml_metal_op_encode(ggml_metal_op_t ctx, int idx) {
 
     if (abc_start) { ctx->ablation_stats.ffn_encode_ns += bitnet_abc_now()-abc_start; ++ctx->ablation_stats.encode_timers; }
     if (ctx->ablation_trace) { ggml_metal_encoder_ffn_ablation_node(ctx->enc, nullptr, -1, -1); }
+    if (ctx->q_attribution) {
+        const uint64_t elapsed=ggml_metal_q_attribution_now()-q_start;
+        const int family=bitnet_q_attr_family(abc_node);
+        ++ctx->q_stats.native_encode_calls; ctx->q_stats.native_encode_ns+=elapsed;
+        ++ctx->q_stats.family_calls[family]; ctx->q_stats.family_ns[family]+=elapsed;
+    }
     return res;
 }
 
@@ -3421,14 +3549,20 @@ static bool ggml_metal_bitnet_actquant_q4_contract(const ggml_tensor * op,
     if (input && input->op == GGML_OP_ACT_QUANT) {
         std::memcpy(&eps, input->op_params, sizeof(eps));
     }
-    bool valid = enabled && permission && !guard_only && rows == 4 && groups == 1 &&
-        ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_POC") && layers && std::strcmp(layers, "0") == 0 &&
+    const bool custom = ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_POC");
+    const bool guard_flag = ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_Q_GUARD_ONLY");
+    const char * custom_value=std::getenv("GGML_METAL_BITNET_POC");
+    const char * guard_value=std::getenv("GGML_METAL_BITNET_Q_GUARD_ONLY");
+    const bool selector_strings=(!custom_value || std::strcmp(custom_value,"0")==0 || std::strcmp(custom_value,"1")==0) &&
+        (!guard_value || std::strcmp(guard_value,"0")==0 || std::strcmp(guard_value,"1")==0);
+    bool valid = enabled && permission && selector_strings && (custom != guard_flag) && guard_only == guard_flag && rows == 4 && groups == 1 &&
+        layers && std::strcmp(layers, "0") == 0 &&
         op->op == GGML_OP_MUL_MAT && std::strcmp(op->name, "Qcur-0") == 0 &&
         ggml_metal_bitnet_weight_name(op->src[0], 0, "attn_q") && input && input->op == GGML_OP_ACT_QUANT &&
         std::strcmp(input->name, "actq_qkv_out-0") == 0 && input->type == GGML_TYPE_F32 &&
         input->src[0] && input->src[0]->type == GGML_TYPE_F32 && ggml_is_contiguous(input->src[0]) &&
         ggml_are_same_shape(input, input->src[0]) && eps == 1e-5f;
-    for (const char * name : { "GGML_METAL_BITNET_Q_GUARD_ONLY", "GGML_METAL_BITNET_FFN",
+    for (const char * name : { "GGML_METAL_BITNET_FFN",
             "GGML_METAL_BITNET_FFN_MECHANISM", "GGML_METAL_BITNET_FFN_ABLATION" }) {
         const char * value = std::getenv(name);
         if (value && value[0] != '\0' && std::strcmp(value, "0") != 0) {
@@ -3923,7 +4057,68 @@ static bool ggml_metal_try_bitnet_ffn_fused(ggml_metal_op_t ctx, int idx, bool t
     return true;
 }
 
+struct bitnet_q_attr_call_scope {
+    ggml_metal_op_t ctx;
+    bitnet_q_attr_call event;
+    bitnet_q_attr_call * previous;
+    bool active;
+    bitnet_q_attr_call_scope(ggml_metal_op_t ctx, const ggml_tensor * op) : ctx(ctx), previous(ctx->q_call) {
+        active=ctx->q_attribution && std::strcmp(op->name,"Qcur-0")==0;
+        if (ctx->q_attribution) { ++ctx->q_stats.matvec_calls; }
+        if (active) {
+            event.task=ctx->q_stats.task; event.step=ctx->q_stats.step;
+            event.start_ns=ggml_metal_q_attribution_now(); ctx->q_call=&event;
+        }
+    }
+    ~bitnet_q_attr_call_scope() {
+        if (active) {
+            event.end_ns=ggml_metal_q_attribution_now();
+            ctx->q_stats.native_target_encode_ns+=event.end_ns-event.start_ns;
+            ctx->q_call=previous;
+            std::lock_guard<std::mutex> lock(bitnet_q_attr_mutex);
+            if (bitnet_q_attr_calls.size()<bitnet_q_attr_capacity) { bitnet_q_attr_calls.push_back(event); }
+            else { ++bitnet_q_attr_drops; }
+        }
+    }
+};
+
+struct bitnet_q_attr_guard_scope {
+    ggml_metal_op_t ctx;
+    uint64_t start = 0;
+    bool getter_started = false, passed = false, finished = false;
+    bitnet_q_attr_guard_scope(ggml_metal_op_t ctx) : ctx(ctx) {
+        if (ctx->q_attribution) {
+            ++ctx->q_stats.guard_attempts; start=ggml_metal_q_attribution_now();
+            if (ctx->q_call) { ctx->q_call->guard_attempt=true; }
+        }
+    }
+    void before_getter() {
+        if (ctx->q_attribution) {
+            const uint64_t elapsed=ggml_metal_q_attribution_now()-start;
+            ctx->q_stats.guard_tensor_buffer_ns+=elapsed;
+            if (ctx->q_call) { ctx->q_call->tensor_buffer_ns=elapsed; }
+            getter_started=true;
+        }
+    }
+    void finish() {
+        if (ctx->q_attribution && !finished) {
+            const uint64_t elapsed=ggml_metal_q_attribution_now()-start;
+            ctx->q_stats.guard_ns+=elapsed;
+            if (!getter_started) {
+                ctx->q_stats.guard_tensor_buffer_ns+=elapsed;
+                if (ctx->q_call) { ctx->q_call->tensor_buffer_ns=elapsed; }
+            }
+            if (passed) { ++ctx->q_stats.guard_passes; }
+            else { ++ctx->q_stats.guard_rejects; }
+            if (ctx->q_call) { ctx->q_call->guard_pass=passed; }
+            finished=true;
+        }
+    }
+    ~bitnet_q_attr_guard_scope() { finish(); }
+};
+
 static bool ggml_metal_try_bitnet_poc(ggml_metal_op_t ctx, const ggml_tensor * op, bool trace, bool guard_only = false) {
+    bitnet_q_attr_guard_scope attribution(ctx);
     // This isolated experiment may only replace layer-0 Q, regardless of a broader layer selection.
     if (ggml_metal_bitnet_layer(op->name, "Qcur-") != 0) {
         return false;
@@ -3975,13 +4170,23 @@ static bool ggml_metal_try_bitnet_poc(ggml_metal_op_t ctx, const ggml_tensor * o
         return false;
     }
 
+    attribution.before_getter();
+    const uint64_t getter_start=ctx->q_attribution?ggml_metal_q_attribution_now():0;
+    if (ctx->q_attribution && ctx->q_call) { ggml_metal_q_attribution_cache_metrics(&ctx->q_call->cache); }
     const auto pipeline = ggml_metal_library_get_bitnet_poc_pipeline(ctx->lib, &contract);
+    if (ctx->q_attribution) {
+        ggml_metal_q_attribution_cache_metrics(nullptr);
+        const uint64_t elapsed=ggml_metal_q_attribution_now()-getter_start;
+        ctx->q_stats.getter_ns+=elapsed;
+        if (ctx->q_call) { ctx->q_call->getter_ns=elapsed; }
+    }
     if (!pipeline.pipeline) {
         if (trace) {
             std::fprintf(stderr, "BITNET_Q_FALLBACK node=%s layer=%d reason=pipeline\n", op->name, ggml_metal_bitnet_layer(op->name, "Qcur-"));
         }
         return false;
     }
+    const uint64_t capability_start=ctx->q_attribution?ggml_metal_q_attribution_now():0;
     const int execution_width = ggml_metal_pipeline_thread_execution_width(pipeline);
     const int max_threads = ggml_metal_pipeline_max_theads_per_threadgroup(pipeline);
     if (!ggml_metal_bitnet_q_launch_valid(&contract, op->ne[0], op->src[0]->ne[0], execution_width, max_threads)) {
@@ -3991,6 +4196,9 @@ static bool ggml_metal_try_bitnet_poc(ggml_metal_op_t ctx, const ggml_tensor * o
         }
         return false;
     }
+    if (ctx->q_attribution && ctx->q_call) { ctx->q_call->capability_ns=ggml_metal_q_attribution_now()-capability_start; }
+    attribution.passed=true;
+    attribution.finish();
 
     if (guard_only) {
         if (trace) {
@@ -4008,6 +4216,10 @@ static bool ggml_metal_try_bitnet_poc(ggml_metal_op_t ctx, const ggml_tensor * o
     ggml_metal_encoder_set_buffer(ctx->enc, y, 2);
     const int grid_x = contract.grid_x;
     ggml_metal_encoder_dispatch_threadgroups(ctx->enc, grid_x, 1, 1, contract.threads_x, contract.groups, 1);
+    if (ctx->q_attribution) {
+        ++ctx->q_stats.custom_dispatches;
+        if (ctx->q_call) { ctx->q_call->custom=true; }
+    }
     if (trace) {
         std::fprintf(stderr, "BITNET_Q_GEOMETRY node=%s variant=%s contract=%d entry=%s rows_per_simd=%d simd_per_group=%d grid=%d threads=%d width=%d max_threads=%d checked=1\n",
                 op->name, contract.variant, contract.version, contract.entry, rows_per_simdgroup, simdgroups_per_threadgroup,
@@ -4033,6 +4245,7 @@ static void ggml_metal_op_mul_mat_mv_encode(
         const ggml_tensor * norm,
         const ggml_tensor * w,
         bool stock_only = false) {
+    bitnet_q_attr_call_scope q_attribution(ctx,op);
     ggml_metal_library_t lib = ctx->lib;
     ggml_metal_encoder_t enc = ctx->enc;
 
@@ -4048,6 +4261,8 @@ static void ggml_metal_op_mul_mat_mv_encode(
     const bool add = dst != op;
 
     const bool target = ggml_metal_bitnet_poc_target(op);
+    if (ctx->q_attribution && target) { ++ctx->q_stats.q_identity_calls; }
+    if (ctx->q_call) { ctx->q_call->identity=target; }
     const bool trace = target && ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_POC_TRACE");
     const bool guard_only = ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_Q_GUARD_ONLY");
     const bool custom_q = ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_POC");
@@ -4056,6 +4271,8 @@ static void ggml_metal_op_mul_mat_mv_encode(
     if (!stock_only && !std::getenv("GGML_METAL_BITNET_FFN_MECHANISM") && target && ne11 == 1 && !add && !norm &&
         ggml_metal_bitnet_selected_layer(ggml_metal_bitnet_layer(op->name, "Qcur-")) &&
         ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_FFN_DECODE")) {
+        if (ctx->q_attribution) { ++ctx->q_stats.outer_eligible; }
+        if (ctx->q_call) { ctx->q_call->outer_eligible=true; }
         if (guard_only) {
             guarded_stock = ggml_metal_try_bitnet_poc(ctx, op, trace, true);
         } else if (custom_q && ggml_metal_try_bitnet_poc(ctx, op, trace)) {
@@ -4124,6 +4341,7 @@ static void ggml_metal_op_mul_mat_mv_encode(
         const int grid_y = (ne11 + nr1 - 1)/nr1;
         const int grid_z = ne12*ne13;
         ggml_metal_encoder_dispatch_threadgroups(enc, grid_x, grid_y, grid_z, 32, nsg, 1);
+        if (ctx->q_attribution && ctx->q_call) { ++ctx->q_stats.stock_target_dispatches; ctx->q_call->stock=true; }
         if (ctx->numerics_capture) {ggml_metal_bitnet_numerics_dispatch(ctx,op,dst,pipeline,grid_x,grid_y,grid_z,32,nsg,add,norm!=nullptr,1);}
         if (trace) {
             if (ggml_metal_bitnet_layer(op->name, "Qcur-") == 0 && ne11 == 1) {

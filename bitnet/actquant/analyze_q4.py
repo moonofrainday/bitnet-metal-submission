@@ -103,7 +103,7 @@ def manifest(root, route, captured=True, contract=None):
     else:
         require(r['q_kernel_contract_version'] == contract['version'] and r['q_entry'] == contract['entry'] and
                 r['q_kernel_config_sha256'] == contract['config_sha256'], 'RUN canonical entry/config provenance mismatch')
-    if route == 'Q4':
+    if route in ('Q4','QB'):
         require(r['q_rows_per_simd'] == contract['rows'] and r['q_simd_per_group'] == contract['groups'] and r['q_variant'] == 'stock4x1',
                 'Wrong Q4 algorithm/layout')
         for key in ['q_library_sha256', 'q_library_source_sha256', 'q_library_manifest_sha256']:
@@ -147,7 +147,7 @@ def trace_evidence(path, route, fallback='none', contract=None):
     phase, begins, ends = None, [], []
     encoded, completed = Counter(), Counter()
     phase_encoded, phase_completed = Counter(), Counter()
-    counts = Counter(); guard_steps = []; fallback_count = 0
+    counts = Counter(); guard_steps = []; fallback_count = 0; qb_pass_steps = []; qb_stock_steps = []
     for line in text.splitlines():
         f = dict(re.findall(r'(\w+)=(\[[^\]]*\]|[^\s]+)', line))
         if line.startswith('ACTQUANT_Q_PHASE_BEGIN '):
@@ -159,10 +159,20 @@ def trace_evidence(path, route, fallback='none', contract=None):
                     'Every replay phase must complete all 30 actual Q dispatches before its synchronized marker')
             ends.append(phase); phase = None
         elif line.startswith('BITNET_ACTQUANT_Q4_GUARD '):
-            require(phase is not None and phase > 0 and route == 'Q4' and f['node'] == 'Qcur-0' and
+            require(phase is not None and phase > 0 and route in ('Q4','QB') and f['node'] == 'Qcur-0' and
                     f['source'] == 'actq_qkv_out-0' and f['source_op'] == 'ACT_QUANT' and f['checked'] == '1',
                     'Wrong ActQuant-Q4 guard identity/phase')
             guard_steps.append(phase)
+        elif line.startswith('BITNET_Q_GUARD_PASS ') and route == 'QB':
+            require(phase is not None and phase>0 and f['node']=='Qcur-0' and f['checked']=='1' and
+                    f['custom_encoded']=='0' and f['bounds']=='1' and f['disjoint']=='1' and
+                    f['candidate_pipeline']==contract['entry'] and f['rows']=='4' and f['simd']=='1',
+                    'QB did not complete the actual candidate guard')
+            qb_pass_steps.append(phase)
+        elif line.startswith('BITNET_Q_STOCK_ABI ') and route == 'QB' and f.get('node')=='Qcur-0' and f.get('guarded')=='1':
+            require(phase is not None and phase>0 and f['pipeline']=='kernel_mul_mv_tq2_0_f32',
+                    'QB did not return to the original stock pipeline')
+            qb_stock_steps.append(phase)
         elif line.startswith('BITNET_Q_FALLBACK '):
             require(fallback == 'missing-library' and f['reason'] == 'pipeline' and f['node'] == 'Qcur-0',
                     'Unexpected runtime fallback')
@@ -193,13 +203,15 @@ def trace_evidence(path, route, fallback='none', contract=None):
     require(counts['prefill_stock'] == 30 and counts['decode_nontarget_stock'] == 928 and
             counts['decode_target_custom'] == expect_custom and counts['decode_target_stock'] == 32-expect_custom,
             'Wrong actual stock/custom Q dispatch counts')
-    require(guard_steps == (list(range(1,33)) if route == 'Q4' else []), 'ActQuant-specific guard did not hit every eligible call')
+    require(guard_steps == (list(range(1,33)) if route in ('Q4','QB') else []), 'ActQuant-specific guard did not hit every eligible call')
+    if route == 'QB':
+        require(qb_pass_steps == qb_stock_steps == list(range(1,33)), 'QB guard/pipeline return coverage incomplete')
     require(fallback_count == (32 if fallback == 'missing-library' else 0), 'Missing-library fallback count')
     require('ACTQUANT_MODEL_COMPLETE enabled=1 backend=MTL0 workload=teacher decode_calls=33 logits=33 ' in text,
             'Native complete marker missing')
     return {'pass': True, 'counts': dict(counts), 'eligible_calls': 32, 'custom_dispatches': expect_custom,
             'guard_hits': len(guard_steps), 'fallbacks': fallback_count, 'all_Q_encodes_completed': sum(encoded.values()),
-            'log_sha256': sha(path)}
+            'log_sha256': sha(path), 'QB_guard_passes':len(qb_pass_steps),'QB_guarded_stock_calls':len(qb_stock_steps)}
 
 
 def logits(root, run):

@@ -59,6 +59,10 @@ GGML_BACKEND_API double ggml_backend_metal_bitnet_ffn_take_us(void);
 // stage 0 is normalized FFN input through down, stage 1 is the Transformer block.
 GGML_BACKEND_API double ggml_backend_metal_bitnet_take_us(int stage, int layer);
 
+// Optional Q-route diagnostics. Reset/write only after normal synchronization, outside timers.
+GGML_BACKEND_API void ggml_backend_metal_q_attribution_diag_reset(void);
+GGML_BACKEND_API int ggml_backend_metal_q_attribution_diag_write(const char * path);
+
 GGML_BACKEND_API ggml_backend_reg_t ggml_backend_metal_reg(void);
 
 #ifdef GGML_METAL_CUSTOM_OPS

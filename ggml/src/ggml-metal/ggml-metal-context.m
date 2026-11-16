@@ -8,6 +8,7 @@
 #import "ggml-metal-ops.h"
 #import "ggml-metal-fusion.h"
 #import "ggml-metal.h"
+#import "ggml-metal-bitnet-q-attribution.h"
 
 #import <Foundation/Foundation.h>
 #import <TargetConditionals.h>
@@ -864,6 +865,9 @@ void ggml_metal_set_n_cb(ggml_metal_t ctx, int n_cb) {
         }
 
         id<MTLCommandBuffer> cmd_buf = ctx->cmd_bufs[cb_idx].obj;
+        const char * q_diag=getenv("GGML_METAL_BITNET_Q_ATTRIBUTION");
+        const bool q_attribution=q_diag && strcmp(q_diag,"1")==0;
+        const uint64_t q_encode_start=q_attribution?ggml_metal_q_attribution_now():0;
 
         ggml_metal_op_t ctx_op = ggml_metal_op_init(
             ctx->dev,
@@ -886,9 +890,14 @@ void ggml_metal_set_n_cb(ggml_metal_t ctx, int n_cb) {
         }
 
         ggml_metal_op_free(ctx_op);
+        const uint64_t q_encode_end=q_attribution?ggml_metal_q_attribution_now():0;
 
         if (cb_idx < 2 || ctx->abort_callback == NULL) {
-            [cmd_buf commit];
+            if (q_attribution) {
+                ggml_metal_q_attribution_commit(cmd_buf,ctx->gf,idx_start,idx_end,q_encode_start,q_encode_end);
+            } else {
+                [cmd_buf commit];
+            }
         }
       } // @autoreleasepool
     });

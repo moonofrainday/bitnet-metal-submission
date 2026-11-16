@@ -1,6 +1,7 @@
 #import "ggml-metal-device.h"
 #import "ggml-metal-fusion.h"
 #import "ggml-metal-bitnet-q-contract.h"
+#import "ggml-metal-bitnet-q-attribution.h"
 
 #import "ggml-impl.h"
 #import "ggml-backend-impl.h"
@@ -15,6 +16,112 @@
 #include <Metal/Metal.h>
 
 #include <stdatomic.h>
+#include <pthread.h>
+#include <math.h>
+
+static _Thread_local struct ggml_metal_q_cache_metrics * bitnet_q_cache_metrics;
+void ggml_metal_q_attribution_cache_metrics(struct ggml_metal_q_cache_metrics * metrics) {
+    bitnet_q_cache_metrics=metrics;
+}
+
+#define BITNET_Q_ATTR_CB_CAPACITY 2048
+struct bitnet_q_attr_command {
+    uint64_t command, graph, encode_start_ns, encode_end_ns, commit_start_ns, commit_end_ns;
+    uint64_t scheduled_host_ns, completed_host_ns;
+    int step, slice_start, slice_end;
+    unsigned long status;
+    double gpu_start_s, gpu_end_s;
+    bool completed;
+};
+static struct bitnet_q_attr_command * bitnet_q_commands;
+static size_t bitnet_q_command_count, bitnet_q_command_drops, bitnet_q_pending_handlers;
+static pthread_mutex_t bitnet_q_command_lock=PTHREAD_MUTEX_INITIALIZER;
+static dispatch_group_t bitnet_q_attribution_group(void) {
+    static dispatch_group_t group;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ group=dispatch_group_create(); });
+    return group;
+}
+
+int ggml_metal_q_attribution_device_reset(void) {
+    const long wait_status=dispatch_group_wait(bitnet_q_attribution_group(),dispatch_time(DISPATCH_TIME_NOW,5*NSEC_PER_SEC));
+    pthread_mutex_lock(&bitnet_q_command_lock);
+    if (wait_status || bitnet_q_pending_handlers) {
+        pthread_mutex_unlock(&bitnet_q_command_lock); return 1;
+    }
+    if (!bitnet_q_commands) { bitnet_q_commands=calloc(BITNET_Q_ATTR_CB_CAPACITY,sizeof(*bitnet_q_commands)); }
+    bitnet_q_command_count=0; bitnet_q_command_drops=0;
+    const bool ready=bitnet_q_commands!=NULL;
+    pthread_mutex_unlock(&bitnet_q_command_lock);
+    return ready?0:1;
+}
+
+void ggml_metal_q_attribution_commit(void * raw, const void * graph,
+        int slice_start, int slice_end, uint64_t encode_start_ns, uint64_t encode_end_ns) {
+    id<MTLCommandBuffer> command=(id<MTLCommandBuffer>)raw;
+    struct bitnet_q_attr_command * r=NULL;
+    pthread_mutex_lock(&bitnet_q_command_lock);
+    if (bitnet_q_commands && bitnet_q_command_count<BITNET_Q_ATTR_CB_CAPACITY) {
+        r=&bitnet_q_commands[bitnet_q_command_count++];
+        *r=(struct bitnet_q_attr_command){0};
+    } else { ++bitnet_q_command_drops; }
+    pthread_mutex_unlock(&bitnet_q_command_lock);
+    if (!r) { [command commit]; return; }
+    r->command=(uintptr_t)command; r->graph=(uintptr_t)graph;
+    r->slice_start=slice_start; r->slice_end=slice_end;
+    r->encode_start_ns=encode_start_ns; r->encode_end_ns=encode_end_ns;
+    const char * step=getenv("GGML_METAL_BITNET_FFN_STEP"); r->step=step?atoi(step):-1;
+    dispatch_group_t group=bitnet_q_attribution_group();
+    dispatch_group_enter(group);
+    dispatch_group_enter(group);
+    pthread_mutex_lock(&bitnet_q_command_lock); bitnet_q_pending_handlers+=2; pthread_mutex_unlock(&bitnet_q_command_lock);
+    [command addScheduledHandler:^(id<MTLCommandBuffer> done) {
+        GGML_UNUSED(done);
+        pthread_mutex_lock(&bitnet_q_command_lock);
+        r->scheduled_host_ns=ggml_metal_q_attribution_now();
+        --bitnet_q_pending_handlers;
+        pthread_mutex_unlock(&bitnet_q_command_lock);
+        dispatch_group_leave(group);
+    }];
+    [command addCompletedHandler:^(id<MTLCommandBuffer> done) {
+        const uint64_t completed_ns=ggml_metal_q_attribution_now();
+        pthread_mutex_lock(&bitnet_q_command_lock);
+        r->completed_host_ns=completed_ns; r->status=done.status;
+        r->gpu_start_s=done.GPUStartTime; r->gpu_end_s=done.GPUEndTime;
+        r->completed=done.status==MTLCommandBufferStatusCompleted;
+        --bitnet_q_pending_handlers;
+        pthread_mutex_unlock(&bitnet_q_command_lock);
+        dispatch_group_leave(group);
+    }];
+    r->commit_start_ns=ggml_metal_q_attribution_now();
+    [command commit];
+    pthread_mutex_lock(&bitnet_q_command_lock);
+    r->commit_end_ns=ggml_metal_q_attribution_now();
+    pthread_mutex_unlock(&bitnet_q_command_lock);
+}
+
+int ggml_metal_q_attribution_device_write(FILE * f) {
+    // Called after the model's normal completion wait and outside its timer.
+    const long wait_status=dispatch_group_wait(bitnet_q_attribution_group(),dispatch_time(DISPATCH_TIME_NOW,5*NSEC_PER_SEC));
+    pthread_mutex_lock(&bitnet_q_command_lock);
+    fprintf(f,"\"command_buffer_capacity\":%d,\"command_buffer_drops\":%zu,\"pending_callback_handlers\":%zu,\"callback_wait_timed_out\":%s,\"command_buffers\":[",BITNET_Q_ATTR_CB_CAPACITY,bitnet_q_command_drops,bitnet_q_pending_handlers,wait_status?"true":"false");
+    bool complete=!wait_status && !bitnet_q_pending_handlers && bitnet_q_commands && bitnet_q_command_count>0 && bitnet_q_command_drops==0;
+    for (size_t i=0;i<bitnet_q_command_count;++i) {
+        const struct bitnet_q_attr_command * r=&bitnet_q_commands[i];
+        char gpu_start[64],gpu_end[64];
+        if (isfinite(r->gpu_start_s)) { snprintf(gpu_start,sizeof(gpu_start),"%.17g",r->gpu_start_s); } else { strcpy(gpu_start,"null"); }
+        if (isfinite(r->gpu_end_s)) { snprintf(gpu_end,sizeof(gpu_end),"%.17g",r->gpu_end_s); } else { strcpy(gpu_end,"null"); }
+        fprintf(f,"%s{\"command\":%llu,\"graph\":%llu,\"step\":%d,\"slice_start\":%d,\"slice_end\":%d,\"encode_start_ns\":%llu,\"encode_end_ns\":%llu,\"commit_start_ns\":%llu,\"commit_end_ns\":%llu,\"scheduled_host_ns\":%llu,\"completed_host_ns\":%llu,\"status\":%lu,\"completed\":%s,\"gpu_start_s\":%s,\"gpu_end_s\":%s}",
+            i?",":"",(unsigned long long)r->command,(unsigned long long)r->graph,r->step,r->slice_start,r->slice_end,
+            (unsigned long long)r->encode_start_ns,(unsigned long long)r->encode_end_ns,
+            (unsigned long long)r->commit_start_ns,(unsigned long long)r->commit_end_ns,
+            (unsigned long long)r->scheduled_host_ns,(unsigned long long)r->completed_host_ns,
+            r->status,r->completed?"true":"false",gpu_start,gpu_end);
+        if (!r->completed || !isfinite(r->gpu_start_s) || !isfinite(r->gpu_end_s) || r->gpu_start_s<=0 || r->gpu_end_s<r->gpu_start_s) { complete=false; }
+    }
+    fputs("]",f); pthread_mutex_unlock(&bitnet_q_command_lock);
+    return complete?0:1;
+}
 
 #ifndef TARGET_OS_VISION
 #define TARGET_OS_VISION 0
@@ -876,15 +983,24 @@ static struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_exte
     struct ggml_metal_pipeline_with_params result = { 0 };
     struct ggml_metal_bitnet_file_snapshot before;
     char cache_key[2 * PATH_MAX];
-
+    struct ggml_metal_q_cache_metrics * metrics=bitnet_q_cache_metrics;
+    uint64_t stamp=metrics?ggml_metal_q_attribution_now():0;
     [lib->lock lock];
+    if (metrics) { metrics->lock_wait_ns+=ggml_metal_q_attribution_now()-stamp; stamp=ggml_metal_q_attribution_now(); }
     if (!ggml_metal_bitnet_file_snapshot_get(path, &before) ||
             !ggml_metal_bitnet_external_key(&before, name, contract, cache_key, sizeof(cache_key))) {
+        if (metrics) { metrics->snapshot_key_ns+=ggml_metal_q_attribution_now()-stamp; ++metrics->invalid_paths; }
         [lib->lock unlock];
         return result;
     }
+    if (metrics) { metrics->snapshot_key_ns+=ggml_metal_q_attribution_now()-stamp; stamp=ggml_metal_q_attribution_now(); }
     result.pipeline = ggml_metal_pipelines_get(lib->pipelines, cache_key);
+    if (metrics) {
+        metrics->lookup_ns+=ggml_metal_q_attribution_now()-stamp;
+        if (result.pipeline) { ++metrics->cache_hits; } else { ++metrics->cache_misses; }
+    }
     if (!result.pipeline) {
+        if (metrics) { stamp=ggml_metal_q_attribution_now(); }
         @autoreleasepool {
             id<MTLDevice> device = ggml_metal_device_get_obj(lib->dev);
             NSError * error = nil;
@@ -910,6 +1026,7 @@ static struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_exte
                 result.pipeline->trace_name = strdup(name);
                 ggml_metal_pipelines_add(lib->pipelines, cache_key, result.pipeline);
             } else {
+                if (metrics) { ++metrics->stable_load_failures; }
                 GGML_LOG_WARN("BitNet external pipeline %s unavailable: stable_read=%d stable_load=%d bytes=%llu expected=%llu device=%d library=%d function=%d pipeline=%d width=%lu max_threads=%lu min_threads=%d error=%s\n",
                     name, stable_read, stable_load, (unsigned long long) bytes.length, (unsigned long long) before.size,
                     device != nil, kernels != nil, function != nil, pipeline != nil,
@@ -920,12 +1037,15 @@ static struct ggml_metal_pipeline_with_params ggml_metal_library_get_bitnet_exte
             [function release];
             [kernels release];
         }
+        if (metrics) { metrics->load_ns+=ggml_metal_q_attribution_now()-stamp; }
     }
     [lib->lock unlock];
+    if (metrics) { stamp=ggml_metal_q_attribution_now(); }
     if (result.pipeline && (result.pipeline->obj.threadExecutionWidth != 32 ||
             result.pipeline->obj.maxTotalThreadsPerThreadgroup < (NSUInteger) min_threads)) {
         result.pipeline = NULL;
     }
+    if (metrics) { metrics->capability_ns+=ggml_metal_q_attribution_now()-stamp; }
     return result;
 }
 

@@ -19,7 +19,12 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <time.h>
 #include <vector>
+#if defined(__OBJC__)
+#import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
+#endif
 
 namespace bitnet_actquant {
 namespace fs = std::filesystem;
@@ -77,7 +82,7 @@ static std::vector<float> read_tensor(const ggml_tensor * tensor) {
     require(std::all_of(result.begin(), result.end(), [](float x) { return std::isfinite(x); }), "nonfinite captured tensor"); return result;
 }
 static void clear_custom_routes() {
-    for (const char * key : {"LLAMA_BITNET_ACTQUANT_Q4", "GGML_METAL_BITNET_POC", "GGML_METAL_BITNET_POC_VARIANT", "GGML_METAL_BITNET_Q_GUARD_ONLY", "GGML_METAL_BITNET_POC_ROWS_PER_SIMD", "GGML_METAL_BITNET_POC_SIMD_PER_GROUP", "GGML_METAL_BITNET_POC_METALLIB", "GGML_METAL_BITNET_LAYERS", "GGML_METAL_BITNET_FFN", "GGML_METAL_BITNET_FFN_DECODE", "GGML_METAL_BITNET_FFN_STEP", "GGML_METAL_BITNET_FFN_MECHANISM", "GGML_METAL_BITNET_FFN_ABLATION", "GGML_METAL_BITNET_FFN_SHADOW_DIR", "GGML_METAL_BITNET_FFN_K_SHADOW_DIR", "GGML_METAL_BITNET_QREADBACK_DIR", "GGML_METAL_BITNET_POC_TRACE", "GGML_METAL_BITNET_FFN_TRACE", "GGML_METAL_GRAPH_DEBUG", "GGML_METAL_DEBUG_GRAPH", "GGML_METAL_CAPTURE_COMPUTE", "METAL_CAPTURE_ENABLED"}) { unsetenv(key); }
+    for (const char * key : {"LLAMA_BITNET_ACTQUANT_Q4", "GGML_METAL_BITNET_POC", "GGML_METAL_BITNET_POC_VARIANT", "GGML_METAL_BITNET_Q_GUARD_ONLY", "GGML_METAL_BITNET_Q_ATTRIBUTION", "GGML_METAL_BITNET_POC_ROWS_PER_SIMD", "GGML_METAL_BITNET_POC_SIMD_PER_GROUP", "GGML_METAL_BITNET_POC_METALLIB", "GGML_METAL_BITNET_LAYERS", "GGML_METAL_BITNET_FFN", "GGML_METAL_BITNET_FFN_DECODE", "GGML_METAL_BITNET_FFN_STEP", "GGML_METAL_BITNET_FFN_MECHANISM", "GGML_METAL_BITNET_FFN_ABLATION", "GGML_METAL_BITNET_FFN_SHADOW_DIR", "GGML_METAL_BITNET_FFN_K_SHADOW_DIR", "GGML_METAL_BITNET_QREADBACK_DIR", "GGML_METAL_BITNET_POC_TRACE", "GGML_METAL_BITNET_FFN_TRACE", "GGML_METAL_GRAPH_DEBUG", "GGML_METAL_DEBUG_GRAPH", "GGML_METAL_CAPTURE_COMPUTE", "METAL_CAPTURE_ENABLED"}) { unsetenv(key); }
 }
 static int operator_test(const json & config, const fs::path & out) {
     const fs::path fixture = config.at("fixture").get<std::string>(); const auto manifest = read_json(fixture / "FIXTURES.json");
@@ -197,7 +202,7 @@ static int model_test(const json & config, const fs::path & out) {
     const std::string workload = config.value("workload", "teacher"), backend_name = config.value("backend", "MTL0"), prefill = config.value("prefill", "batched"), kv = config.value("kv", "F16");
     require(workload == "teacher" || workload == "corpus", "bad workload"); require(backend_name == "CPU" || backend_name == "MTL0", "bad backend");
     require(prefill == "batched" || prefill == "sequential", "bad prefill mode"); require(kv == "F16" || kv == "F32", "bad KV dtype");
-    require(q_route == "stock" || q_route == "Q4", "bad q_route");
+    require(q_route == "stock" || q_route == "Q4" || q_route == "QB", "bad q_route");
     require(capture_scope == "all" || capture_scope == "q4-layer0", "bad capture_scope");
     require(q_fallback == "none" || q_fallback == "missing-library", "bad q_fallback (invalid geometry is a rejected graph contract, not an accepted route)");
     require(q_fallback == "none" || q_route == "Q4", "Q fallback requires Q4 route");
@@ -209,14 +214,14 @@ static int model_test(const json & config, const fs::path & out) {
         const fs::path library = config.at("q_library").get<std::string>();
         require(library.is_absolute() && fs::is_regular_file(library), "Q library must be an existing absolute file");
         q_library_sha = hash_file(library); require(q_library_sha == config.at("q_library_sha256").get<std::string>(), "Q library SHA256 mismatch");
-        if (q_route == "Q4") {
+        if (q_route == "Q4" || q_route == "QB") {
             const auto selected = q_fallback == "missing-library" ? out / "intentionally-missing.metallib" : library;
             require(q_fallback == "none" || !fs::exists(selected), "missing-library control path exists");
             setenv("GGML_METAL_BITNET_POC_METALLIB", selected.c_str(), 1);
         }
     }
     require(q_route == "stock" || !q_library_sha.empty(), "Q4 requires a SHA-verified library (also for intentional missing-library control)");
-    if (q_route == "Q4") {
+    if (q_route == "Q4" || q_route == "QB") {
         require(config.value("q_variant", "") == "stock4x1" && config.value("q_library_source_sha256", "").size() == 64 &&
             config.value("q_library_manifest_sha256", "").size() == 64, "Q4 requires stock4x1 source/build provenance from q4_contract.py");
         require(config.value("q_kernel_contract_version", 0) == GGML_BITNET_Q_CONFIG_VERSION &&
@@ -226,8 +231,9 @@ static int model_test(const json & config, const fs::path & out) {
             config.at("q_threads") == json::array({GGML_BITNET_Q_SIMD_WIDTH,GGML_BITNET_Q4_NSG,1}),
             "Q4 requires the current canonical entry/version/geometry; old shared-entry products are not runtime aliases");
     }
-    if (q_route == "Q4") {
-        setenv("LLAMA_BITNET_ACTQUANT_Q4", "1", 1); setenv("GGML_METAL_BITNET_POC", "1", 1);
+    if (q_route == "Q4" || q_route == "QB") {
+        setenv("LLAMA_BITNET_ACTQUANT_Q4", "1", 1);
+        setenv(q_route == "QB" ? "GGML_METAL_BITNET_Q_GUARD_ONLY" : "GGML_METAL_BITNET_POC", "1", 1);
         setenv("GGML_METAL_BITNET_POC_VARIANT", "stock4x1", 1);
         setenv("GGML_METAL_BITNET_POC_ROWS_PER_SIMD", GGML_BITNET_Q_STRINGIFY(GGML_BITNET_Q4_ROWS), 1);
         setenv("GGML_METAL_BITNET_POC_SIMD_PER_GROUP", GGML_BITNET_Q_STRINGIFY(GGML_BITNET_Q4_NSG), 1);
@@ -255,7 +261,7 @@ static int model_test(const json & config, const fs::path & out) {
     for (auto token : ids) { require(token >= 0 && token < 128256, "token outside vocabulary"); }
     json record = {{"schema", 1}, {"operation", "model"}, {"workload", workload}, {"backend", backend_name}, {"device", ggml_backend_dev_description(devices[0])}, {"activation_quantization", enabled}, {"model_sha256", MODEL_SHA}, {"tokens_sha256", hash_file(token_file)}, {"prompt_ids", prompt}, {"continuation_ids", continuation}, {"token_ids", ids}, {"prefill", prefill}, {"kv", kv}, {"capture_enabled", capture_enabled}, {"offloaded_layers", log.offloaded}, {"total_offload_layers", log.total}, {"logits", json::array()}, {"performance_measurement", false}, {"CPU_extra_Q8_K_packing_source_expected", backend_name == "CPU"}, {"settings", {{"n_ctx", 512}, {"batch", 128}, {"ubatch", 128}, {"threads", 6}, {"flash_attention", false}}}};
     record.update(json{{"q_route", q_route}, {"q_fallback", q_fallback}, {"q_library_sha256", q_library_sha}, {"q_target", "Qcur-0"}, {"capture_scope", capture_scope},
-        {"trace_enabled", config.value("trace", false)}, {"q_rows_per_simd", q_route == "Q4" ? GGML_BITNET_Q4_ROWS : 0}, {"q_simd_per_group", q_route == "Q4" ? GGML_BITNET_Q4_NSG : 0},
+        {"trace_enabled", config.value("trace", false)}, {"q_rows_per_simd", q_route != "stock" ? GGML_BITNET_Q4_ROWS : 0}, {"q_simd_per_group", q_route != "stock" ? GGML_BITNET_Q4_NSG : 0},
         {"q_kernel_contract_version", GGML_BITNET_Q_CONFIG_VERSION}, {"q_entry", GGML_BITNET_Q_STRINGIFY(GGML_BITNET_Q4_ENTRY)},
         {"official_source_model_acceptance", nullptr}, {"scoped_stock_compatibility_pass", nullptr}});
     for (const char * key : {"q_variant", "q_library_source_sha256", "q_library_manifest_sha256", "q_library_sdk", "q_kernel_config_sha256", "q_grid", "q_threads"}) {
@@ -297,10 +303,11 @@ static int model_test(const json & config, const fs::path & out) {
     std::printf("ACTQUANT_MODEL_COMPLETE enabled=%d backend=%s workload=%s decode_calls=%d logits=%zu actquant_callbacks=%zu synchronized=1\n", enabled, backend_name.c_str(), workload.c_str(), decode_calls, record["logits"].size(), capture.actquant_callbacks); std::fflush(stdout);
     return 0;
 }
+#include "attribution.h"
 static int run(const json & config, const fs::path & out) {
     require(!fs::exists(out), "refuse existing output directory"); fs::create_directories(out); write_json(out / "REQUEST.json", config);
     clear_custom_routes(); setenv("GGML_METAL_ACTQUANT_TRACE", config.value("trace", false) ? "1" : "0", 1); const std::string operation = config.at("operation");
-    return operation == "operator" ? operator_test(config, out) : operation == "model" ? model_test(config, out) : throw std::runtime_error("unknown operation");
+    return operation == "operator" ? operator_test(config, out) : operation == "model" ? model_test(config, out) : operation == "attribution" ? attribution_test(config, out) : throw std::runtime_error("unknown operation");
 }
 }
 extern "C" int bitnet_actquant_run_config(const char * config_json, const char * output_directory) {

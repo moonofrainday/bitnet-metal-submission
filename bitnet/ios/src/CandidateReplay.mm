@@ -138,7 +138,7 @@ static int run(){
 
  if([c[@"operation"]isEqual:@"actquant"]){
   o.model=actquantDocumentPath(docs,c[@"model"],false);
-  const std::string kind=str(c[@"actquant_operation"]);require(kind=="operator"||kind=="model","invalid ActQuant operation");
+  const std::string kind=str(c[@"actquant_operation"]);require(kind=="operator"||kind=="model"||kind=="attribution","invalid ActQuant operation");
   require([c[@"backend"]isEqual:@"MTL0"]&&[c[@"kv"]isEqual:@"F16"]&&[c[@"prefill"]isEqual:@"batched"],"ActQuant phone requires MTL0/F16/batched");
   require([c[@"workload"]isEqual:@"teacher"]||[c[@"workload"]isEqual:@"corpus"],"invalid ActQuant workload");
   NSMutableDictionary*native=[@{@"operation":@(kind.c_str()),@"backend":@"MTL0",@"model":@(o.model.c_str()),@"kv":@"F16",@"prefill":@"batched",@"workload":c[@"workload"],@"actquant":@(flag(c,@"actquant")),@"capture":@(flag(c,@"capture")),@"trace":@(flag(c,@"trace"))}mutableCopy];
@@ -154,10 +154,10 @@ static int run(){
    const std::string qr=c[@"q_route"]?str(c[@"q_route"]):"stock";
    const std::string qf=c[@"q_fallback"]?str(c[@"q_fallback"]):"none";
    const std::string qs=c[@"capture_scope"]?str(c[@"capture_scope"]):"all";
-   require(qr=="stock"||qr=="Q4","invalid ActQuant Q route");
+   require(qr=="stock"||qr=="Q4"||qr=="QB","invalid ActQuant Q route");
    require(qf=="none"||qf=="missing-library","invalid ActQuant Q fallback");
    require(qs=="all"||qs=="q4-layer0","invalid ActQuant capture scope");
-   require(qr!="Q4"||flag(c,@"actquant"),"Q4 requires ActQuant ON");
+   require(qr=="stock"||flag(c,@"actquant"),"Q4/QB requires ActQuant ON");
    native[@"q_route"]=@(qr.c_str());native[@"q_fallback"]=@(qf.c_str());native[@"capture_scope"]=@(qs.c_str());
    if(c[@"q_library"]){
     const auto library=actquantDocumentPath(docs,c[@"q_library"],false);NSString*librarySHA=hashFile(library);
@@ -173,12 +173,17 @@ static int run(){
     require([c[@"q_grid"]isKindOfClass:NSArray.class]&&[c[@"q_threads"]isKindOfClass:NSArray.class],"Q4 geometry metadata missing");
     native[@"q_kernel_contract_version"]=c[@"q_kernel_contract_version"];native[@"q_grid"]=c[@"q_grid"];native[@"q_threads"]=c[@"q_threads"];
    }
-   require(qr!="Q4"||native[@"q_library"]!=nil,"Q4 library missing");
+   require((qr=="stock"&&kind!="attribution")||native[@"q_library"]!=nil,"Q4/QB attribution library missing");
+   if(kind=="attribution"){
+    require([c[@"attribution_kind"]isKindOfClass:NSString.class],"attribution kind missing");native[@"attribution_kind"]=c[@"attribution_kind"];
+    for(NSString*key in @[@"correctness_gate_sha256",@"rounds",@"pairs",@"warmups",@"comparisons"]){if(c[key])native[key]=c[key];}
+   }
   }
   json(o.out/"native-config.json",native);
   NSData*encoded=[NSJSONSerialization dataWithJSONObject:native options:NSJSONWritingSortedKeys error:nil];require(encoded!=nil,"ActQuant config serialization failed");
   const int code=bitnet_actquant_run_config([[[NSString alloc]initWithData:encoded encoding:NSUTF8StringEncoding]UTF8String],(o.out/"native").c_str());
   NSMutableDictionary*record=[@{@"schema":@1,@"operation":@"actquant",@"actquant_operation":@(kind.c_str()),@"native_process_exit_code":@(code),@"process_exit_code":@(code),@"execution_pass":@NO,@"model_sha256":modelSHA,@"backend":@"MTL0",@"actquant":@(flag(c,@"actquant")),@"capture":@(flag(c,@"capture")),@"workload":c[@"workload"],@"parity_pass":[NSNull null],@"fp64_pass":[NSNull null],@"model_output_pass":[NSNull null],@"semantic_acceptance_pass":[NSNull null],@"strict_model_exit_code":@2,@"performance_measurement":@NO,@"iOS":UIDevice.currentDevice.systemVersion,@"thermal_after":@(thermal().c_str())}mutableCopy];
+  record[@"performance_measurement"]=@(kind=="attribution"&&![c[@"attribution_kind"]isEqual:@"verify"]);
   [record addEntriesFromDictionary:identity];
   if(fs::is_regular_file(o.out/"native/RUN.json")){
    NSDictionary*runtime=actquantReadJSON(o.out/"native/RUN.json",64*1024*1024);record[@"native_run_sha256"]=hashFile(o.out/"native/RUN.json");record[@"device"]=runtime[@"device"]?:[NSNull null];
