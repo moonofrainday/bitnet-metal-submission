@@ -4,6 +4,8 @@
 
 Prepared for the Tether technical assessment. Technical plan and measured validation record. Unverified claims and retained failures are explicitly identified. Evidence cutoff 16 November 2026, Asia/Tokyo.
 
+Source code: [https://github.com/moonofrainday/bitnet-metal-submission](https://github.com/moonofrainday/bitnet-metal-submission) (branch `main`).
+
 ## 1 Executive proposal
 
 We propose a Metal-first implementation of mobile BitNet inference using the existing llama.cpp graph, loader, memory planner and GPU backend. A narrowly guarded matrix-vector kernel replaces one projection inside a Transformer layer, while all unsupported calls retain the stock path. A parallel file-level plan extends and validates QVAC's existing Vulkan support on selected Adreno and Mali devices.
@@ -608,7 +610,7 @@ All safety and numerical gates remain active. Future application-quality criteri
 <!-- page -->
 ## 15 Source delivery and reproducibility
 
-The private source repository contains the pinned QVAC source, compatibility changes, original PoC, stock-derived Q4, guarded integration, iOS runners, independent references and derived analysis. It includes no model weights, raw tensors/logits, raw timing samples, signed app/framework or credentials. Raw evidence stays on the local Mac. [E1]
+Source repository: [https://github.com/moonofrainday/bitnet-metal-submission](https://github.com/moonofrainday/bitnet-metal-submission) (`main`). It contains the pinned QVAC source, original PoC, stock-derived Q4, guarded integration, iOS runners, references and derived analysis. Models, raw tensors/logits/timings, signed products and credentials stay local. [E1]
 
 | Source location | Review purpose |
 |---|---|
@@ -657,7 +659,7 @@ Paths below are relative to the workspace or source package as stated. IDs disti
 
 Workspace experiment names below are under `outputs/experiments/`. Package analyses link exact commands, local files and evidence digests; raw data remain local.
 
-- [E1] Historical source snapshot bbf70e9; `bitnet/provenance/BASELINE.json`, `SOURCE_MANIFEST.json`, `bitnet/docs/CHANGES_FROM_QVAC.md`. [Private source repository](https://github.com/moonofrainday/bitnet-metal-submission).
+- [E1] Historical source snapshot bbf70e9; `bitnet/provenance/BASELINE.json`, `SOURCE_MANIFEST.json`, `bitnet/docs/CHANGES_FROM_QVAC.md`. [Source code repository](https://github.com/moonofrainday/bitnet-metal-submission).
 
 - [E2] Workspace `2026-11-07_133437-public-2b-compat/` and `2026-11-07_152028-iphone-public-2b/`: conversion, model identity, CPU/Metal divergence and phone smoke.
 

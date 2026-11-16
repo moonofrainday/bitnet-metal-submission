@@ -2,7 +2,7 @@
   "schema_version": 2,
   "evidence_cutoff": "2026-11-16 Asia/Tokyo",
   "artifact_type": "English technical proposal and measured validation record",
-  "report_revision_base_commit": "5e84359acbc77f21e64661ffd56e619e811eafd2",
+  "report_revision_base_commit": "91253fe067da4026315e470912579d6aeacc9f4a",
   "QVAC_commit": "2db8b046d555316019ae75d1be90484adc8b9330",
   "historical_phone_compute_commit": "edbd109bc152decbbc7274b703d21bd6099bf98c",
   "hardened_preparation_compute_commit": "14a9f103c23b5a24bd0da1e0dbc5a0d5a37ade3a",
@@ -36,8 +36,8 @@
   "outputs": [
     {
       "path": "PROPOSAL.md",
-      "bytes": 80341,
-      "sha256": "15eb5e7e4cf8560915c064078d17a760476a24c91f5b3e0278cb3472c8233d47"
+      "bytes": 80506,
+      "sha256": "e4ca0bf09ec85b8f0650ceed46f0895d6b0f2ccff35ea124573484aad3b56156"
     },
     {
       "path": "README.md",
@@ -66,8 +66,8 @@
     },
     {
       "path": "BitNet_Mobile_GPU_Proposal.pdf",
-      "bytes": 252183,
-      "sha256": "e1b5b042ec8e094bc8a9ce8acdbeb6124c9e876e88a8c27439dab1277a14432a"
+      "bytes": 252877,
+      "sha256": "edb1c7f09a0a1d470186222125c268ee74469dfb1c149616e634af16bf097453"
     }
   ],
   "quality_review": {
@@ -77,11 +77,12 @@
     "measured_tables_unchanged_by_cleanup": true,
     "original_figure_bytes_preserved": true,
     "no_new_numerical_or_speedup_claims": true,
-    "raw_QA_images_kept_local": true
+    "raw_QA_images_kept_local": true,
+    "repository_URL_render_and_link_verified": true
   },
   "QA_evidence_digest_only": {
-    "PDF_FINAL_QA.json": "22e82524be5560fa3b546ff6d3465ad58de42977765fa9e09c39916d6ebde674",
-    "REPORT_EDIT_CHECK.json": "4463117b1824241714dbedf807cf86c6765f44893e1161baebf58a5073a340d6"
+    "report-github-link-2026-11-16/QA.json": "f1b30b226f68125d6a97b3cf9d4a06158f7b0edd85443f401c30f13649980467",
+    "report-github-link-2026-11-16/URL_CHECK.json": "29c958fe9c6a471e22464e1f8996d8e68071eab83150d209760471786b318e7b"
   },
   "tested_package_controller_commit": "578ec123ec2f0eed01f3edf6dc09ac6dcbe6104a",
   "host_only_import_repair_commit": "a4f5433",
@@ -91,5 +92,12 @@
   "new_performance_measurements_in_cleanup": false,
   "English_submission_only": true,
   "Chinese_and_Word_companions": "Archived locally; not included in the current submission tree",
-  "current_phone_summary": "../analysis/iphone-qcur0-attribution-2026-11-16/SUMMARY.json"
+  "current_phone_summary": "../analysis/iphone-qcur0-attribution-2026-11-16/SUMMARY.json",
+  "source_repository_url": "https://github.com/moonofrainday/bitnet-metal-submission",
+  "source_repository_branch": "main",
+  "repository_URL_visible_and_clickable_on_PDF_pages": [
+    1,
+    26
+  ],
+  "repository_visibility_changed_by_report_edit": false
 }

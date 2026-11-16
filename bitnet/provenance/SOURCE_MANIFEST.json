@@ -624,18 +624,18 @@
     },
     {
       "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal.pdf",
-      "bytes": 252183,
-      "sha256": "e1b5b042ec8e094bc8a9ce8acdbeb6124c9e876e88a8c27439dab1277a14432a"
+      "bytes": 252877,
+      "sha256": "edb1c7f09a0a1d470186222125c268ee74469dfb1c149616e634af16bf097453"
     },
     {
       "path": "bitnet/proposal/MANIFEST.json",
-      "bytes": 3956,
-      "sha256": "8ae8daa2bded86cbf3792815959183a0e24d42b609c3daa7399aade1950cbda7"
+      "bytes": 4309,
+      "sha256": "9654f6e9238873ed1d021f42725845dcddb7fff4483a10dad02f4ae369adb17d"
     },
     {
       "path": "bitnet/proposal/PROPOSAL.md",
-      "bytes": 80341,
-      "sha256": "15eb5e7e4cf8560915c064078d17a760476a24c91f5b3e0278cb3472c8233d47"
+      "bytes": 80506,
+      "sha256": "e4ca0bf09ec85b8f0650ceed46f0895d6b0f2ccff35ea124573484aad3b56156"
     },
     {
       "path": "bitnet/proposal/README.md",
