@@ -14,8 +14,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 7018,
-      "sha256": "4369a75f1a50cb098d11496da12efef95e345e3ee843fce7e0f35bca0f498307"
+      "bytes": 7382,
+      "sha256": "df78a60cb321b80d0c6d629272bc6b25ac9c5c4339a61d54a1d37f18cadeb8dd"
     },
     {
       "path": "README.upstream.md",
@@ -34,13 +34,23 @@
     },
     {
       "path": "bitnet/actquant/README.md",
-      "bytes": 9172,
-      "sha256": "c410d6668e20d26c36891f9bd1282aa1a65e822318d2646dcb6c00aa26fefeba"
+      "bytes": 9888,
+      "sha256": "736b13b9ef5005847fbed14ac9d523afe8b68e0ccb1f20113428e48537a32b36"
     },
     {
       "path": "bitnet/actquant/analyze_op.py",
       "bytes": 10598,
       "sha256": "026ca23f03127da22bf3a16430eeb8ffe70a225c436aa5c7477c132a5ccb0374"
+    },
+    {
+      "path": "bitnet/actquant/analyze_q4.py",
+      "bytes": 20275,
+      "sha256": "f90a31f347f5a7a8ac53217e945327c262bd4db757ae2ee0f72083d5e3fd19ad"
+    },
+    {
+      "path": "bitnet/actquant/analyze_q_timing.py",
+      "bytes": 14882,
+      "sha256": "f2c09dff7142f7c4c6ce767933ee8d583772daf61466ce140cfda43219f80da5"
     },
     {
       "path": "bitnet/actquant/compare_model.py",
@@ -53,9 +63,19 @@
       "sha256": "fb832cbe9fcf593974873e55daed2e92c6b7b207b5d933a887caa2549354f721"
     },
     {
+      "path": "bitnet/actquant/prepare_q_fixture.py",
+      "bytes": 8084,
+      "sha256": "df058cbb61180de21d05112d89b8e1aed6626a7bdcbe8b0129dc97bdf565ce2d"
+    },
+    {
       "path": "bitnet/actquant/probe_layer0.py",
       "bytes": 9680,
       "sha256": "bf99df8d4405717c1357d36e0214f4556ac35ba1c3084901c7f272fa4236d476"
+    },
+    {
+      "path": "bitnet/actquant/q4_contract.py",
+      "bytes": 1764,
+      "sha256": "73cc8947b374e5ff14d21debd69da82e28ff65371fec37dd5ef4e7c777545867"
     },
     {
       "path": "bitnet/actquant/requirements.txt",
@@ -69,13 +89,13 @@
     },
     {
       "path": "bitnet/actquant/run_phone.py",
-      "bytes": 21816,
-      "sha256": "f24a1dc5c96354fc7847b1e696a88beaa2368ceaf4481fde22c3387ad8c3aaa6"
+      "bytes": 24538,
+      "sha256": "5a5889e1f452bb5589349d5db2ee70cffb0f8a39878924adffcc35aa10a2a078"
     },
     {
       "path": "bitnet/actquant/runner.cpp",
-      "bytes": 21934,
-      "sha256": "07c462530ff1a4c692fe0bb167aeb371d01a277345b599d03e6576e3c1a18792"
+      "bytes": 28213,
+      "sha256": "3353c0e74bf3b49ac927662f7b334a9b307cc8b2208f71b11ddf19b018eaf824"
     },
     {
       "path": "bitnet/actquant/runner.h",
@@ -91,6 +111,11 @@
       "path": "bitnet/actquant/test_model_contract.py",
       "bytes": 3045,
       "sha256": "bd3941c4b947a05a6779f430f5cade835e5ab00922bbcb986471ab1e078e23f1"
+    },
+    {
+      "path": "bitnet/actquant/test_q4_contract.py",
+      "bytes": 4700,
+      "sha256": "9717cf0bb58f1a777ff83bd71afdcc0f7543069569a3693a964345a1fdc57e71"
     },
     {
       "path": "bitnet/analysis-tools/README.md",
@@ -169,8 +194,8 @@
     },
     {
       "path": "bitnet/analysis/actquant-2026-11-16/README.md",
-      "bytes": 11615,
-      "sha256": "6a1e9aff03eb97fba49df28043c54f74f96f02695b4b73e75468169f23ae3d61"
+      "bytes": 12102,
+      "sha256": "366df71dceaeec0a9e7a670741ffbb27ffd610a182b92cb88b568f719bad307f"
     },
     {
       "path": "bitnet/analysis/actquant-2026-11-16/SUMMARY.json",
@@ -179,8 +204,8 @@
     },
     {
       "path": "bitnet/analysis/actquant-2026-11-16/SUMMARY_ZH.md",
-      "bytes": 10372,
-      "sha256": "e9eb71841e11bb0d5b2cde32ebd539b77063472bfc8f928a099c48e837628e71"
+      "bytes": 10827,
+      "sha256": "2fc48fcf6f52a4937d9e1ea9b9a128b72c972858badcb874568c381406c0a31a"
     },
     {
       "path": "bitnet/analysis/actquant-iphone-2026-11-16/README.md",
@@ -196,6 +221,21 @@
       "path": "bitnet/analysis/actquant-iphone-2026-11-16/SUMMARY_ZH.md",
       "bytes": 8663,
       "sha256": "b2816eaf62eeb674b1dbbcff6d5d87283476bdf19fdce7996000859d476de428"
+    },
+    {
+      "path": "bitnet/analysis/actquant-q4-joint-2026-11-16/README.md",
+      "bytes": 12129,
+      "sha256": "548fe5418cb9f50a6f637a579963a96ad583406f11f0a422278d8d5b20159b9b"
+    },
+    {
+      "path": "bitnet/analysis/actquant-q4-joint-2026-11-16/SUMMARY.json",
+      "bytes": 54834,
+      "sha256": "53589adf0bbbe8a98d55d87a293a6d72dba491647f54df7a6d319a44fa048f6f"
+    },
+    {
+      "path": "bitnet/analysis/actquant-q4-joint-2026-11-16/SUMMARY_ZH.md",
+      "bytes": 8245,
+      "sha256": "506f441976fb9a5ab175f303315256e42aa94493067141323ca0cf87ababc9c4"
     },
     {
       "path": "bitnet/analysis/ffn-performance-exploration/README.md",
@@ -269,13 +309,13 @@
     },
     {
       "path": "bitnet/docs/BUILD_AND_RUN.md",
-      "bytes": 5320,
-      "sha256": "b496e9998e598015cc9534ba2d0bc17f835e1866b4093d55831d7cf7d9a0f478"
+      "bytes": 12280,
+      "sha256": "5980fe23fb090b91e02b2cbd4f49d72a55be8e3e7180266c5c9ac92768013331"
     },
     {
       "path": "bitnet/docs/CHANGES_FROM_QVAC.md",
-      "bytes": 5944,
-      "sha256": "2de8a6ce4c9ec9c515b7084ad99e3c8409e72618d2c50253753749fbb5ed7d07"
+      "bytes": 8796,
+      "sha256": "f85dde4cf38602c4c04762c7ca6d3db17f335237ed07a54f134c1a255f07dd55"
     },
     {
       "path": "bitnet/docs/IPHONE_Q4_COMPLETE_2026-11-15.md",
@@ -289,8 +329,8 @@
     },
     {
       "path": "bitnet/docs/LIMITATIONS.md",
-      "bytes": 3434,
-      "sha256": "741ccb81c013c63b9694f7376a9cdfbad3fb222985ca016e25eb08e6b811dedb"
+      "bytes": 4271,
+      "sha256": "a3c916bd39be2f885668b5d8986a7fab19c4bf04a0a71ad418acb263a0411902"
     },
     {
       "path": "bitnet/docs/PHONE_GUARD_CONTROL_2026-11-15.md",
@@ -309,8 +349,8 @@
     },
     {
       "path": "bitnet/docs/VALIDATION.md",
-      "bytes": 6197,
-      "sha256": "029f22e94fe2bc7181c24204549c11a8530c5e42de4632ead916f716936b1196"
+      "bytes": 8865,
+      "sha256": "57e26b9b0ad2a074719895a7f429f7e1e9087e1e02d7f65993397de8bedbfe95"
     },
     {
       "path": "bitnet/down-controls/README.md",
@@ -359,8 +399,8 @@
     },
     {
       "path": "bitnet/ios/build.py",
-      "bytes": 14083,
-      "sha256": "e0d957ff709862ec08f35d5941ec8e9324a8811270493761a2e81adb004f4ead"
+      "bytes": 14271,
+      "sha256": "8ca9de220b497d5a27799ab41b5f1bb02f11cf1d619a25db8e288f00fa812939"
     },
     {
       "path": "bitnet/ios/common.py",
@@ -424,8 +464,8 @@
     },
     {
       "path": "bitnet/ios/src/CandidateReplay.mm",
-      "bytes": 38770,
-      "sha256": "f4cec57dc12707f13e9a0dc3c537b155b1abe5184a64a6364334b71c8e112bdd"
+      "bytes": 40047,
+      "sha256": "f1c532b9ae1187a6a8e0feaf4843fe5633a35b59842c46468e26888b22ed5497"
     },
     {
       "path": "bitnet/ios/src/alias-stock-ffn.h",
@@ -483,6 +523,11 @@
       "sha256": "6574efb92cfef03eff3bd5e3b5d2420a8f0552a9dfbe6e5408749e2778019974"
     },
     {
+      "path": "bitnet/patches/actquant-q4-joint.patch",
+      "bytes": 58706,
+      "sha256": "bbd9cbdce44c2bd61b03edd68bd7c75c4df8ce16ef76e654090f556ce0190343"
+    },
+    {
       "path": "bitnet/patches/actquant-scale-evaluation.patch",
       "bytes": 1268,
       "sha256": "34e2532a8e18cd42f2540ff1934a3e5e29958a57b7d7b58f1f19ccff73a9455a"
@@ -509,63 +554,63 @@
     },
     {
       "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal.docx",
-      "bytes": 128885,
-      "sha256": "1d0051259138fc342bea411adc45e09bcb30ee3c9b1691a5625a62354edffa74"
+      "bytes": 130659,
+      "sha256": "aad2d1713c2d65634a83a38f3061b1f31b109dc611833982120813748998ede2"
     },
     {
       "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal.pdf",
-      "bytes": 232657,
-      "sha256": "cc50e9b327adcb28a3757df15436e0d793eff3a4a493db4f0bd3f4eab77f4004"
+      "bytes": 236556,
+      "sha256": "0e072657e20a8e64bf2701ee2b54c123934d434072b6029b5e9f1556c31d291a"
     },
     {
       "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal_ZH.docx",
-      "bytes": 136817,
-      "sha256": "9311c21ceac4cb1555746f190f3f0993f96b496579c104534ec292ef8b0a1a2e"
+      "bytes": 138713,
+      "sha256": "6dd6ced91038dd4dd310fd5cf15de16f696d0930cba7e22f7dae7f1605a2a5d6"
     },
     {
       "path": "bitnet/proposal/BitNet_Mobile_GPU_Proposal_ZH.pdf",
-      "bytes": 592021,
-      "sha256": "d8081bf396b93827728e9da3818ac00121fd69aa7b4be54c7a67137968c03c8f"
+      "bytes": 597464,
+      "sha256": "bd4ef9f708f386a9950e1a633d468d9cd44b2441ec0ac94974c90af204e8b86e"
     },
     {
       "path": "bitnet/proposal/MANIFEST.json",
-      "bytes": 4032,
-      "sha256": "206f5d8f90f88051c769141304b8c8f178f4f78b458ed3ccfb0455cfa3f9eea3"
+      "bytes": 5226,
+      "sha256": "add8fbacccbe1e83a62fcddd38a867f0e72b0890f13aca62d374f67b02a6e896"
     },
     {
       "path": "bitnet/proposal/MANIFEST_ZH.json",
-      "bytes": 2568,
-      "sha256": "9e9407c554f306590e3586fc6e997684a789a88c49b7eafb8774bad0c7ba337c"
+      "bytes": 2887,
+      "sha256": "74b726f5875c068bc844b3c7ead1c03e9b1caa11343a768120092c5ff3a0366c"
     },
     {
       "path": "bitnet/proposal/OUTLINE.md",
-      "bytes": 1938,
-      "sha256": "c76df7ec9155844682456d4950d2ffab635645a395ce83dc475f05e42c976c9f"
+      "bytes": 2432,
+      "sha256": "2e678dd99121649e49f9b17140d5403d2a0526ee86df5128995f063c192d0421"
     },
     {
       "path": "bitnet/proposal/PROPOSAL.md",
-      "bytes": 61408,
-      "sha256": "7bff2a8036bfddaff231fa22e82d054652ade1cb7699342a179772c8864a62bc"
+      "bytes": 65488,
+      "sha256": "d2e45505793da557abaefe9a74e6ee1e3d8b370653fced54645cd51d11ee8192"
     },
     {
       "path": "bitnet/proposal/PROPOSAL_ZH.md",
-      "bytes": 60442,
-      "sha256": "178f238cfa4aa9f8f04ff1ff6f1afb70a13e597809c272dc3cf1ea331a9b6236"
+      "bytes": 63895,
+      "sha256": "29adf9ca601362340c2bd0a71d749721ba5bdff545877185c69ba6efc266ff8a"
     },
     {
       "path": "bitnet/proposal/README.md",
-      "bytes": 3147,
-      "sha256": "950ae9fd6dbe3d604e0eb06c520b6a235565e14f36e90898e874d904e8cf90f7"
+      "bytes": 4041,
+      "sha256": "f62fa31e1a64c5ea9ef290e6648f77766fc91dba9d122b0861434311500e5c07"
     },
     {
       "path": "bitnet/proposal/README_ZH.md",
-      "bytes": 3546,
-      "sha256": "104a20622c49244e2c23fa2e7f5af91b6cdac83aa3ec1b980acb2e0e0c8ed41b"
+      "bytes": 4503,
+      "sha256": "10c8979205724d813afb2188871cede59bdf25ef61a028684cd4f0211dfed9e7"
     },
     {
       "path": "bitnet/proposal/TRANSLATION_CHECK.json",
       "bytes": 1203,
-      "sha256": "635bf82c0862c7a355f90cb20d6153ad254b007ec9b142e7a3ea42975e022247"
+      "sha256": "0ee9792979c59667f9bcfbf6bb1a6f28ecd5f57ecd168a6ec17cef110a20d5a2"
     },
     {
       "path": "bitnet/proposal/assets/execution-flow.png",
@@ -585,12 +630,12 @@
     {
       "path": "bitnet/proposal/render_proposal.py",
       "bytes": 16184,
-      "sha256": "265eaded490d0727c576e07e6e56556b4c84b9e198921135b9206fd27d7d5166"
+      "sha256": "32dace76a62255cd61376d2eb5a6dd01ad36d92479e5d860cd1764fae5b73694"
     },
     {
       "path": "bitnet/proposal/render_proposal_zh.py",
       "bytes": 8874,
-      "sha256": "a434c02366c79e3870da530db22008ad137e6001dddc631cad943e2b72555ac6"
+      "sha256": "cfe83e2c291d84953491675e0c98e5c18eabc2d7615bf820f75b4acaf7ec62d0"
     },
     {
       "path": "bitnet/proposal/requirements-docs.txt",
@@ -964,8 +1009,8 @@
     },
     {
       "path": "ggml/src/ggml-metal/ggml-metal-ops.cpp",
-      "bytes": 402462,
-      "sha256": "a5f39696d756dcd0e474a76c6f2c175edddf24d5b53ca41555c28352fc1d50e7"
+      "bytes": 404679,
+      "sha256": "92bde25989179bff2edf08680a703224e047bdbdc3f17383f7352d0efe879aab"
     },
     {
       "path": "ggml/src/ggml-metal/ggml-metal-ops.h",
@@ -984,8 +1029,8 @@
     },
     {
       "path": "src/models/bitnet.cpp",
-      "bytes": 10439,
-      "sha256": "104cc816478067625a30015586c4985c379b01924f7f9df994097ea315584c67"
+      "bytes": 12206,
+      "sha256": "27b3d6262c9eaa0d96e2a05bee8fad7e01aa5f2dab50a6d38a56bacb5d6f8ea8"
     },
     {
       "path": "tests/test-backend-ops.cpp",
@@ -993,8 +1038,10 @@
       "sha256": "7120427998e79f02c04c8ae1e153f8a96bd2c9632401a64972ae252141f44278"
     }
   ],
-  "review_revision": "2026-11-15 FFN performance exploration editorial consolidation",
+  "review_revision": "2026-11-16 combined ActQuant-ON layer0 Q4 qualification and bilingual proposal update",
   "ActQuant_revision_base_commit": "b7efadd3b0e4d8ae1000798eb1e869c285dcca07",
-  "ActQuant_semantic_scope": "A16 same-input F32 quantizer qualified; full-model frozen reference still fails; no new timing",
-  "ActQuant_phone_source_commit": "4c249e3e13dfce7b21bc2bab0912a1ff4807bc7e"
+  "ActQuant_semantic_scope": "Same-input quantizer and joint stock-ON Q4 compatibility pass; trusted full-model reference remains failed strict1; fresh phone isolated-Q timing excludes quantizer preparation",
+  "ActQuant_phone_source_commit": "edbd109bc152decbbc7274b703d21bd6099bf98c",
+  "previous_ActQuant_phone_source_commit": "4c249e3e13dfce7b21bc2bab0912a1ff4807bc7e",
+  "raw_evidence_included": false
 }

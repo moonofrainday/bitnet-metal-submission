@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """CPU-only scoped stock-ON/Q4-ON audit. Never executes a model or Metal.
 
-Exit 0: every required scoped gate passes; 1: observed numerical/contract
-failure; 2: missing/invalid evidence; 3: malformed command/configuration.
+Exit 0: every required scoped gate passes; 1: complete evidence but a required
+gate fails; 2: missing/malformed/invalid evidence or an EvidenceError contract rejection.
+Argparse also returns 2 for malformed command-line arguments.
 This does not replace historical official-source full-model failures.
 """
 import argparse

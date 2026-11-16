@@ -1,5 +1,7 @@
 # 公开 BitNet 2B ActQuant 修复：Mac 数值验证
 
+> 历史 Mac 范围：下文手机 UNVERIFIED 状态对应当时的 Mac 实验截止点。后续来自 `4c249e3` 的实体 A16 算子与捕获数据同输入 quantizer 检查已通过，已完成的完整模型 reference 对照仍为 strict exit 1。16 November 更新见 `../actquant-iphone-2026-11-16/`。后续 `edbd109` ActQuant/Q4 组合对 stock ON 的范围化验收通过，见 `../actquant-q4-joint-2026-11-16/`；不覆盖任何历史判据。
+
 本记录针对微软公开 checkpoint，不代表团队尚未确认规则的 checkpoint。旧 QVAC 路径、历史严格失败和原容差全部保留：`abs(actual-reference) <= 2e-4 + 2e-5*abs(reference)`。本轮没有 Mac 性能数据，修复版本也**尚未在实体 iPhone 上验证**。
 
 ## 实现范围与参考精度

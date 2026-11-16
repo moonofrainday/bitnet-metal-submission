@@ -14,11 +14,12 @@ The source baseline is `tetherto/qvac-fabric-llm.cpp@2db8b046d555316019ae75d1be9
 | [Source walkthrough](bitnet/docs/SOURCE_WALKTHROUGH.md) | Input/output contract, graph flow, dispatch and stock fallback |
 | [Build and run](bitnet/docs/BUILD_AND_RUN.md) | Fresh builds, standalone test and model conversion |
 | [iPhone package](bitnet/ios/README.md) | Source-only SwiftUI background-init hook, replay/operator helpers, build and launch tools |
-| [Latest iPhone Q4 acceptance](bitnet/docs/IPHONE_Q4_COMPLETE_2026-11-15.md) | Fresh-build all-32-call numerical verification, operator gain, no whole-decode gain, negative Down control |
+| [Historical iPhone Q4 acceptance](bitnet/docs/IPHONE_Q4_COMPLETE_2026-11-15.md) | ActQuant-OFF all-32-call verification, operator gain, no whole-decode gain, negative Down control |
 | [Historical iPhone results](bitnet/docs/IPHONE_RESULTS.md) | Earlier A16 Q4 and G/F8 measurements and their limits |
 | [Validation status](bitnet/docs/VALIDATION.md) | Separate parity, FP64 and model-output outcomes; preserved failures |
 | [ActQuant experiment](bitnet/analysis/actquant-2026-11-16/README.md) | Default-off public-checkpoint quantizer, same-input CPU/Metal validation and preserved full-model reference failures |
 | [New A16 ActQuant qualification](bitnet/analysis/actquant-iphone-2026-11-16/README.md) | Physical-phone all-case operator and real-graph quantizer pass; full-model frozen reference still fails |
+| [Joint ActQuant-ON Q4 qualification](bitnet/analysis/actquant-q4-joint-2026-11-16/README.md) | Two histories on Mac and A16: all32 decode Q calls pass FP64 and stock-ON parity; new phone operator timing is separate from model fidelity |
 | [Limitations](bitnet/docs/LIMITATIONS.md) | Unverified scope and remaining delivery work |
 
 ## Build a numerical smoke test
@@ -44,7 +45,7 @@ This builds **this modified source** and runs the original 59-case TQ2_0 Metal b
 
 The checkpoint is the **public Microsoft BitNet b1.58 2B-4T**, converted to TQ2_0 with the documented compatibility changes. It is separate from the team's checkpoint. I2_S is not TQ2_0.
 
-All performance claims here concern **physical iPhone 14 Pro/A16 measurements**. Mac runs establish build and numerical reproducibility only. Historical phone results are explicitly distinguished from the fresh signed-build Q4 campaign documented above. Raw samples stay local in both cases.
+All performance claims here concern **physical iPhone 14 Pro/A16 measurements**. Mac runs establish build and numerical reproducibility only. Historical ActQuant-OFF results and the fresh joint ActQuant-ON Q4 campaign use different input profiles and are reported separately. The new isolated Q measurement excludes activation-quantizer preparation and does not establish whole-model acceleration. Raw samples stay local.
 
 ## Publication contents
 

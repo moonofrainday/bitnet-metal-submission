@@ -1,5 +1,7 @@
 # Public BitNet 2B ActQuant repair: Mac numerical qualification
 
+> Historical Mac scope: the phone UNVERIFIED statements below describe the Mac experiment cutoff. A later physical A16 run from source `4c249e3` passes operator and captured same-input quantizer checks, while completed full-model reference comparison retains strict exit 1. See `../actquant-iphone-2026-11-16/` for the 16 November update. The later `edbd109` joint ActQuant/Q4 scope passes against stock ON; see `../actquant-q4-joint-2026-11-16/`. No historical verdict is overwritten.
+
 This analysis concerns the public Microsoft checkpoint, not the team's unspecified checkpoint. It preserves the previous QVAC path, original strict failures, and the frozen bound `abs(actual-reference) <= 2e-4 + 2e-5*abs(reference)`. It reports no Mac performance measurements. The repaired path has **not been verified on a physical iPhone**.
 
 ## Implementation and reference profile

@@ -1,0 +1,819 @@
+diff --git a/bitnet/actquant/analyze_q4.py b/bitnet/actquant/analyze_q4.py
+new file mode 100644
+index 0000000..1e08a23
+--- /dev/null
++++ b/bitnet/actquant/analyze_q4.py
+@@ -0,0 +1,304 @@
++#!/usr/bin/env python3
++"""CPU-only scoped stock-ON/Q4-ON audit. Never executes a model or Metal.
++
++Exit 0: every required scoped gate passes; 1: observed numerical/contract
++failure; 2: missing/invalid evidence; 3: malformed command/configuration.
++This does not replace historical official-source full-model failures.
++"""
++import argparse
++from collections import Counter
++import csv
++import hashlib
++import json
++from pathlib import Path
++import re
++import sys
++
++import numpy as np
++
++MODEL_SHA = '52257df879ab4366d97228e7bda94a9a3c6a9065ec44e7879a8b87d54e568cd2'
++WEIGHT_SHA = 'b2dea7f42cacfd08ed780df979f6f28240026795b1f5c87ca8c16fc7da23dc58'
++ATOL, RTOL = 2e-4, 2e-5
++POSITIONS = list(range(27, 59))
++VECTOR_NB = [4, 10240, 10240, 10240]
++WEIGHT_NE = [2560, 2560, 1, 1]
++WEIGHT_NB = [66, 660, 1689600, 1689600]
++
++
++class EvidenceError(ValueError):
++    pass
++
++
++def require(test, text):
++    if not test:
++        raise EvidenceError(text)
++
++
++def scoped_verdict(checks):
++    verdict = False if any(v is False for v in checks.values()) else None if any(v is None for v in checks.values()) else True
++    return verdict, 1 if verdict is False else 2 if verdict is None else 0
++
++
++def sha(path):
++    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
++
++
++def load(path):
++    return json.loads(Path(path).read_text())
++
++
++def native_root(path):
++    path = Path(path).expanduser().resolve()
++    return path / 'device/native' if (path / 'device/native/RUN.json').is_file() else path
++
++
++def payload(root, relative, count, digest=None, dtype='<f4'):
++    part = Path(relative)
++    require(not part.is_absolute() and '..' not in part.parts, 'Unsafe capture path')
++    path = (root / part).resolve()
++    require(path.is_relative_to(root) and path.is_file(), 'Missing capture payload: ' + relative)
++    require(path.stat().st_size == count * np.dtype(dtype).itemsize, 'Wrong capture byte extent: ' + relative)
++    require(digest is None or sha(path) == digest, 'Capture SHA256 mismatch: ' + relative)
++    return np.fromfile(path, dtype=dtype)
++
++
++def metrics(actual, reference):
++    a, b = np.asarray(actual, np.float64).reshape(-1), np.asarray(reference, np.float64).reshape(-1)
++    require(a.size == b.size and a.size > 0, 'Comparison extent mismatch')
++    finite = np.isfinite(a) & np.isfinite(b)
++    err = np.abs(a - b)
++    tol = ATOL + RTOL * np.abs(b)
++    bad = ~finite | (err > tol)
++    return {'values': int(a.size), 'failing_values': int(np.count_nonzero(bad)),
++            'nonfinite_values': int(np.count_nonzero(~finite)),
++            'max_abs': float(err[finite].max()) if finite.any() else None,
++            'max_error_over_tolerance': float((err[finite] / tol[finite]).max()) if finite.any() else None,
++            'relative_L2': float(np.linalg.norm(a-b) / np.linalg.norm(b)) if finite.all() and np.linalg.norm(b) else None,
++            'bitwise_differences': int(np.count_nonzero(np.asarray(actual, np.float32).reshape(-1).view(np.uint32) !=
++                                                       np.asarray(reference, np.float32).reshape(-1).view(np.uint32))),
++            'pass': not bool(bad.any())}, bad
++
++
++def manifest(root, route, captured=True):
++    r = load(root / 'RUN.json')
++    require(r['schema'] == 1 and r['operation'] == 'model' and r['workload'] == 'teacher', 'Expected teacher model RUN')
++    require(r['model_sha256'] == MODEL_SHA and r['backend'] == 'MTL0' and r['activation_quantization'] is True,
++            'Expected same public GGUF, Metal and ActQuant ON')
++    require(r['q_route'] == route and r['q_fallback'] == 'none', 'Wrong Q route/fallback')
++    require(r['prefill'] == 'batched' and r['kv'] == 'F16' and r['settings'] ==
++            {'n_ctx': 512, 'batch': 128, 'ubatch': 128, 'threads': 6, 'flash_attention': False}, 'Replay settings differ')
++    require(r['offloaded_layers'] == r['total_offload_layers'] == 31 and r['execution_pass'] is True and
++            r['finite_logits'] is True and r['completed_decode_calls'] == 33, 'Incomplete Metal collection')
++    require(r['capture_enabled'] is captured, 'Wrong probe mode')
++    require(len(r['prompt_ids']) == 27 and len(r['continuation_ids']) == 32 and
++            r['token_ids'] == r['prompt_ids'] + r['continuation_ids'], 'Wrong teacher history')
++    require([x['input_position'] for x in r['logits']] == list(range(26, 59)), 'Incomplete logit coverage')
++    if route == 'Q4':
++        require(r['q_rows_per_simd'] == 4 and r['q_simd_per_group'] == 1 and r['q_variant'] == 'stock4x1',
++                'Wrong Q4 algorithm/layout')
++        for key in ['q_library_sha256', 'q_library_source_sha256', 'q_library_manifest_sha256']:
++            require(isinstance(r[key], str) and len(r[key]) == 64, 'Missing Q4 library provenance')
++    return r
++
++
++def q_records(run):
++    records = [x for x in run['checkpoints'] if x['kind'] == 'Q_preRoPE' and x['node'] == 'Qcur-0']
++    keys = [tuple(x['input_positions']) for x in records]
++    require(keys == [tuple(range(27)), *[(p,) for p in POSITIONS]], 'Missing, duplicate or reordered prefill/32 Q0 outputs')
++    for record in records:
++        n = len(record['input_positions'])
++        require(record['type'] == 'f32' and record['op'] == 'MUL_MAT' and record['layer'] == 0 and
++                record['ne'] == [2560,n,1,1] and record['nb'] == [4,10240,10240*n,10240*n], 'Q0 output tensor contract')
++        w, x = record['weight'], record['activation']
++        require(w['name'] == 'blk.0.attn_q.weight' and w['type'] == 'tq2_0' and
++                w['ne'] == WEIGHT_NE and w['nb'] == WEIGHT_NB and w['bytes'] == 1689600, 'Q0 weight tensor contract')
++        require(x['name'] == 'actq_qkv_out-0' and x['op'] == 'ACT_QUANT' and x['type'] == 'f32' and
++                x['ne'] == record['ne'] and x['nb'] == record['nb'], 'Q4 actual X is not the declared ActQuant result')
++        require(record['decode_step'] == (0 if n == 27 else record['input_positions'][0]-26), 'Q decode position mapping')
++    require(len({x['weight_path'] for x in records}) == 1 and {x['weight_sha256'] for x in records} == {WEIGHT_SHA},
++            'Static Q0 weight file/hash identity changed')
++    return records
++
++
++def decode_weight(raw):
++    require(raw.size == 1689600, 'Weight size')
++    blocks = raw.reshape(2560,10,66)
++    codes = ((blocks[:,:,:64].reshape(2560,10,2,1,32) >>
++              np.array([0,2,4,6], np.uint8).reshape(1,1,1,4,1)) & 3).reshape(2560,10,256)
++    require(not np.any(codes == 3), 'Illegal TQ2_0 code 3')
++    scales = blocks[:,:,64:].copy().view('<f2').reshape(2560,10).astype(np.float64)
++    require(np.isfinite(scales).all(), 'Nonfinite block scale')
++    return (codes.astype(np.float64)-1) * scales[:,:,None]
++
++
++def trace_evidence(path, route, fallback='none'):
++    text = Path(path).read_text(errors='replace')
++    phase, begins, ends = None, [], []
++    encoded, completed = Counter(), Counter()
++    phase_encoded, phase_completed = Counter(), Counter()
++    counts = Counter(); guard_steps = []; fallback_count = 0
++    for line in text.splitlines():
++        f = dict(re.findall(r'(\w+)=(\[[^\]]*\]|[^\s]+)', line))
++        if line.startswith('ACTQUANT_Q_PHASE_BEGIN '):
++            require(phase is None and f['q_route'] == route, 'Overlapping/wrong Q trace phase')
++            phase = int(f['decode_step']); begins.append(phase); phase_encoded.clear(); phase_completed.clear()
++        elif line.startswith('ACTQUANT_Q_PHASE_COMPLETE '):
++            require(phase == int(f['decode_step']) and f['synchronized'] == '1', 'Missing synchronized phase completion')
++            require(phase_encoded == phase_completed and sum(phase_encoded.values()) == 30,
++                    'Every replay phase must complete all 30 actual Q dispatches before its synchronized marker')
++            ends.append(phase); phase = None
++        elif line.startswith('BITNET_ACTQUANT_Q4_GUARD '):
++            require(phase is not None and phase > 0 and route == 'Q4' and f['node'] == 'Qcur-0' and
++                    f['source'] == 'actq_qkv_out-0' and f['source_op'] == 'ACT_QUANT' and f['checked'] == '1',
++                    'Wrong ActQuant-Q4 guard identity/phase')
++            guard_steps.append(phase)
++        elif line.startswith('BITNET_Q_FALLBACK '):
++            require(fallback == 'missing-library' and f['reason'] == 'pipeline' and f['node'] == 'Qcur-0',
++                    'Unexpected runtime fallback')
++            fallback_count += 1
++        elif line.startswith(('BITNET_MULTILAYER_ENCODE ', 'BITNET_MULTILAYER_COMPLETE ')) and f.get('route','').startswith('q-'):
++            key = (f['route'], f['layer'], f['node'], f['command'])
++            if line.startswith('BITNET_MULTILAYER_COMPLETE '):
++                require(f['status'] == '4' and f['completed'] == '1', 'GPU did not complete Q dispatch')
++                require(phase is not None, 'Q completion outside its replay call')
++                completed[key] += 1; phase_completed[key] += 1; continue
++            require(phase is not None, 'Q encode outside its replay call')
++            encoded[key] += 1; phase_encoded[key] += 1
++            layer = int(f['layer']); custom = f['route'] == 'q-custom'
++            require(f['node'] == f'Qcur-{layer}' and f['weight'] == f'blk.{layer}.attn_q.weight', 'Wrong live Q identity')
++            require(not custom or (route == 'Q4' and fallback == 'none' and phase > 0 and layer == 0 and f['n'] == '1'),
++                    'Custom prefill/non-target/stock dispatch')
++            if custom:
++                require(f['pipeline'] == 'tq2_0_matvec_poc_c8x2' and f['grid'] == '[640,1,1]' and
++                        f['threads'] == '[32,1,1]', 'Wrong actual Q4 pipeline/launch')
++            else:
++                require(f['pipeline'] == ('kernel_mul_mm_tq2_0_f32' if phase == 0 else 'kernel_mul_mv_tq2_0_f32'),
++                        'Wrong actual stock Q pipeline')
++            bucket = 'prefill_stock' if phase == 0 else 'decode_target_custom' if custom else 'decode_target_stock' if layer == 0 else 'decode_nontarget_stock'
++            counts[bucket] += 1
++    require(phase is None and begins == ends == list(range(33)), 'Expected one prefill plus 32 complete decode phases')
++    require(encoded == completed, 'Q pipeline encode/completion identities or counts differ')
++    expect_custom = 32 if route == 'Q4' and fallback == 'none' else 0
++    require(counts['prefill_stock'] == 30 and counts['decode_nontarget_stock'] == 928 and
++            counts['decode_target_custom'] == expect_custom and counts['decode_target_stock'] == 32-expect_custom,
++            'Wrong actual stock/custom Q dispatch counts')
++    require(guard_steps == (list(range(1,33)) if route == 'Q4' else []), 'ActQuant-specific guard did not hit every eligible call')
++    require(fallback_count == (32 if fallback == 'missing-library' else 0), 'Missing-library fallback count')
++    require('ACTQUANT_MODEL_COMPLETE enabled=1 backend=MTL0 workload=teacher decode_calls=33 logits=33 ' in text,
++            'Native complete marker missing')
++    return {'pass': True, 'counts': dict(counts), 'eligible_calls': 32, 'custom_dispatches': expect_custom,
++            'guard_hits': len(guard_steps), 'fallbacks': fallback_count, 'all_Q_encodes_completed': sum(encoded.values()),
++            'log_sha256': sha(path)}
++
++
++def logits(root, run):
++    return [payload(root, v['path'], 128256) for v in run['logits']]
++
++
++def vector_comparison(a, b):
++    rows = [metrics(x,y)[0] for x,y in zip(a,b)]
++    return {'vectors': len(rows), 'pass': all(x['pass'] for x in rows),
++            'bitwise_pass': all(x['bitwise_differences'] == 0 for x in rows),
++            'failing_values': sum(x['failing_values'] for x in rows),
++            'bitwise_differences': sum(x['bitwise_differences'] for x in rows),
++            'max_abs': max(x['max_abs'] for x in rows), 'rows': rows}
++
++
++def probe_control(path, reference_root, reference_run, route):
++    if path is None:
++        return None
++    root = native_root(path); r = manifest(root, route, False)
++    require(r['token_ids'] == reference_run['token_ids'] and r['q_library_sha256'] == reference_run['q_library_sha256'],
++            'Probe history/library differs')
++    return vector_comparison(logits(root,r), logits(reference_root,reference_run))
++
++
++def quantizer_check(root, run, q, source):
++    from prepare_fixtures import official_quantizer
++    import torch
++    torch.set_num_threads(1)
++    oracle = official_quantizer(source)
++    records = [x for x in run['checkpoints'] if x['kind'] == 'actquant' and x['node'] == 'actq_qkv_out-0']
++    require([x['input_positions'] for x in records] == [list(range(27)), *[[p] for p in POSITIONS]], 'Missing Q0 quantizer coverage')
++    values = bits = codes = 0
++    for r, projection in zip(records,q):
++        n = len(r['input_positions']); x = payload(root,r['input_path'],n*2560).reshape(n,2560)
++        y = payload(root,r['output_path'],n*2560).reshape(n,2560)
++        xt = torch.from_numpy(x.copy()); expected = oracle.apply(xt).numpy()
++        scale = (127 / xt.abs().max(-1,keepdim=True).values.clamp(min=1e-5)).numpy()
++        expected_codes = np.rint((xt * torch.from_numpy(scale)).numpy()).clip(-128,127)
++        bits += int(np.count_nonzero(y.view(np.uint32) != expected.view(np.uint32)))
++        codes += int(np.count_nonzero(np.rint(y.astype(np.float64)*scale.astype(np.float64)) != expected_codes))
++        require(sha(root/r['output_path']) == projection['input_sha256'], 'Captured Q X does not equal actual quantizer Y')
++        values += y.size
++    return {'captures':33,'values':int(values),'bitwise_differences':bits,'integer_code_mismatches':codes,'pass':bits==codes==0}
++
++
++def run(args):
++    out = args.output.resolve(); require(not out.exists(), 'Refuse existing analysis directory'); out.mkdir(parents=True)
++    result = {'analysis_completed':False,'scope':'ActQuant-ON layer0 Q4 vs stock-ON; 27+32 fixed-token replay',
++              'frozen_tolerance':{'absolute':ATOL,'relative':RTOL},'official_source_model_output_pass':None,
++              'model_quality_pass':None,'performance_measured':False,'historical_strict_failures_overwritten':False}
++    try:
++        sr, cr = native_root(args.stock), native_root(args.candidate)
++        s,c = manifest(sr,'stock'),manifest(cr,'Q4'); sq,cq = q_records(s),q_records(c)
++        require(s['token_ids'] == c['token_ids'] and s['device'] == c['device'] and s['q_library_sha256'] == c['q_library_sha256'],
++                'Routes must have identical history, device and Q4 library identity')
++        w = payload(sr,sq[0]['weight_path'],1689600,WEIGHT_SHA,np.uint8); payload(cr,cq[0]['weight_path'],1689600,WEIGHT_SHA,np.uint8)
++        decoded = decode_weight(w); comparisons=[]; input_hashes=[]; fp_rows=[]
++        with (out/'FP64_ROWS.csv').open('w',newline='') as f:
++            writer=csv.writer(f);writer.writerow(['step','input_position','row','FP64_reference','stock','Q4','stock_abs_error','Q4_abs_error','tolerance','stock_fail','Q4_fail'])
++            for step,(a,b) in enumerate(zip(sq,cq)):
++                n=len(a['input_positions']); require(a['input_sha256'] == b['input_sha256'], 'Stock/Q4 actual X hashes differ')
++                x=payload(sr,a['input_path'],2560*n,a['input_sha256']);payload(cr,b['input_path'],2560*n,b['input_sha256'])
++                y=payload(sr,a['path'],2560*n,a['output_sha256']);z=payload(cr,b['path'],2560*n,b['output_sha256'])
++                comparison,_=metrics(z,y);comparison.update(step=step,input_positions=a['input_positions']);comparisons.append(comparison)
++                input_hashes.append({'step':step,'weight_sha256':WEIGHT_SHA,'input_sha256':a['input_sha256'],'stock_output_sha256':a['output_sha256'],'Q4_output_sha256':b['output_sha256']})
++                if step==0: continue  # Batched prefill's stock half staging is a separate existing failure.
++                ref=np.einsum('rbk,bk->r',decoded,x.astype(np.float64).reshape(10,256),optimize=False)
++                sm,sbad=metrics(y,ref);cm,cbad=metrics(z,ref);fp_rows.append({'step':step,'stock':sm,'Q4':cm})
++                for i in range(2560): writer.writerow([step,a['input_positions'][0],i,ref[i],y[i],z[i],abs(float(y[i])-ref[i]),abs(float(z[i])-ref[i]),ATOL+RTOL*abs(ref[i]),int(sbad[i]),int(cbad[i])])
++        layer_s=[x for x in s['checkpoints'] if x['kind']=='l_out' and x['node']=='l_out-0' and x['input_positions'] in [[27],[42],[58]]]
++        layer_c=[x for x in c['checkpoints'] if x['kind']=='l_out' and x['node']=='l_out-0' and x['input_positions'] in [[27],[42],[58]]]
++        require([x['input_positions'] for x in layer_s] == [x['input_positions'] for x in layer_c] == [[27],[42],[58]], 'Missing sampled residual steps1/16/32')
++        residual=vector_comparison([payload(cr,x['path'],2560) for x in layer_c],[payload(sr,x['path'],2560) for x in layer_s])
++        logit=vector_comparison(logits(cr,c),logits(sr,s));probe_s=probe_control(args.stock_plain,sr,s,'stock');probe_c=probe_control(args.candidate_plain,cr,c,'Q4')
++        traces={'stock':trace_evidence(args.stock_log,'stock'),'Q4':trace_evidence(args.candidate_log,'Q4')}
++        quant={'stock':quantizer_check(sr,s,sq,args.official_source),'Q4':quantizer_check(cr,c,cq,args.official_source)}
++        fallback=None
++        if args.missing_library is not None and args.missing_library_log is not None:
++            fr=native_root(args.missing_library);f=load(fr/'RUN.json');require(f['q_route']=='Q4' and f['q_fallback']=='missing-library' and f['token_ids']==s['token_ids'] and f['activation_quantization'] is True,'Wrong missing-library control')
++            fb=vector_comparison(logits(fr,f),logits(sr,s));trace=trace_evidence(args.missing_library_log,'Q4','missing-library');fallback={'pass':fb['bitwise_pass'] and trace['pass'],'logits':fb,'trace':trace}
++        checks={'identical_real_inputs_pass':True,'parity_pass':all(v['pass'] for v in comparisons[1:]),
++                'fp64_pass':all(v['stock']['pass'] and v['Q4']['pass'] for v in fp_rows),
++                'model_output_pass':residual['pass'] and logit['pass'],
++                'local_actquant_pass':all(v['pass'] for v in quant.values()),'dispatch_pass':True,
++                'prefill_and_nontarget_stock_pass':comparisons[0]['bitwise_differences']==0,
++                'probe_neutrality_pass':None if probe_s is None or probe_c is None else probe_s['bitwise_pass'] and probe_c['bitwise_pass'],
++                'missing_library_stock_fallback_pass':None if fallback is None else fallback['pass']}
++        verdict,code=scoped_verdict(checks)
++        result.update(analysis_completed=True,checks=checks,scoped_stock_compatibility_pass=verdict,strict_scoped_exit_code=code,
++                      numerical_scope='All32 N1 Q0 dots; prefill parity only; residual1/16/32; all33 logits versus stock-ON',
++                      model_sha256=MODEL_SHA,weight_sha256=WEIGHT_SHA,q_library_sha256=c['q_library_sha256'],
++                      source_input_hashes=input_hashes,Q_comparisons=comparisons,FP64=fp_rows,residuals=residual,logits=logit,
++                      probe_controls={'stock':probe_s,'Q4':probe_c},actual_runtime=traces,actual_input_quantizers=quant,missing_library=fallback,
++                      full_model_FP64_pass=None,official_source_logit_verdict='Not recomputed by this scoped analyzer; prior strict1 remains')
++    except (EvidenceError,OSError,KeyError,TypeError,ValueError) as e:
++        result.update(analysis_completed=False,error=str(e),scoped_stock_compatibility_pass=None,strict_scoped_exit_code=2);code=2
++    (out/'SUMMARY.json').write_text(json.dumps(result,indent=2,allow_nan=False)+'\n')
++    print(json.dumps({k:v for k,v in result.items() if k not in ['Q_comparisons','FP64','source_input_hashes','residuals','logits','probe_controls']},indent=2))
++    return code
++
++
++def main(argv=None):
++    p=argparse.ArgumentParser(description=__doc__)
++    for name in ['stock','candidate','stock-log','candidate-log','output']:
++        p.add_argument('--'+name,type=Path,required=True)
++    for name in ['stock-plain','candidate-plain','missing-library','missing-library-log']:
++        p.add_argument('--'+name,type=Path)
++    p.add_argument('--official-source',type=Path,default=Path(__file__).resolve().parents[1]/'reference/official-bitnet-096f25ae.py')
++    return run(p.parse_args(argv))
++
++
++if __name__=='__main__':
++    raise SystemExit(main())
+diff --git a/bitnet/actquant/q4_contract.py b/bitnet/actquant/q4_contract.py
+new file mode 100644
+index 0000000..68b0049
+--- /dev/null
++++ b/bitnet/actquant/q4_contract.py
+@@ -0,0 +1,35 @@
++"""CPU-only Q4 shader provenance and replay-contract checks."""
++import hashlib
++import json
++from pathlib import Path
++
++ROOT = Path(__file__).resolve().parents[2]
++SYMBOL = 'tq2_0_matvec_poc_c8x2'
++SOURCE = 'bitnet/shaders/stock4x1.metal'
++
++
++def sha(path):
++    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
++
++
++def require(condition, text):
++    if not condition:
++        raise ValueError(text)
++
++
++def q4_library_identity(library, manifest, sdk=None):
++    """Bind even an alias library to freshly compiled stock4x1, not C8's same symbol."""
++    library, manifest = Path(library).resolve(), Path(manifest).resolve()
++    build = json.loads(manifest.read_text())
++    require(build.get('build_completed') is True and build.get('exit_code') == 0, 'Q4 shader build incomplete')
++    require(sdk is None or build.get('sdk') == sdk, 'Q4 shader SDK mismatch')
++    product = build['products']['stock4x1.metallib']
++    require(product['source'] == 'stock4x1.metal' and product['expected_symbols'] == [SYMBOL], 'Q4 variant mismatch')
++    require(build['sources'].get(SOURCE) == sha(ROOT / SOURCE), 'Q4 shader source differs from current worktree')
++    require(library.stat().st_size == product['bytes'] and sha(library) == product['sha256'], 'Q4 library differs from stock4x1 product')
++    commands = [x for x in build['commands'] if x['name'] == 'stock4x1-compile']
++    require(len(commands) == 1 and commands[0]['exit_code'] == 0 and
++            str(ROOT / SOURCE) in commands[0]['argv'], 'Q4 compile provenance missing')
++    return {'q_library': str(library), 'q_library_sha256': sha(library),
++            'q_variant': 'stock4x1', 'q_library_source_sha256': build['sources'][SOURCE],
++            'q_library_manifest_sha256': sha(manifest), 'q_library_sdk': build['sdk']}
+diff --git a/bitnet/actquant/run_phone.py b/bitnet/actquant/run_phone.py
+index 08d3848..10a4a2c 100644
+--- a/bitnet/actquant/run_phone.py
++++ b/bitnet/actquant/run_phone.py
+@@ -19,6 +19,7 @@ HERE = Path(__file__).resolve().parent
+ ROOT = HERE.parents[1]
+ sys.path.insert(0, str(ROOT / "bitnet/ios"))
+ from common import PUBLIC_MODEL_SHA256, Commands, developer_environment, require, sha256, write_json
++from q4_contract import q4_library_identity
+ 
+ OFFICIAL_ACTQUANT_SHA256 = "a8b3170f1824f010701f4e033fbc33d199bc2ea344ddbf2554594b66fada8b1c"
+ 
+@@ -144,6 +145,8 @@ def command_plan(args, build, config, remote_fixture, remote_tokens):
+         plan.append([*copy, "--source", str(args.fixture), "--destination", "Documents/" + remote_fixture])
+     else:
+         plan.append([*copy, "--source", str(args.tokens), "--destination", "Documents/" + remote_tokens])
++    if args.operation == "model" and args.q_library is not None:
++        plan.append([*copy, "--source", str(args.q_library), "--destination", "Documents/" + config["q_library"]])
+     plan.append([*common, "--timeout", str(args.timeout), "device", "process", "launch", "--console", "--terminate-existing",
+                  "--device", args.device, "--environment-variables", json.dumps({"BITNET_CANDIDATE_CONFIG": json.dumps(config, separators=(",", ":"))}), bundle])
+     plan.append([*common, "--timeout", "900", "device", "copy", "from", "--device", args.device,
+@@ -191,6 +194,11 @@ def validate_collection(args, config, log, device_dir, fixture):
+         positions = list(range(128)) if args.workload == "corpus" else list(range(26, 59))
+         require(result["tokens_sha256"] == native["tokens_sha256"] == config["tokens_sha256"] and
+                 native["token_ids"] == ids and native["prompt_ids"] == tokens["prompt"] and native["continuation_ids"] == tokens["continuation"], "Token input identity mismatch")
++        require(native["q_route"] == args.q_route and native["q_fallback"] == args.q_fallback and
++                native["capture_scope"] == args.capture_scope, "Q route/scope identity mismatch")
++        if "q_library" in config:
++            for key in ("q_library_sha256", "q_variant", "q_library_source_sha256", "q_library_manifest_sha256", "q_library_sdk"):
++                require(native[key] == config[key], "Q4 source/library runtime identity mismatch: " + key)
+         require(native["activation_quantization"] is args.actquant and native["capture_enabled"] is args.capture and
+                 native["prefill"] == "batched" and native["kv"] == "F16" and native["workload"] == args.workload,
+                 "Effective model settings mismatch")
+@@ -226,6 +234,11 @@ def main(argv=None):
+     p.add_argument("--output", type=Path, required=True)
+     p.add_argument("--actquant", choices=("on", "off"), default="on")
+     p.add_argument("--workload", choices=("teacher", "corpus"), default="teacher")
++    p.add_argument("--q-route", choices=("stock", "Q4"), default="stock")
++    p.add_argument("--q-fallback", choices=("none", "missing-library"), default="none")
++    p.add_argument("--capture-scope", choices=("all", "q4-layer0"), default="all")
++    p.add_argument("--q-library", type=Path, help="Optional stock4x1 library; defaults to the signed build shader product for Q4-scoped runs")
++    p.add_argument("--q-library-manifest", type=Path)
+     p.add_argument("--capture", action="store_true")
+     p.add_argument("--trace", action="store_true")
+     p.add_argument("--reuse-model", action="store_true")
+@@ -248,7 +261,10 @@ def main(argv=None):
+         remote_fixture, remote_tokens = prefix + "-fixtures", prefix + "-tokens.json"
+         config = {"operation": "actquant", "actquant_operation": args.operation, "output": prefix, "backend": "MTL0",
+                   "model": args.model.name, "model_sha256": PUBLIC_MODEL_SHA256, "actquant": args.actquant,
+-                  "capture": args.capture, "trace": args.trace, "workload": args.workload, "prefill": "batched", "kv": "F16"}
++                  "capture": args.capture, "trace": args.trace, "workload": args.workload, "prefill": "batched", "kv": "F16",
++                  "q_route": args.q_route, "q_fallback": args.q_fallback, "capture_scope": args.capture_scope}
++        require(args.q_route == "stock" or (args.operation == "model" and args.actquant and args.workload == "teacher"), "Q4 requires an ActQuant-ON teacher model run")
++        require(args.q_fallback == "none" or args.q_route == "Q4", "Q fallback requires Q4")
+         fixture = None
+         if args.operation == "operator":
+             require(args.fixture is not None, "Operator collection requires --fixture")
+@@ -267,6 +283,19 @@ def main(argv=None):
+         blockers, build = [], {}
+         try:
+             build, identity = build_identity(args.build_dir)
++            if args.operation == "model" and (args.q_route == "Q4" or args.capture_scope == "q4-layer0" or args.q_library is not None):
++                shader_dir = Path(build["shaders"])
++                args.q_library = (args.q_library or shader_dir / "q-stock4x1.metallib").expanduser().resolve()
++                shader_manifest = (args.q_library_manifest or shader_dir / "BUILD.json").expanduser().resolve()
++                q_identity = q4_library_identity(args.q_library, shader_manifest, "iphoneos")
++                expected = shader_dir / "q-stock4x1.metallib"
++                require(sha256(args.q_library) == sha256(expected), "Q4 must match the same signed build stock4x1 product")
++                require(build["shader_build_manifest_sha256"] == sha256(shader_manifest) and
++                        build["shader_products_sha256"]["q-stock4x1.metallib"] == sha256(args.q_library),
++                        "Q4 shader provenance changed after the signed app build")
++                config.update(q_identity); config["q_library"] = prefix + "-q-stock4x1.metallib"
++                write_json(args.output / "Q4_LIBRARY_IDENTITY.json", q_identity)
++                write_json(args.output / "config.json", config)
+             write_json(args.output / "BUILD_IDENTITY.json", identity)
+             if args.operation == "model":
+                 write_json(args.output / "OPERATOR_GATE.json", operator_gate(args.operator_run, args.operator_analysis, build))
+diff --git a/bitnet/actquant/runner.cpp b/bitnet/actquant/runner.cpp
+index dbd72cf..2ef2b77 100644
+--- a/bitnet/actquant/runner.cpp
++++ b/bitnet/actquant/runner.cpp
+@@ -61,7 +61,7 @@ static void write_f32(const fs::path & path, const std::vector<float> & values)
+     file.write(reinterpret_cast<const char *>(values.data()), values.size() * sizeof(float)); require(bool(file), "F32 write failed");
+ }
+ static json tensor_metadata(const ggml_tensor * tensor) {
+-    json result = {{"name", tensor->name}, {"type", ggml_type_name(tensor->type)}, {"ne", json::array()}, {"nb", json::array()}, {"bytes", ggml_nbytes(tensor)}};
++    json result = {{"name", tensor->name}, {"op", ggml_op_name(tensor->op)}, {"type", ggml_type_name(tensor->type)}, {"ne", json::array()}, {"nb", json::array()}, {"bytes", ggml_nbytes(tensor)}};
+     for (int i = 0; i < 4; ++i) { result["ne"].push_back(tensor->ne[i]); result["nb"].push_back(tensor->nb[i]); }
+     if (tensor->buffer) {
+         result["buffer_name"] = ggml_backend_buffer_name(tensor->buffer);
+@@ -76,7 +76,7 @@ static std::vector<float> read_tensor(const ggml_tensor * tensor) {
+     require(std::all_of(result.begin(), result.end(), [](float x) { return std::isfinite(x); }), "nonfinite captured tensor"); return result;
+ }
+ static void clear_custom_routes() {
+-    for (const char * key : {"GGML_METAL_BITNET_POC", "GGML_METAL_BITNET_Q_GUARD_ONLY", "GGML_METAL_BITNET_FFN", "GGML_METAL_BITNET_FFN_DECODE", "GGML_METAL_BITNET_FFN_MECHANISM", "GGML_METAL_BITNET_FFN_ABLATION", "GGML_METAL_BITNET_FFN_SHADOW_DIR", "GGML_METAL_BITNET_FFN_K_SHADOW_DIR", "GGML_METAL_BITNET_QREADBACK_DIR", "GGML_METAL_BITNET_POC_TRACE", "GGML_METAL_BITNET_FFN_TRACE", "GGML_METAL_GRAPH_DEBUG", "GGML_METAL_DEBUG_GRAPH", "GGML_METAL_CAPTURE_COMPUTE", "METAL_CAPTURE_ENABLED"}) { unsetenv(key); }
++    for (const char * key : {"LLAMA_BITNET_ACTQUANT_Q4", "GGML_METAL_BITNET_POC", "GGML_METAL_BITNET_Q_GUARD_ONLY", "GGML_METAL_BITNET_POC_ROWS_PER_SIMD", "GGML_METAL_BITNET_POC_SIMD_PER_GROUP", "GGML_METAL_BITNET_POC_METALLIB", "GGML_METAL_BITNET_LAYERS", "GGML_METAL_BITNET_FFN", "GGML_METAL_BITNET_FFN_DECODE", "GGML_METAL_BITNET_FFN_STEP", "GGML_METAL_BITNET_FFN_MECHANISM", "GGML_METAL_BITNET_FFN_ABLATION", "GGML_METAL_BITNET_FFN_SHADOW_DIR", "GGML_METAL_BITNET_FFN_K_SHADOW_DIR", "GGML_METAL_BITNET_QREADBACK_DIR", "GGML_METAL_BITNET_POC_TRACE", "GGML_METAL_BITNET_FFN_TRACE", "GGML_METAL_GRAPH_DEBUG", "GGML_METAL_DEBUG_GRAPH", "GGML_METAL_CAPTURE_COMPUTE", "METAL_CAPTURE_ENABLED"}) { unsetenv(key); }
+ }
+ static int operator_test(const json & config, const fs::path & out) {
+     const fs::path fixture = config.at("fixture").get<std::string>(); const auto manifest = read_json(fixture / "FIXTURES.json");
+@@ -124,8 +124,14 @@ static int operator_test(const json & config, const fs::path & out) {
+ }
+ struct Capture {
+     fs::path out; std::vector<int> positions; json checkpoints = json::array();
++    std::string q_weight_sha; const ggml_tensor * q_weight = nullptr;
++    std::string scope = "all";
+     size_t actquant_callbacks = 0, files = 0; bool enabled = false; std::string error;
+     bool wanted(ggml_tensor * t) const {
++        if (scope == "q4-layer0") {
++            return std::string(t->name) == "actq_qkv_out-0" || std::string(t->name) == "l_out-0" ||
++                (t->op == GGML_OP_MUL_MAT && std::string(t->name) == "Qcur-0");
++        }
+         if (t->op == GGML_OP_ACT_QUANT) { return true; }
+         const std::string name = t->name;
+         return name.rfind("l_out-", 0) == 0 || (t->op == GGML_OP_MUL_MAT && name.rfind("Qcur-", 0) == 0);
+@@ -153,6 +159,24 @@ struct Capture {
+             write_f32(out / (base + ".f32"), output); meta["path"] = base + ".f32";
+             if (tensor->op == GGML_OP_MUL_MAT) {
+                 auto input = read_tensor(tensor->src[1]); write_f32(out / (base + "-input.f32"), input); meta.update(json{{"kind", "Q_preRoPE"}, {"input_path", base + "-input.f32"}});
++                if (layer == 0) {
++                    const auto * weight = tensor->src[0]; require(weight && weight->type == GGML_TYPE_TQ2_0 &&
++                        ggml_is_contiguous(weight) && weight->ne[0] == 2560 && weight->ne[1] == 2560 &&
++                        weight->ne[2] == 1 && weight->ne[3] == 1 && ggml_nbytes(weight) == 1689600 &&
++                        std::string(weight->name) == "blk.0.attn_q.weight", "wrong live Q0 packed-weight contract");
++                    const std::string relative = "weights/blk.0.attn_q.weight.tq2";
++                    if (!q_weight) {
++                        q_weight = weight; std::vector<char> bytes(ggml_nbytes(weight));
++                        ggml_backend_tensor_get(weight, bytes.data(), 0, bytes.size()); fs::create_directories((out / relative).parent_path());
++                        std::ofstream file(out / relative, std::ios::binary); file.write(bytes.data(), bytes.size());
++                        require(bool(file), "Q weight capture failed"); file.close(); q_weight_sha = hash_file(out / relative);
++                    }
++                    require(q_weight == weight, "Q0 weight tensor identity changed during replay");
++                    meta.update(json{{"weight_path", relative}, {"weight_sha256", q_weight_sha}, {"weight", tensor_metadata(weight)},
++                        {"activation", tensor_metadata(tensor->src[1])}, {"phase", positions.front() < 27 ? "prefill" : "decode"},
++                        {"decode_step", positions.front() < 27 ? 0 : positions.front() - 26}});
++                    meta["input_sha256"] = hash_file(out / (base + "-input.f32")); meta["output_sha256"] = hash_file(out / (base + ".f32"));
++                }
+             } else { meta["kind"] = "l_out"; }
+         }
+         checkpoints.push_back(meta);
+@@ -167,11 +191,40 @@ static int model_test(const json & config, const fs::path & out) {
+     const fs::path model = config.at("model").get<std::string>(), token_file = config.at("tokens").get<std::string>();
+     require(hash_file(model) == MODEL_SHA, "wrong public model SHA256"); const auto tokens = read_json(token_file);
+     const bool enabled = config.value("actquant", false), capture_enabled = config.value("capture", false);
++    const std::string q_route = config.value("q_route", "stock"), q_fallback = config.value("q_fallback", "none");
++    const std::string capture_scope = config.value("capture_scope", "all");
+     const std::string workload = config.value("workload", "teacher"), backend_name = config.value("backend", "MTL0"), prefill = config.value("prefill", "batched"), kv = config.value("kv", "F16");
+     require(workload == "teacher" || workload == "corpus", "bad workload"); require(backend_name == "CPU" || backend_name == "MTL0", "bad backend");
+     require(prefill == "batched" || prefill == "sequential", "bad prefill mode"); require(kv == "F16" || kv == "F32", "bad KV dtype");
++    require(q_route == "stock" || q_route == "Q4", "bad q_route");
++    require(capture_scope == "all" || capture_scope == "q4-layer0", "bad capture_scope");
++    require(q_fallback == "none" || q_fallback == "missing-library", "bad q_fallback (invalid geometry is a rejected graph contract, not an accepted route)");
++    require(q_fallback == "none" || q_route == "Q4", "Q fallback requires Q4 route");
++    require(q_route == "stock" || (enabled && backend_name == "MTL0" && workload == "teacher" && prefill == "batched" && kv == "F16"), "Q4 requires ActQuant ON, MTL0 teacher/batched/F16");
+     clear_custom_routes(); setenv("LLAMA_BITNET_ACTQUANT", enabled ? "1" : "0", 1);
+     setenv("GGML_METAL_ACTQUANT_TRACE", config.value("trace", false) ? "1" : "0", 1);
++    std::string q_library_sha;
++    if (config.contains("q_library")) {
++        const fs::path library = config.at("q_library").get<std::string>();
++        require(library.is_absolute() && fs::is_regular_file(library), "Q library must be an existing absolute file");
++        q_library_sha = hash_file(library); require(q_library_sha == config.at("q_library_sha256").get<std::string>(), "Q library SHA256 mismatch");
++        if (q_route == "Q4") {
++            const auto selected = q_fallback == "missing-library" ? out / "intentionally-missing.metallib" : library;
++            require(q_fallback == "none" || !fs::exists(selected), "missing-library control path exists");
++            setenv("GGML_METAL_BITNET_POC_METALLIB", selected.c_str(), 1);
++        }
++    }
++    require(q_route == "stock" || !q_library_sha.empty(), "Q4 requires a SHA-verified library (also for intentional missing-library control)");
++    if (q_route == "Q4") {
++        require(config.value("q_variant", "") == "stock4x1" && config.value("q_library_source_sha256", "").size() == 64 &&
++            config.value("q_library_manifest_sha256", "").size() == 64, "Q4 requires stock4x1 source/build provenance from q4_contract.py");
++    }
++    if (q_route == "Q4") {
++        setenv("LLAMA_BITNET_ACTQUANT_Q4", "1", 1); setenv("GGML_METAL_BITNET_POC", "1", 1);
++        setenv("GGML_METAL_BITNET_POC_ROWS_PER_SIMD", "4", 1); setenv("GGML_METAL_BITNET_POC_SIMD_PER_GROUP", "1", 1);
++        setenv("GGML_METAL_BITNET_LAYERS", "0", 1);
++    }
++    if (config.value("trace", false)) { setenv("GGML_METAL_BITNET_POC_TRACE", "1", 1); }
+     ModelLog log; llama_log_set(model_logger, &log); llama_backend_init();
+     struct BackendGuard { ~BackendGuard() { llama_backend_free(); llama_log_set(nullptr, nullptr); } } backend_guard;
+     ggml_backend_dev_t devices[] = {ggml_backend_dev_by_name(backend_name.c_str()), nullptr}; require(devices[0] != nullptr, "model backend missing");
+@@ -179,7 +232,7 @@ static int model_test(const json & config, const fs::path & out) {
+     std::unique_ptr<llama_model, decltype(&llama_model_free)> m(llama_model_load_from_file(model.c_str(), mp), llama_model_free); require(bool(m), "model load failed");
+     require(llama_model_n_layer(m.get()) == 30 && llama_vocab_n_tokens(llama_model_get_vocab(m.get())) == 128256, "wrong public model geometry");
+     if (backend_name == "MTL0") { require(log.offloaded == 31 && log.total == 31, "actual31/31 offload not confirmed"); }
+-    Capture capture; capture.out = out; capture.enabled = capture_enabled;
++    Capture capture; capture.out = out; capture.enabled = capture_enabled; capture.scope = capture_scope;
+     auto cp = llama_context_default_params(); cp.n_ctx = 512; cp.n_batch = cp.n_ubatch = 128; cp.n_threads = cp.n_threads_batch = 6;
+     cp.type_k = cp.type_v = kv == "F16" ? GGML_TYPE_F16 : GGML_TYPE_F32; cp.offload_kqv = backend_name == "MTL0"; cp.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_DISABLED;
+     cp.cb_eval = capture_enabled ? Capture::callback : nullptr; cp.cb_eval_user_data = capture_enabled ? &capture : nullptr;
+@@ -192,13 +245,25 @@ static int model_test(const json & config, const fs::path & out) {
+     require(ids.size() == (workload == "corpus" ? 129 : 59) && ids.front() == 128000, "input token counts/BOS mismatch");
+     for (auto token : ids) { require(token >= 0 && token < 128256, "token outside vocabulary"); }
+     json record = {{"schema", 1}, {"operation", "model"}, {"workload", workload}, {"backend", backend_name}, {"device", ggml_backend_dev_description(devices[0])}, {"activation_quantization", enabled}, {"model_sha256", MODEL_SHA}, {"tokens_sha256", hash_file(token_file)}, {"prompt_ids", prompt}, {"continuation_ids", continuation}, {"token_ids", ids}, {"prefill", prefill}, {"kv", kv}, {"capture_enabled", capture_enabled}, {"offloaded_layers", log.offloaded}, {"total_offload_layers", log.total}, {"logits", json::array()}, {"performance_measurement", false}, {"CPU_extra_Q8_K_packing_source_expected", backend_name == "CPU"}, {"settings", {{"n_ctx", 512}, {"batch", 128}, {"ubatch", 128}, {"threads", 6}, {"flash_attention", false}}}};
++    record.update(json{{"q_route", q_route}, {"q_fallback", q_fallback}, {"q_library_sha256", q_library_sha}, {"q_target", "Qcur-0"}, {"capture_scope", capture_scope},
++        {"trace_enabled", config.value("trace", false)}, {"q_rows_per_simd", q_route == "Q4" ? 4 : 0}, {"q_simd_per_group", q_route == "Q4" ? 1 : 0},
++        {"official_source_model_acceptance", nullptr}, {"scoped_stock_compatibility_pass", nullptr}});
++    for (const char * key : {"q_variant", "q_library_source_sha256", "q_library_manifest_sha256", "q_library_sdk"}) {
++        if (config.contains(key)) { record[key] = config.at(key); }
++    }
+     int decode_calls = 0; long double nll_total = 0; size_t scored = 0;
+     const size_t limit = workload == "corpus" ? 128 : ids.size();
+     for (size_t position = 0; position < limit;) {
+         const size_t count = workload == "teacher" && prefill == "batched" && position == 0 ? prompt.size() : 1;
++        const int q_step = workload == "teacher" && position >= prompt.size() ? int(position - prompt.size() + 1) : 0;
++        const std::string q_step_text = std::to_string(q_step);
++        if (q_step > 0) { setenv("GGML_METAL_BITNET_FFN_DECODE", "1", 1); } else { unsetenv("GGML_METAL_BITNET_FFN_DECODE"); }
++        setenv("GGML_METAL_BITNET_FFN_STEP", q_step_text.c_str(), 1);
++        if (config.value("trace", false)) { std::fprintf(stderr, "ACTQUANT_Q_PHASE_BEGIN q_route=%s phase=%s decode_step=%d input_position=%zu count=%zu\n", q_route.c_str(), q_step ? "decode" : "prefill", q_step, position, count); }
+         capture.positions.clear(); for (size_t i = 0; i < count; ++i) { capture.positions.push_back(int(position + i)); }
+         require(llama_memory_seq_pos_max(llama_get_memory(ctx.get()), 0) == int(position) - 1, "KV position before decode differs");
+         int code = llama_decode(ctx.get(), llama_batch_get_one(ids.data() + position, int(count))); require(code == 0 && capture.error.empty(), "model decode/capture failed: " + capture.error); llama_synchronize(ctx.get()); ++decode_calls;
++        if (config.value("trace", false)) { std::fprintf(stderr, "ACTQUANT_Q_PHASE_COMPLETE q_route=%s decode_step=%d synchronized=1\n", q_route.c_str(), q_step); }
+         const int at = int(position + count - 1); require(llama_memory_seq_pos_max(llama_get_memory(ctx.get()), 0) == at, "KV position after decode differs");
+         if (workload == "corpus" || at >= 26) {
+             const float * y = llama_get_logits_ith(ctx.get(), -1); require(y != nullptr, "missing full logits"); std::vector<float> values(y, y + 128256);
+@@ -218,6 +283,7 @@ static int model_test(const json & config, const fs::path & out) {
+     record["execution_pass"] = true; record["finite_logits"] = true; record["parity_pass"] = nullptr; record["fp64_pass"] = nullptr; record["model_output_pass"] = nullptr;
+     record["scored_tokens"] = scored; if (scored) { record["mean_NLL"] = double(nll_total / scored); record["PPL"] = std::exp(double(nll_total / scored)); }
+     record["strict_model_exit_code"] = 2; write_json(out / "RUN.json", record);
++    std::printf("ACTQUANT_Q_ROUTE_COMPLETE q_route=%s q_fallback=%s eligible_decode_calls=%d synchronized=1 numerical_acceptance_unverified=1\n", q_route.c_str(), q_fallback.c_str(), workload == "teacher" ? 32 : 0);
+     std::printf("ACTQUANT_MODEL_COMPLETE enabled=%d backend=%s workload=%s decode_calls=%d logits=%zu actquant_callbacks=%zu synchronized=1\n", enabled, backend_name.c_str(), workload.c_str(), decode_calls, record["logits"].size(), capture.actquant_callbacks); std::fflush(stdout);
+     return 0;
+ }
+diff --git a/bitnet/actquant/test_q4_contract.py b/bitnet/actquant/test_q4_contract.py
+new file mode 100644
+index 0000000..9818765
+--- /dev/null
++++ b/bitnet/actquant/test_q4_contract.py
+@@ -0,0 +1,87 @@
++#!/usr/bin/env python3
++"""CPU-only rejection/coverage controls for the joint Q4 verifier."""
++import copy
++import hashlib
++from pathlib import Path
++import tempfile
++import unittest
++
++from analyze_q4 import EvidenceError, POSITIONS, WEIGHT_NB, WEIGHT_NE, WEIGHT_SHA, payload, q_records, scoped_verdict, trace_evidence
++
++
++def record(position):
++    positions=list(range(27)) if position==0 else [position]
++    n=len(positions);ne=[2560,n,1,1];nb=[4,10240,10240*n,10240*n]
++    return {'kind':'Q_preRoPE','node':'Qcur-0','op':'MUL_MAT','type':'f32','layer':0,'input_positions':positions,
++            'ne':ne,'nb':nb,'weight_path':'weights/w.tq2','weight_sha256':WEIGHT_SHA,
++            'decode_step':0 if position==0 else position-26,
++            'weight':{'name':'blk.0.attn_q.weight','type':'tq2_0','ne':WEIGHT_NE,'nb':WEIGHT_NB,'bytes':1689600},
++            'activation':{'name':'actq_qkv_out-0','op':'ACT_QUANT','type':'f32','ne':ne,'nb':nb}}
++
++
++def trace():
++    lines=[]
++    for step in range(33):
++        lines.append(f'ACTQUANT_Q_PHASE_BEGIN q_route=Q4 decode_step={step}')
++        if step:
++            lines.append('BITNET_ACTQUANT_Q4_GUARD node=Qcur-0 source=actq_qkv_out-0 source_op=ACT_QUANT checked=1')
++        for layer in range(30):
++            custom=step>0 and layer==0;r='q-custom' if custom else 'q-stock';n=1 if step else 27
++            pipeline='tq2_0_matvec_poc_c8x2' if custom else 'kernel_mul_mv_tq2_0_f32' if step else 'kernel_mul_mm_tq2_0_f32'
++            fields=f'route={r} layer={layer} node=Qcur-{layer} weight=blk.{layer}.attn_q.weight n={n} command=0x{step:02x}{layer:02x}'
++            lines.append(f'BITNET_MULTILAYER_ENCODE {fields} pipeline={pipeline} grid=[640,1,1] threads=[32,1,1]')
++            lines.append(f'BITNET_MULTILAYER_COMPLETE {fields} status=4 completed=1')
++        lines.append(f'ACTQUANT_Q_PHASE_COMPLETE q_route=Q4 decode_step={step} synchronized=1')
++    lines.append('ACTQUANT_MODEL_COMPLETE enabled=1 backend=MTL0 workload=teacher decode_calls=33 logits=33 actquant_callbacks=33 synchronized=1')
++    return '\n'.join(lines)
++
++
++class Q4Contract(unittest.TestCase):
++    def test_full_coverage(self):
++        self.assertEqual(len(q_records({'checkpoints':[record(0),*[record(p) for p in POSITIONS]]})),33)
++
++    def test_missing_last_call_rejected(self):
++        with self.assertRaises(EvidenceError):q_records({'checkpoints':[record(0),*[record(p) for p in POSITIONS[:-1]]]})
++
++    def test_duplicate_call_rejected(self):
++        rows=[record(0),*[record(p) for p in POSITIONS]];rows[-1]=copy.deepcopy(rows[-2])
++        with self.assertRaises(EvidenceError):q_records({'checkpoints':rows})
++
++    def test_wrong_weight_stride_rejected(self):
++        rows=[record(0),*[record(p) for p in POSITIONS]];rows[1]=copy.deepcopy(rows[1]);rows[1]['weight']['nb']=[66,660,0,0]
++        with self.assertRaises(EvidenceError):q_records({'checkpoints':rows})
++
++    def test_unquantized_actual_X_rejected(self):
++        rows=[record(0),*[record(p) for p in POSITIONS]];rows[1]=copy.deepcopy(rows[1]);rows[1]['activation']['op']='MUL'
++        with self.assertRaises(EvidenceError):q_records({'checkpoints':rows})
++
++    def test_hash_mismatch_rejected(self):
++        with tempfile.TemporaryDirectory() as tmp:
++            root=Path(tmp);(root/'x.f32').write_bytes(b'\x00'*4)
++            with self.assertRaises(EvidenceError):payload(root,'x.f32',1,'0'*64)
++
++    def test_escaping_path_rejected(self):
++        with self.assertRaises(EvidenceError):payload(Path('/tmp'),'../secret',1)
++
++    def test_missing_probe_cannot_pass(self):
++        self.assertEqual(scoped_verdict({'fp64':True,'probe':None}),(None,2))
++        self.assertEqual(scoped_verdict({'fp64':False,'probe':None}),(False,1))
++        self.assertEqual(scoped_verdict({'fp64':True,'probe':True}),(True,0))
++
++    def test_complete_trace(self):
++        with tempfile.TemporaryDirectory() as tmp:
++            path=Path(tmp)/'trace.log';path.write_text(trace())
++            self.assertEqual(trace_evidence(path,'Q4')['custom_dispatches'],32)
++
++    def test_missing_gpu_completion_rejected(self):
++        with tempfile.TemporaryDirectory() as tmp:
++            path=Path(tmp)/'trace.log';path.write_text(trace().replace('status=4 completed=1','status=5 completed=0',1))
++            with self.assertRaises(EvidenceError):trace_evidence(path,'Q4')
++
++    def test_incorrect_geometry_rejected(self):
++        with tempfile.TemporaryDirectory() as tmp:
++            path=Path(tmp)/'trace.log';path.write_text(trace().replace('pipeline=tq2_0_matvec_poc_c8x2 grid=[640,1,1]','pipeline=tq2_0_matvec_poc_c8x2 grid=[320,1,1]',1))
++            with self.assertRaises(EvidenceError):trace_evidence(path,'Q4')
++
++
++if __name__=='__main__':unittest.main()
+diff --git a/bitnet/ios/build.py b/bitnet/ios/build.py
+index d59c77a..9950b63 100644
+--- a/bitnet/ios/build.py
++++ b/bitnet/ios/build.py
+@@ -161,6 +161,8 @@ def main():
+                                  "--output", shaders, "--developer-dir", env["DEVELOPER_DIR"]])
+         for original, alias in (("qcur0-c8x2.metallib", "q-c8x2.metallib"), ("stock4x1.metallib", "q-stock4x1.metallib")):
+             shutil.copy2(shaders / original, shaders / alias)
++        record["shader_build_manifest_sha256"] = sha256(shaders / "BUILD.json")
++        record["shader_products_sha256"] = {path.name: sha256(path) for path in shaders.glob("*.metallib")}
+         objects = []
+         for source in ("iphone-q.mm", "iphone-operator.mm", "iphone-down-controls.mm", "iphone-original-poc.mm", "iphone-ppl.mm", "iphone-actquant.mm"):
+             obj = output / "objects" / (Path(source).stem + ".o")
+diff --git a/bitnet/ios/src/CandidateReplay.mm b/bitnet/ios/src/CandidateReplay.mm
+index 04cbb9b..cd824aa 100644
+--- a/bitnet/ios/src/CandidateReplay.mm
++++ b/bitnet/ios/src/CandidateReplay.mm
+@@ -136,6 +136,23 @@ static int run(){
+    const auto tokens=actquantDocumentPath(docs,c[@"tokens"],false);NSString*digest=hashFile(tokens);
+    require([digest isEqual:c[@"tokens_sha256"]],"ActQuant token checksum mismatch");
+    native[@"tokens"]=@(tokens.c_str());identity[@"tokens_sha256"]=digest;
++   const std::string qr=c[@"q_route"]?str(c[@"q_route"]):"stock";
++   const std::string qf=c[@"q_fallback"]?str(c[@"q_fallback"]):"none";
++   const std::string qs=c[@"capture_scope"]?str(c[@"capture_scope"]):"all";
++   require(qr=="stock"||qr=="Q4","invalid ActQuant Q route");
++   require(qf=="none"||qf=="missing-library","invalid ActQuant Q fallback");
++   require(qs=="all"||qs=="q4-layer0","invalid ActQuant capture scope");
++   require(qr!="Q4"||flag(c,@"actquant"),"Q4 requires ActQuant ON");
++   native[@"q_route"]=@(qr.c_str());native[@"q_fallback"]=@(qf.c_str());native[@"capture_scope"]=@(qs.c_str());
++   if(c[@"q_library"]){
++    const auto library=actquantDocumentPath(docs,c[@"q_library"],false);NSString*librarySHA=hashFile(library);
++    require([librarySHA isEqual:c[@"q_library_sha256"]]&&[c[@"q_variant"]isEqual:@"stock4x1"],"Q4 library variant/hash mismatch");
++    native[@"q_library"]=@(library.c_str());identity[@"q_library_sha256"]=librarySHA;
++    for(NSString*key in @[@"q_library_sha256",@"q_variant",@"q_library_source_sha256",@"q_library_manifest_sha256",@"q_library_sdk"]){
++     require([c[key]isKindOfClass:NSString.class],"missing Q4 library provenance");native[key]=c[key];
++    }
++   }
++   require(qr!="Q4"||native[@"q_library"]!=nil,"Q4 library missing");
+   }
+   json(o.out/"native-config.json",native);
+   NSData*encoded=[NSJSONSerialization dataWithJSONObject:native options:NSJSONWritingSortedKeys error:nil];require(encoded!=nil,"ActQuant config serialization failed");
+diff --git a/ggml/src/ggml-metal/ggml-metal-ops.cpp b/ggml/src/ggml-metal/ggml-metal-ops.cpp
+index 529a0be..2b188e0 100644
+--- a/ggml/src/ggml-metal/ggml-metal-ops.cpp
++++ b/ggml/src/ggml-metal/ggml-metal-ops.cpp
+@@ -3407,6 +3407,45 @@ static bool ggml_metal_bitnet_poc_layout(const ggml_tensor * t, ggml_type type,
+         std::memcmp(t->ne, ne, sizeof(ne)) == 0 && std::memcmp(t->nb, nb, sizeof(nb)) == 0;
+ }
+ 
++static bool ggml_metal_bitnet_actquant_q4_contract(const ggml_tensor * op,
++        int rows, int groups, bool guard_only, bool trace) {
++    const bool enabled = ggml_metal_bitnet_poc_flag("LLAMA_BITNET_ACTQUANT");
++    const bool permission = ggml_metal_bitnet_poc_flag("LLAMA_BITNET_ACTQUANT_Q4");
++    if (!enabled && !permission) {
++        return true;
++    }
++    const ggml_tensor * input = op->src[1];
++    const char * layers = std::getenv("GGML_METAL_BITNET_LAYERS");
++    float eps = 0.0f;
++    if (input && input->op == GGML_OP_ACT_QUANT) {
++        std::memcpy(&eps, input->op_params, sizeof(eps));
++    }
++    bool valid = enabled && permission && !guard_only && rows == 4 && groups == 1 &&
++        ggml_metal_bitnet_poc_flag("GGML_METAL_BITNET_POC") && layers && std::strcmp(layers, "0") == 0 &&
++        op->op == GGML_OP_MUL_MAT && std::strcmp(op->name, "Qcur-0") == 0 &&
++        ggml_metal_bitnet_weight_name(op->src[0], 0, "attn_q") && input && input->op == GGML_OP_ACT_QUANT &&
++        std::strcmp(input->name, "actq_qkv_out-0") == 0 && input->type == GGML_TYPE_F32 &&
++        input->src[0] && input->src[0]->type == GGML_TYPE_F32 && ggml_is_contiguous(input->src[0]) &&
++        ggml_are_same_shape(input, input->src[0]) && eps == 1e-5f;
++    for (const char * name : { "GGML_METAL_BITNET_Q_GUARD_ONLY", "GGML_METAL_BITNET_FFN",
++            "GGML_METAL_BITNET_FFN_MECHANISM", "GGML_METAL_BITNET_FFN_ABLATION" }) {
++        const char * value = std::getenv(name);
++        if (value && value[0] != '\0' && std::strcmp(value, "0") != 0) {
++            valid = false;
++        }
++    }
++    if (trace) {
++        if (valid) {
++            std::fprintf(stderr, "BITNET_ACTQUANT_Q4_GUARD node=%s source=%s source_op=ACT_QUANT eps=%.9g rows=%d simd=%d layer=0 checked=1\n",
++                    op->name, input->name, eps, rows, groups);
++        } else {
++            std::fprintf(stderr, "BITNET_Q_FALLBACK node=%s layer=0 reason=actquant_contract permission=%d rows=%d simd=%d\n",
++                    op->name, permission, rows, groups);
++        }
++    }
++    return valid;
++}
++
+ static bool ggml_metal_bitnet_poc_disjoint(ggml_metal_buffer_id a, size_t a_bytes,
+         ggml_metal_buffer_id b, size_t b_bytes) {
+     return a.metal != b.metal || a.offs + a_bytes <= b.offs || b.offs + b_bytes <= a.offs;
+@@ -3917,6 +3956,9 @@ static bool ggml_metal_try_bitnet_poc(ggml_metal_op_t ctx, const ggml_tensor * o
+         }
+         return false;
+     }
++    if (!ggml_metal_bitnet_actquant_q4_contract(op, rows_per_simdgroup, simdgroups_per_threadgroup, guard_only, trace)) {
++        return false;
++    }
+ 
+     const auto w = ggml_metal_get_buffer_id(op->src[0]);
+     const auto x = ggml_metal_get_buffer_id(op->src[1]);
+diff --git a/src/models/bitnet.cpp b/src/models/bitnet.cpp
+index 91b45cf..d7c32ef 100644
+--- a/src/models/bitnet.cpp
++++ b/src/models/bitnet.cpp
+@@ -73,6 +73,14 @@ llama_model_bitnet::graph::graph(const llama_model & model, const llm_graph_para
+         throw std::runtime_error("LLAMA_BITNET_ACTQUANT must be 0 or 1");
+     }
+     const bool act_quant_enabled = act_quant_env && std::strcmp(act_quant_env, "1") == 0;
++    const char * act_quant_q4_env = std::getenv("LLAMA_BITNET_ACTQUANT_Q4");
++    if (act_quant_q4_env && std::strcmp(act_quant_q4_env, "0") != 0 && std::strcmp(act_quant_q4_env, "1") != 0) {
++        throw std::runtime_error("LLAMA_BITNET_ACTQUANT_Q4 must be 0 or 1");
++    }
++    const bool act_quant_q4 = act_quant_q4_env && std::strcmp(act_quant_q4_env, "1") == 0;
++    if (act_quant_q4 && !act_quant_enabled) {
++        throw std::runtime_error("LLAMA_BITNET_ACTQUANT_Q4 requires LLAMA_BITNET_ACTQUANT=1");
++    }
+     if (act_quant_enabled) {
+         if (n_layer != 30 || hparams.n_embd != 2560 || model.vocab.n_tokens() != 128256 ||
+                 hparams.llm_ffn_op != LLM_FFN_RELU_SQR || cparams.training || !loras->empty()) {
+@@ -96,13 +104,30 @@ llama_model_bitnet::graph::graph(const llama_model & model, const llm_graph_para
+                 }
+             }
+         }
+-        for (const char * name : { "GGML_METAL_BITNET_POC", "GGML_METAL_BITNET_Q_GUARD_ONLY",
++        for (const char * name : { "GGML_METAL_BITNET_Q_GUARD_ONLY",
+                 "GGML_METAL_BITNET_FFN", "GGML_METAL_BITNET_FFN_MECHANISM" }) {
+             const char * value = std::getenv(name);
+             if (value && value[0] != '\0' && std::strcmp(value, "0") != 0) {
+                 throw std::runtime_error("experimental ActQuant cannot be combined with custom Q or FFN routes");
+             }
+         }
++        const char * custom_q = std::getenv("GGML_METAL_BITNET_POC");
++        if (custom_q && custom_q[0] != '\0' && std::strcmp(custom_q, "0") != 0) {
++            const char * rows = std::getenv("GGML_METAL_BITNET_POC_ROWS_PER_SIMD");
++            const char * groups = std::getenv("GGML_METAL_BITNET_POC_SIMD_PER_GROUP");
++            const char * layers = std::getenv("GGML_METAL_BITNET_LAYERS");
++            const char * ablation = std::getenv("GGML_METAL_BITNET_FFN_ABLATION");
++            if (!act_quant_q4 || std::strcmp(custom_q, "1") != 0 || !rows || std::strcmp(rows, "4") != 0 ||
++                    !groups || std::strcmp(groups, "1") != 0 || !layers || std::strcmp(layers, "0") != 0 ||
++                    (ablation && ablation[0] != '\0' && std::strcmp(ablation, "0") != 0)) {
++                throw std::runtime_error("ActQuant custom Q requires explicit Q4 permission, rows=4, groups=1, layer=0 and no FFN ablation");
++            }
++            static std::once_flag q4_log_once;
++            std::call_once(q4_log_once, []() {
++                LLAMA_LOG_INFO("BitNet ActQuant Q4: allow only layer-0 single-token Qcur-0, stock-helper rows=4/groups=1; "
++                        "runtime quantizer, layout and buffer guards remain required.\n");
++            });
++        }
+         static std::once_flag log_once;
+         std::call_once(log_once, []() {
+             LLAMA_LOG_INFO("BitNet ActQuant: experimental public 2B F32 profile; per-token absmax INT8, "

@@ -4,8 +4,8 @@
 
 ## 文件
 
-- `BitNet_Mobile_GPU_Proposal_ZH.pdf`：中文版 PDF，22 页。
-- `BitNet_Mobile_GPU_Proposal_ZH.docx`：可编辑中文版 Word，已渲染检查 22 页。
+- `BitNet_Mobile_GPU_Proposal_ZH.pdf`：中文版 PDF，页数以本轮渲染验收为准。
+- `BitNet_Mobile_GPU_Proposal_ZH.docx`：可编辑中文版 Word，随本轮重新渲染检查。
 - `PROPOSAL_ZH.md`：可编辑中文源稿，与 `PROPOSAL.md` 按节对应。
 - `TRANSLATION_CHECK.json`：表格、数值、公式、代码、引用与英文保留检查。
 - `MANIFEST_ZH.json`：中文产物哈希、英文源稿身份与排版验收范围。
@@ -14,7 +14,7 @@
 
 ## 检查重点
 
-建议先检查第 4 节的 PoC 范围、第 7 节验收语义、第 10 节手机性能和第 12 节成功标准。原始 4x2 PoC、C8 研究版与复用 stock helper 的 Q4 分开归属；局部 FP64、stock parity 和 model_output_pass 是不同检查。Q4 的单算子收益不代表整模型加速，既有 FFN 失败与未验证项继续保留。
+建议先检查第 1 节三项实现的归属、第 4 节 PoC 范围、第 7 节各路线 reference、第 8 节当前 A16 ON/OFF 诊断、第 10 节历史手机性能和第 12 节作业要求与拓展目标。历史审阅/import 快照为 `bbf70e9cc70302534ff87b4f34d4ce52a9670baa`，ActQuant 手机执行源码为 `4c249e3`，文档/证据快照为 `e84732c`。ActQuant/Q4 组合 binary 为 `edbd109`，已在两组 history 中通过自己的 stock-ON 范围化验收。新 post-ActQuant 单算子直接配对降幅为 2.61%-2.68%；组合的整段 decode、corpus/PPL 未测。原始 4x2 PoC、C8 研究版与复用 stock helper 的 Q4 分开归属；局部 FP64、stock parity 和 model_output_pass 是不同检查。Q4 的历史 ActQuant-OFF 单算子收益不代表整模型加速，也不代表新 ActQuant-ON 模型的性能。当前 A16 量化器同输入检查通过，完整 F32-ON 模型对照已执行且失败，strict exit 1；既有 FFN 失败与未验证项继续保留。复跑入口分流见 `../docs/BUILD_AND_RUN.md`，可信 reference 对照见 `../analysis/actquant-iphone-2026-11-16/`，联合验收与当前计时见 `../analysis/actquant-q4-joint-2026-11-16/`。
 
 关键术语保留原文，包括 stock、PoC、Qcur-0、TQ2_0、F32、FP64 reference、dispatch、SIMD group、threadgroup、prefill、decode、GPU command-buffer elapsed time、p50/p95、paired difference、parity_pass、fp64_pass 和 model_output_pass。
 
@@ -34,3 +34,5 @@ Word 的 headless 排版检查需要渲染器加载可用中文字体；本次�
 此前的 FFN 编辑仅整理既有 FFN/fusion 手机证据，集中在第 10 节的一页“FFN 融合性能探索”：说明 G/K/F8 的机制、覆盖、相对 stock 的关键数据、后续 G/F8 直接对照及数值限制。详细聚合统计与来源摘要见 `../analysis/ffn-performance-exploration/`。该次编辑未运行新 GPU 测试；此后的 ActQuant 进展及手机验证单独记录于下文。
 
 新增 ActQuant 进展页记录 Mac 同输入数值验证及完整模型 reference 的保留失败；新版 A16 operator 和真实图同输入 quantizer 检查已通过，完整模型 reference 仍失败。此分支尚未晋升为完整模型修复版本，不新增 Mac 性能结论。
+
+本次两种语言的 PDF 与渲染后的 Word 均为 23 页，已全部逐页检查。

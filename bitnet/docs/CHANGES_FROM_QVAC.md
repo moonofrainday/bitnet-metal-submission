@@ -52,3 +52,21 @@ Q4 retains the existing stock helper arithmetic. F8/C8 use different packed-dot 
 The default-off same-stock guard control adds `q-guard-control-2026-11-15.patch`, based on packaged commit `eb7858492d0f39e7a4f97f58ef53239c17bcb594` after the two earlier patches. It changes only the existing Metal device/ops files; all three patches are already applied in this checkout. No Metal shader arithmetic is changed by this review patch. The original and Q4 defaults remain distinct.
 
 Source and controlled reference tests now confirm that the public-model graph omits Microsoft's per-token INT8 activation quantize/dequantize. Earlier successful loading, sample arithmetic and stock parity must not be described as faithful W1.58A8 execution. See `../analysis/review-2026-11-15/` for the measured semantic controls, exact original-PoC phone qualification and same-stock guard A/B. Team checkpoint rules remain a separate dependency.
+
+## Public ActQuant repair and current joint experiment, 16 November
+
+The old eight-file integration map describes a historical snapshot, not the entire current diff. The already-applied `../patches/public-2b-actquant.patch` adds append-only `GGML_OP_ACT_QUANT` / `ggml_act_quant`, per-token F32 fake quantization and public-profile graph placements. Source `4c249e3` identifies the tested ActQuant A16 binary; `e84732c` consolidates its evidence/docs. Do not apply that patch again to this modified tree.
+
+| Files/modules | Added behavior |
+|---|---|
+| `ggml/include/ggml.h`, `ggml/src/ggml.c` | Appended op/API, names and separate output tensor |
+| `ggml/src/ggml-cpu/{ops.h,ops.cpp,ggml-cpu.c,ggml-cpu.cpp}` | CPU support, scheduling and F32 reciprocal-then-multiply scale with ties-even rounding |
+| `ggml/src/ggml-metal/{ggml-metal-device.cpp,ggml-metal-device.m,CMakeLists.txt}` | New pipeline/library; safe/precise options restricted to the new library |
+| `ggml/src/ggml-metal/{ggml-metal-impl.h,ggml-metal-ops.h,ggml-metal-ops.cpp,kernels/act_quant.metal}` | ABI, bounds/disjoint-buffer checks, encoding and one-token-row-per-threadgroup quantizer |
+| `src/models/bitnet.cpp` | Default-off public-profile placement: 120 shared nodes cover 210 projections; lm_head unchanged |
+| `tests/test-backend-ops.cpp`, `docs/ops.md` | Targeted backend cases and qualified support documentation |
+| `bitnet/actquant/`, `bitnet/ios/src/iphone-actquant.mm` | Shared native runner, independent source oracle, strict analyzers and phone entry |
+
+This is a quantizer repair, not a new INT8 matmul or a complete model-fidelity fix. A16 same-input operator and graph checks pass; the source-F32-ON model comparison is measured false, strict exit 1. Historical matmul/FFN failures remain unchanged. New joint ActQuant/Q4 integration adds default-off `LLAMA_BITNET_ACTQUANT_Q4=1`: only ActQuant ON, layer-0 Q, rows=4 and one SIMD group are permitted, with the live ACT_QUANT producer and epsilon checked. C8, FFN and other layers remain unauthorized. The joint implementation from `edbd109` passes its own two-history phone stock-ON Q-only qualification, including all-call FP64 and fallback. Fresh ON operator pairing measures 2.61%-2.68% reduction; joint decode and corpus/PPL are unmeasured. See `../analysis/actquant-q4-joint-2026-11-16/`; no trusted-reference or quality pass follows.
+
+`../patches/actquant-q4-joint.patch` records the nine-file joint implementation from base `e84732ced307d7dbb0dabe1f7c60c8c4b3bdc091` to tested compute commit `edbd109bc152decbbc7274b703d21bd6099bf98c`. It is already applied here and is not a patch directly against pinned QVAC. Later CPU-only fixture/timing analyzers are shipped as source; they were not compiled into the tested phone binary. Rebuild from this full checkout using the documented fresh output directories.

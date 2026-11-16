@@ -145,12 +145,12 @@ def make_pdf(blocks,path):
         font=font_path(key)
         if font:pdfmetrics.registerFont(TTFont(name,str(font)))
     pdfmetrics.registerFontFamily('Body',normal='Body',bold='BodyBold',italic='BodyItalic',boldItalic='BodyBold')
-    body=ParagraphStyle('Body',fontName='Body',fontSize=10.1,leading=13.6,spaceAfter=7,textColor=colors.black)
-    styles={'p':body,'bullet':ParagraphStyle('Bullet',parent=body,leftIndent=9,firstLineIndent=-6,spaceAfter=6),
+    body=ParagraphStyle('Body',fontName='Body',fontSize=10.1,leading=13.2,spaceAfter=6,textColor=colors.black)
+    styles={'p':body,'bullet':ParagraphStyle('Bullet',parent=body,leftIndent=9,firstLineIndent=-6,spaceAfter=5),
         'h1':ParagraphStyle('Title',parent=body,fontName='BodyBold',fontSize=25,leading=29,spaceAfter=12,keepWithNext=True),
         'h2':ParagraphStyle('Heading1',parent=body,fontName='BodyBold',fontSize=17,leading=21,spaceBefore=4,spaceAfter=12,keepWithNext=True),
         'h3':ParagraphStyle('Heading2',parent=body,fontName='BodyBold',fontSize=11.5,leading=15,spaceBefore=8,spaceAfter=7,keepWithNext=True)}
-    cell=ParagraphStyle('Cell',parent=body,fontSize=8.9,leading=11.6,spaceAfter=0)
+    cell=ParagraphStyle('Cell',parent=body,fontSize=8.9,leading=11.4,spaceAfter=0)
     head=ParagraphStyle('Head',parent=cell,fontName='BodyBold')
     code=ParagraphStyle('Code',parent=body,fontName='Mono',fontSize=8.5,leading=11.5,leftIndent=4,spaceBefore=4,spaceAfter=9)
     doc=SimpleDocTemplate(str(path),pagesize=A4,rightMargin=43,leftMargin=43,topMargin=44,bottomMargin=45,title='Mobile BitNet Inference Technical Proposal',author='Candidate',pageCompression=1)
@@ -160,7 +160,7 @@ def make_pdf(blocks,path):
         elif kind=='table':
             data=[[Paragraph(inline_xml(x), head if j==0 else ParagraphStyle('Numeric',parent=cell,alignment=TA_CENTER) if numeric_cell(x) else cell) for x in row] for j,row in enumerate(value)]
             table=Table(data,colWidths=widths(value,doc.width),repeatRows=1,hAlign='LEFT')
-            table.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.HexColor('#E7EEF5')),('GRID',(0,0),(-1,-1),.5,colors.HexColor('#D9D9D9')),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5)]))
+            table.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.HexColor('#E7EEF5')),('GRID',(0,0),(-1,-1),.5,colors.HexColor('#D9D9D9')),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)]))
             story.extend([table,Spacer(1,9)])
         elif kind=='code':story.append(XPreformatted(escape(value),code))
         elif kind=='image':

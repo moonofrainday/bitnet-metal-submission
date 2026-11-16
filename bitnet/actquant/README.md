@@ -1,5 +1,7 @@
 # Public checkpoint ActQuant validation
 
+> Status, 16 November 2026: A16 source `4c249e3` passed 20-case operator and captured same-input quantizer checks. Completed full-model F32-ON comparison still fails, strict exit 1. See `../analysis/actquant-iphone-2026-11-16/` for device evidence and `../docs/BUILD_AND_RUN.md` for entry selection. The joint source `edbd109` now passes both histories against stock ON, with a separate 2.61%-2.68% isolated-operator reduction; joint decode and corpus/PPL are unmeasured. See `../analysis/actquant-q4-joint-2026-11-16/`. Earlier Mac-only scope notes below are historical, not a statement that no phone test has since run.
+
 These tools preserve the existing numerical bound:
 
 `abs(actual-reference) <= 2e-4 + 2e-5 * abs(reference)`
@@ -78,7 +80,7 @@ Prepare the real fixture separately as above, and provide the existing checksum-
 
 Full mode performs a fresh build and operator regressions, then records teacher OFF/plain, ON/captured and ON/plain controls, plus corpus OFF/plain and ON/captured. The captured ON teacher and corpus runs and probe-neutrality check are required candidate gates. A native process exit 0 is execution completion; the analyzer's strict numerical and missing-evidence verdicts remain separate. The current cross-reference model failures are retained and can make full mode return nonzero even when the quantizer is locally exact. No source/reference caches are silently regenerated, no tolerance is relaxed and no missing captures are replaced by synthetic data.
 
-This round has no new physical-phone result or Mac performance claim. iPhone compilation/preparation, when present, is a separate deployment stage and does not establish device execution.
+Historical Mac-only scope, before the 16 November A16 campaign: that stage had no new physical-phone result or Mac performance claim. Its iPhone compilation/preparation alone did not establish device execution. The later physical-device result is linked in the dated banner above.
 
 ## Checker controls
 

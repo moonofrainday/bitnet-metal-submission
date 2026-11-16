@@ -1,34 +1,34 @@
 {
   "evidence_cutoff": "2026-11-16 Asia/Tokyo",
-  "reviewed_implementation_commit": "bbf70e9cc70302534ff87b4f34d4ce52a9670baa",
+  "reviewed_implementation_commit": "edbd109bc152decbbc7274b703d21bd6099bf98c",
   "QVAC_commit": "2db8b046d555316019ae75d1be90484adc8b9330",
   "artifact_type": "English proposal draft for author review",
   "pages": {
-    "PDF": 22,
-    "DOCX_render": 22
+    "PDF": 23,
+    "DOCX_render": 23
   },
   "all_11_brief_topics_covered": true,
   "new_GPU_measurements": true,
   "raw_experiment_data_included": false,
-  "timing_hardware_scope": "Historical physical iPhone only; new Mac runs are numerical validation, not timing",
+  "timing_hardware_scope": "Physical iPhone14Pro/A16 only; Mac build/numerical tests without a performance campaign",
   "native_compute_source_changed": true,
   "numerical_threshold_changed": false,
   "source": "PROPOSAL.md",
   "outputs": [
     {
       "path": "PROPOSAL.md",
-      "bytes": 61408,
-      "sha256": "7bff2a8036bfddaff231fa22e82d054652ade1cb7699342a179772c8864a62bc"
+      "bytes": 65488,
+      "sha256": "d2e45505793da557abaefe9a74e6ee1e3d8b370653fced54645cd51d11ee8192"
     },
     {
       "path": "OUTLINE.md",
-      "bytes": 1938,
-      "sha256": "c76df7ec9155844682456d4950d2ffab635645a395ce83dc475f05e42c976c9f"
+      "bytes": 2432,
+      "sha256": "2e678dd99121649e49f9b17140d5403d2a0526ee86df5128995f063c192d0421"
     },
     {
       "path": "render_proposal.py",
       "bytes": 16184,
-      "sha256": "265eaded490d0727c576e07e6e56556b4c84b9e198921135b9206fd27d7d5166"
+      "sha256": "32dace76a62255cd61376d2eb5a6dd01ad36d92479e5d860cd1764fae5b73694"
     },
     {
       "path": "requirements-docs.txt",
@@ -47,25 +47,26 @@
     },
     {
       "path": "BitNet_Mobile_GPU_Proposal.pdf",
-      "bytes": 232657,
-      "sha256": "cc50e9b327adcb28a3757df15436e0d793eff3a4a493db4f0bd3f4eab77f4004"
+      "bytes": 236556,
+      "sha256": "0e072657e20a8e64bf2701ee2b54c123934d434072b6029b5e9f1556c31d291a"
     },
     {
       "path": "BitNet_Mobile_GPU_Proposal.docx",
-      "bytes": 128885,
-      "sha256": "1d0051259138fc342bea411adc45e09bcb30ee3c9b1691a5625a62354edffa74"
+      "bytes": 130659,
+      "sha256": "aad2d1713c2d65634a83a38f3061b1f31b109dc611833982120813748998ede2"
     }
   ],
   "quality_review": {
     "all_11_topics_covered": true,
     "independent_content_review": "pass",
-    "PDF_pages_visually_inspected": 22,
-    "DOCX_pages_visually_inspected": 22,
+    "PDF_pages_visually_inspected": 23,
+    "DOCX_pages_visually_inspected": 23,
     "clipping_overlap_or_missing_glyphs_observed": false,
     "title_paragraph_borders_remaining": 0,
     "personal_host_device_or_signing_IDs_embedded": false,
     "new_ActQuant_revision_QA": "all initial22 pages plus finalchanged17/18/19; unchangedWordbodycomparison",
-    "new_phone_revision_QA": "changed pages1/5/17/18/21 in both formats plus all unchanged bodies/footers"
+    "new_phone_revision_QA": "changed pages1/5/17/18/21 in both formats plus all unchanged bodies/footers",
+    "new_joint_revision_QA": "All23 final PDF pages and all23 final DOCX-render pages individually opened at source image resolution; bilingual numbers/code/citations checked"
   },
   "Metal_shader_arithmetic_changed_in_this_review": false,
   "source_baseline_before_review": "eb7858492d0f39e7a4f97f58ef53239c17bcb594",
@@ -83,15 +84,26 @@
   "report_revision_base_commit": "816c0c4f7a8f7337d26289033ee13ed7ff0f0b53",
   "historical_FFN_evidence_reorganized": true,
   "ActQuant_experiment_resumed": true,
-  "GPU_measurement_scope": "Mac numerical validation and A16 functional/numerical diagnostics; no new performance measurement",
+  "GPU_measurement_scope": "Fresh A16 post-ActQuant isolated Q operator timing plus Mac/A16 joint numerical validation; new full-decode performance unmeasured",
   "ActQuant_same_input_F32_pass": true,
   "full_model_source_F32_pass": false,
   "new_ActQuant_phone_pass": true,
   "ActQuant_revision_base_commit": "b7efadd3b0e4d8ae1000798eb1e869c285dcca07",
   "ActQuant_backend_patch_sha256": "4f67351cf9a00bfe107c03593c318f950b7fd98b6c19c8d8123e2e9f5fce3fa3",
-  "new_ActQuant_phone_scope": "A16 operator and full captured graph same-input quantizer; full-model F32 reference still fails",
-  "new_phone_compute_commit": "4c249e3e13dfce7b21bc2bab0912a1ff4807bc7e",
+  "new_ActQuant_phone_scope": "Both-history layer0 Q-only joint stock-ON compatibility, all32 Q decode FP64 checks, all33 Q/residual/logit vectors bitwise; trusted-model reference remains failed",
+  "new_phone_compute_commit": "edbd109bc152decbbc7274b703d21bd6099bf98c",
   "phone_offload_count": "31/31",
   "phone_corpus_ON_PPL": 19.12770191845115,
-  "new_phone_performance_measured": false
+  "new_phone_performance_measured": true,
+  "historical_reviewed_implementation_commit": "bbf70e9cc70302534ff87b4f34d4ce52a9670baa",
+  "previous_ActQuant_phone_compute_commit": "4c249e3e13dfce7b21bc2bab0912a1ff4807bc7e",
+  "joint_ActQuant_Q4_stock_ON_pass": true,
+  "joint_ActQuant_Q4_strict_exit_code": 0,
+  "full_model_trusted_reference_strict_exit_code_preserved": 1,
+  "joint_ActQuant_Q4_decode_performance_measured": false,
+  "joint_ActQuant_Q4_corpus_PPL_measured": false,
+  "ActQuant_Q4_joint_patch_sha256": "bbd9cbdce44c2bd61b03edd68bd7c75c4df8ce16ef76e654090f556ce0190343",
+  "phone_corpus_ON_PPL_scope": "Earlier stock-ON binary4c249e3; not a new joint Q4 corpus measurement",
+  "native_compute_source_commit": "edbd109bc152decbbc7274b703d21bd6099bf98c",
+  "post_compute_changes": "CPU-only fixture preparation/timing audit, analyzer exit-code docstring clarification, bilingual report/source-provenance updates; no native/shader math change"
 }

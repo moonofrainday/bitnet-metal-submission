@@ -1,6 +1,6 @@
 # Proposal structure and requirement coverage
 
-Decision: Metal first on iPhone 14 Pro; retain the stock default; carry a source-level Vulkan portability plan for Adreno/Mali. Use original PoC and Q4 as separately attributed deliverables. Evidence cutoff: 15 November 2026, Asia/Tokyo.
+Decision: Metal first on iPhone 14 Pro; retain the stock default; carry a source-level Vulkan portability plan for Adreno/Mali. Use original PoC and Q4 as separately attributed deliverables. Evidence cutoff: 16 November 2026, Asia/Tokyo. Required source/PDF/PoC/sample-I/O delivery is separate from stretch speed, energy and Android-execution targets.
 
 | Brief item | Planned report section |
 |---|---|
@@ -19,6 +19,6 @@ Decision: Metal first on iPhone 14 Pro; retain the stock default; carry a source
 | Source scripts and PDF | 15 plus editable proposal source |
 | Interview justification | Source walkthrough, measured negative outcomes, acceptance boundaries |
 
-Evidence basis: verified clean package commit bbf70e9cc70302534ff87b4f34d4ce52a9670baa, original brief, current iPhone Q4 experiment, preserved public2B and phone smoke logs, and primary sources listed in the proposal. Existing 13 November drafts are historical reference material, not the current result authority.
+Evidence basis: historical clean package commit bbf70e9cc70302534ff87b4f34d4ce52a9670baa, tested ActQuant phone source 4c249e3, evidence/docs snapshot e84732c, original brief, legacy ActQuant-OFF Q4 measurements, completed A16 ActQuant same-input checks and preserved full-model strict exit 1, and the primary sources listed in the proposal. The joint route from edbd109 passes its own two-history stock-ON Q-only qualification and measures a 2.61%-2.68% A16 isolated-operator reduction; joint full-decode and corpus/PPL remain unmeasured. No trusted-reference result is inferred from stock parity. Existing 13 November drafts are historical reference material, not the current result authority.
 
 FFN/fusion branches are consolidated as optional performance exploration in Section 10, with mechanism, measured scope, stock/direct contrasts, numerical limits and selection decisions. The primary delivery chain remains semantics -> physical-phone kernel -> independent harness -> real graph -> fair timing -> reproducible package.

@@ -90,12 +90,12 @@ def make_pdf(blocks,path,args):
     required=set(''.join(str(v) for _,v in blocks))
     missing=[c for c in required if '\u3400'<=c<='\u9fff' and ord(c) not in pdfmetrics.getFont('ZHBody').face.charToGlyph]
     if missing:raise ValueError('CJK font lacks characters: '+''.join(sorted(missing)))
-    body=ParagraphStyle('ZHBody',fontName='ZHBody',fontSize=10.8,leading=15.4,spaceAfter=7,textColor=colors.black,wordWrap='CJK')
-    styles={'p':body,'bullet':ParagraphStyle('Bullet',parent=body,leftIndent=8,firstLineIndent=-5,spaceAfter=6),
+    body=ParagraphStyle('ZHBody',fontName='ZHBody',fontSize=10.8,leading=14.8,spaceAfter=6,textColor=colors.black,wordWrap='CJK')
+    styles={'p':body,'bullet':ParagraphStyle('Bullet',parent=body,leftIndent=8,firstLineIndent=-5,spaceAfter=5),
         'h1':ParagraphStyle('Title',parent=body,fontName='ZHBold',fontSize=25,leading=31,spaceAfter=12,keepWithNext=True),
         'h2':ParagraphStyle('Heading1',parent=body,fontName='ZHBold',fontSize=17,leading=23,spaceBefore=4,spaceAfter=12,keepWithNext=True),
         'h3':ParagraphStyle('Heading2',parent=body,fontName='ZHBold',fontSize=11.5,leading=16,spaceBefore=8,spaceAfter=7,keepWithNext=True)}
-    cell=ParagraphStyle('Cell',parent=body,fontSize=9.1,leading=12.7,spaceAfter=0)
+    cell=ParagraphStyle('Cell',parent=body,fontSize=9.1,leading=12.4,spaceAfter=0)
     head=ParagraphStyle('Head',parent=cell,fontName='ZHBold')
     center=ParagraphStyle('Numeric',parent=cell,alignment=TA_CENTER)
     code=ParagraphStyle('Code',parent=body,fontName='Mono',fontSize=8.5,leading=11.5,leftIndent=4,spaceBefore=4,spaceAfter=9)
@@ -106,7 +106,7 @@ def make_pdf(blocks,path,args):
         elif kind=='table':
             data=[[Paragraph(en.inline_xml(x),head if j==0 else center if en.numeric_cell(x) or x=='通过' else cell) for x in row] for j,row in enumerate(value)]
             table=Table(data,colWidths=en.widths(value,doc.width),repeatRows=1,hAlign='LEFT')
-            table.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.HexColor('#E7EEF5')),('GRID',(0,0),(-1,-1),.5,colors.HexColor('#D9D9D9')),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5)]))
+            table.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.HexColor('#E7EEF5')),('GRID',(0,0),(-1,-1),.5,colors.HexColor('#D9D9D9')),('VALIGN',(0,0),(-1,-1),'MIDDLE'),('LEFTPADDING',(0,0),(-1,-1),6),('RIGHTPADDING',(0,0),(-1,-1),6),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)]))
             story.extend([table,Spacer(1,9)])
         elif kind=='code':story.append(XPreformatted(escape(value),code))
         elif kind=='image':
