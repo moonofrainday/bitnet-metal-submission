@@ -54,4 +54,4 @@ The current submission tree contains English instructions/report source, necessa
 
 Models, raw tensors/logits/timing samples, captures, compiled frameworks/libraries/apps, device identifiers and signing credentials stay outside Git. Small per-round or correctness-summary tables under `bitnet/analysis` are derived analysis, not raw timing samples. Upstream vocabulary GGUF fixtures and operation support tables are inherited test assets, not our downloaded checkpoint or experiment payloads.
 
-The implementation is AI-assisted; the author remains responsible for reviewing and explaining the code. This private repository has not granted the assessment team access or submitted the assignment automatically.
+The implementation is AI-assisted; the author remains responsible for reviewing and explaining the code. The repository is public so reviewers can access the source and report directly.
